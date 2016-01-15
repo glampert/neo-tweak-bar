@@ -1,0 +1,1353 @@
+
+// ================================================================================================
+// -*- C++ -*-
+// File: ntb_utils.hpp
+// Author: Guilherme R. Lampert
+// Created on: 18/12/15
+// Brief: Common internal use functions, types and structures of the NeoTweakBar library.
+// ================================================================================================
+
+#ifndef NEO_TWEAK_BAR_UTILS_HPP
+#define NEO_TWEAK_BAR_UTILS_HPP
+
+#include <cstddef>   // For std::size_t, basic types, etc
+#include <cstring>   // For std::memcpy, std::strlen, etc
+#include <utility>   // For std::swap, std::move
+#include <algorithm> // For std::sort, std::min, std::max
+
+#include <cstdlib> // abs/malloc/free
+#include <cstdio> // snprintf
+
+//
+// Overridable assert() macro for NTB:
+//
+#ifndef NTB_ASSERT
+    #include <cassert>
+    #define NTB_ASSERT assert
+#endif // NTB_ASSERT
+
+// ========================================================
+// TODO
+// ========================================================
+
+//
+// NOTE
+//
+// GET RID OF AS MUCH STUFF AS WE CAN.
+// BETTER MAKE THIS LIBRARY MORE LIGHTWEIGHT
+// PtrArray MIGHT END UP UNUSED!
+//
+
+#define NEO_TWEAK_BAR_CXX11_SUPPORTED 1
+#define NEO_TWEAK_BAR_STD_STRING_INTEROP 1
+
+// *** TEMP ***
+#include <iostream>
+#include <string>
+
+#if NEO_TWEAK_BAR_CXX11_SUPPORTED
+    // For std::is_pod, std::is_pointer, etc.
+    #include <type_traits>
+#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
+
+//TODO c++98 compat!
+#define NTB_DISABLE_COPY_ASSIGN(className) \
+  private:                                 \
+    className(const className &) = delete; \
+    className & operator = (const className &) = delete
+
+#define NTB_FINAL_CLASS    final
+#define NTB_OVERRIDE       override
+#define NTB_NULL           nullptr
+#define NTB_CONSTEXPR_FUNC constexpr
+
+//TODO TIDY; TEMP
+#include <cstdio> // for the printf below
+#define NTB_ERROR(message) std::printf("NTB ERROR: %s\n", message)
+
+//TODO need a custom allocator...
+//
+// Preferably, should get rid of these macros.
+// Probably define class-level new/delete for the classes that get dynamically allocated.
+//
+#define NTB_NEW    new
+#define NTB_DELETE delete
+
+//FIXME stdint is not so widely available...
+#include <cstdint>
+#include <cstdlib>
+
+// Probably put some of the stuff into namespace detail...
+namespace ntb
+{
+typedef std::uint8_t UByte;
+
+typedef std::int8_t  Int8;
+typedef std::uint8_t UInt8;
+
+typedef std::int16_t  Int16;
+typedef std::uint16_t UInt16;
+
+typedef std::int32_t  Int32;
+typedef std::uint32_t UInt32;
+
+typedef std::int64_t  Int64;
+typedef std::uint64_t UInt64;
+
+namespace detail
+{
+
+//TODO replace with user supplied callbacks!
+template<class T>
+inline T * memAlloc(const std::size_t countInItems) // should just crash if out of mem! we don't check for null return!!!
+{
+    NTB_ASSERT(countInItems != 0);
+    return reinterpret_cast<T *>(std::malloc(countInItems * sizeof(T)));
+}
+inline void memFree(void * ptr)
+{
+    if (ptr != NTB_NULL)
+    {
+        std::free(ptr);
+    }
+}
+
+//TODO make non-inline
+inline int copyString(char * dest, int destSizeInChars, const char * source)
+{
+    NTB_ASSERT(dest != NTB_NULL);
+    NTB_ASSERT(source != NTB_NULL);
+    NTB_ASSERT(destSizeInChars > 0);
+
+    // Copy until the end of source or until we run out of space in dest:
+    char * ptr = dest;
+    while ((*ptr++ = *source++) && --destSizeInChars > 0) { }
+
+    // Truncate on overflow:
+    if (destSizeInChars == 0)
+    {
+        *(--ptr) = '\0';
+        NTB_ERROR("Overflow in copyString()! Output was truncated.");
+        return static_cast<int>(ptr - dest);
+    }
+
+    // Return the number of chars written to dest (not counting the null terminator).
+    return static_cast<int>(ptr - dest - 1);
+}
+
+//MAKE NON-INLINE
+inline bool intToString(UInt64 number, char * dest, const int destSizeInChars, const int numBase, const bool isNegative)
+{
+    NTB_ASSERT(dest != NTB_NULL);
+    NTB_ASSERT(destSizeInChars > 3); // - or 0x and a '\0'
+
+    // Supports binary, octal, decimal and hexadecimal.
+    const bool goodBase = (numBase == 2  || numBase == 8 ||
+                           numBase == 10 || numBase == 16);
+    if (!goodBase)
+    {
+        NTB_ERROR("Bad numeric base in intToString()!");
+        dest[0] = '\0';
+        return false;
+    }
+
+    char * ptr = dest;
+    int length = 0;
+
+    if (numBase == 16)
+    {
+        // Add an "0x" in front of hexadecimal values:
+        *ptr++ = '0';
+        *ptr++ = 'x';
+        length += 2;
+    }
+    else
+    {
+        if (isNegative && numBase == 10)
+        {
+            // Negative decimal, so output '-' and negate:
+            length++;
+            *ptr++ = '-';
+            number = static_cast<UInt64>(-static_cast<Int64>(number));
+        }
+    }
+
+    // Save pointer to the first digit so we can reverse the string later.
+    char * firstDigit = ptr;
+
+    // Main conversion loop:
+    do
+    {
+        const int digitVal = number % numBase;
+        number /= numBase;
+
+        // Convert to ASCII and store:
+        if (digitVal > 9)
+        {
+            *ptr++ = static_cast<char>((digitVal - 10) + 'A'); // A letter (hexadecimal)
+        }
+        else
+        {
+            *ptr++ = static_cast<char>(digitVal + '0'); // A digit
+        }
+        ++length;
+    }
+    while (number > 0 && length < destSizeInChars);
+
+    // Check for buffer overflow. Return an empty string in such case.
+    if (length >= destSizeInChars)
+    {
+        NTB_ERROR("Buffer overflow in integer => string conversion!");
+        dest[0] = '\0';
+        return false;
+    }
+
+    *ptr-- = '\0';
+
+    // We now have the digits of the number in the buffer,
+    // but in reverse order. So reverse the string now.
+    do
+    {
+        const char tmp = *ptr;
+        *ptr = *firstDigit;
+        *firstDigit = tmp;
+
+        --ptr;
+        ++firstDigit;
+    }
+    while (firstDigit < ptr);
+
+    // Converted successfully.
+    return true;
+}
+
+} // namespace detail {}
+
+// Don't care about 32-64bit truncation. Our strings are not nearly that long.
+inline int lengthOf(const char * str)
+{
+    NTB_ASSERT(str != NTB_NULL);
+    return static_cast<int>(std::strlen(str));
+}
+
+template<class T, int Size>
+NTB_CONSTEXPR_FUNC inline int lengthOf(const T (&)[Size])
+{
+    return Size;
+}
+
+} // ntb
+
+// ------------------------------------
+
+namespace ntb
+{
+
+// ========================================================
+// Color space conversion helpers:
+// ========================================================
+
+typedef UInt32 Color32;
+
+// Remaps the value 'x' from one arbitrary min,max range to another.
+template<class T>
+NTB_CONSTEXPR_FUNC inline T remap(const T x, const T inMin, const T inMax, const T outMin, const T outMax)
+{
+    return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+}
+
+// Byte in [0,255] range to float in [0,1] range.
+// Used for color space conversions.
+NTB_CONSTEXPR_FUNC inline float byteToFloat(const UByte b)
+{
+    return static_cast<float>(b) * (1.0f / 255.0f);
+}
+
+// Float in [0,1] range to byte in [0,255] range.
+// Used for color space conversions. Note that 'f' is not clamped!
+NTB_CONSTEXPR_FUNC inline UByte floatToByte(const float f)
+{
+    return static_cast<UByte>(f * 255.0f);
+}
+
+// Pack each byte into an integer:
+// 0x00-00-00-00
+//   aa-rr-gg-bb
+// Order will be ARGB, but APIs like OpenGL read it right-to-left as BGRA (GL_BGRA).
+NTB_CONSTEXPR_FUNC inline Color32 packColor(const UByte r, const UByte g, const UByte b, const UByte a = 255)
+{
+    return static_cast<Color32>((a << 24) | (r << 16) | (g << 8) | b);
+}
+
+// Undo the work of packColor():
+void unpackColor(Color32 color, UByte & r, UByte & g, UByte & b, UByte & a);
+
+// Lightens/darkens the given color by a percentage. Alpha channel remains unaltered.
+// NOTE: The algorithm used is not very accurate!
+Color32 lighthenRGB(Color32 color, float percent);
+Color32 darkenRGB(Color32 color, float percent);
+
+// Very simple blending of float RGBA [0,1] range colors by a given percentage.
+Color32 blendColors(const float color1[], const float color2[], float percent);
+
+// Hue Lightens Saturation <=> Red Green Blue conversions:
+void RGBToHLS(float fR, float fG, float fB, float & hue, float & light, float & saturation);
+void HLSToRGB(float hue, float light, float saturation, float & fR, float & fG, float & fB);
+
+// ========================================================
+// class PODArray:
+//
+// Dynamically growable sequential array similar to
+// std::vector, but not copyable, so no returning it
+// by value. This was intentional to prevent expensive
+// accidental copies.
+//
+// Each reallocation will add some extra slots to the array.
+// pushBack() reallocations will always double the current
+// capacity plus add a few extra slots. Check 'allocExtra'
+// in the implementation for details.
+//
+// NOTE: This class supports Plain Old Data (POD)
+// types only! No constructor or destructor is called for
+// the stored type. It also uses std::memcpy internally.
+// ========================================================
+
+//TODO make non-inline
+class PODArray NTB_FINAL_CLASS
+{
+    NTB_DISABLE_COPY_ASSIGN(PODArray);
+
+public:
+
+    explicit PODArray(const int itemSizeBytes)
+    {
+        // Default constructor creates an empty array.
+        // First insertion will init with default capacity.
+        // No memory is allocated until them.
+        initInternal(itemSizeBytes);
+    }
+
+    PODArray(const int itemSizeBytes, const int sizeInItems)
+    {
+        initInternal(itemSizeBytes);
+        resize(sizeInItems);
+        // New items are left uninitialized.
+    }
+
+    template<class T>
+    PODArray(const int itemSizeBytes, const int sizeInItems, const T & fillWith)
+    {
+        initInternal(itemSizeBytes);
+        resize(sizeInItems);
+        for (int i = 0; i < getSize(); ++i)
+        {
+            get<T>(i) = fillWith;
+        }
+    }
+
+    ~PODArray()
+    {
+        deallocate();
+    }
+
+    // Explicitly allocate storage or expand current. Size not changed.
+    // No-op when new capacity is less than or equal the current.
+    void allocate()
+    {
+        if (isAllocated()) { return; }
+
+        // Default to 2 initial slots plus allocation
+        // extra added to all reallocations.
+        allocate(2);
+    }
+
+    // Allocates some extra trailing slots for future array growths.
+    void allocate(const int capacityHint)
+    {
+        if (capacityHint <= getCapacity())
+        {
+            return; // Doesn't shrink
+        }
+
+        // Extra elements per allocation (powers of 2):
+        const int itemSize   = getItemSize();
+        const int allocExtra = (itemSize <= 1) ? 64 :
+                               (itemSize <= 2) ? 32 :
+                               (itemSize <= 4) ? 16 :
+                               (itemSize <= 8) ?  8 : 4;
+
+        const int newCapacity = capacityHint + allocExtra;
+        UByte * newMemory = detail::memAlloc<UByte>(newCapacity * itemSize);
+
+        // Preserve old data, if any:
+        if (getSize() > 0)
+        {
+            std::memcpy(newMemory, basePtr, getSize() * itemSize);
+        }
+
+        setCapacity(newCapacity);
+        setNewStorage(newMemory);
+    }
+
+    // This one allocates the exact amount requested, without reserving
+    // some extra to prevent new allocations on future array growths.
+    // Use this method when you are sure the array will only be allocated once.
+    void allocateExact(const int capacityWanted)
+    {
+        if (capacityWanted <= getCapacity())
+        {
+            return; // Doesn't shrink
+        }
+
+        const int itemSize = getItemSize();
+        UByte * newMemory = detail::memAlloc<UByte>(capacityWanted * itemSize);
+        if (getSize() > 0) // Preserve old data, if any:
+        {
+            std::memcpy(newMemory, basePtr, getSize() * itemSize);
+        }
+
+        setCapacity(capacityWanted);
+        setNewStorage(newMemory);
+    }
+
+    // Frees all memory and sets size & capacity to zero.
+    void deallocate()
+    {
+        if (!isAllocated()) { return; }
+        setNewStorage(NTB_NULL);
+        setCapacity(0);
+        setSize(0);
+    }
+
+    // Ensure space is allocated and sets size to 'newSizeInItems'.
+    // Newly allocated items are uninitialized. No-op if new size <= current size.
+    void resize(const int newSizeInItems)
+    {
+        if (newSizeInItems <= getSize())
+        {
+            return; // Doesn't shrink
+        }
+        allocate(newSizeInItems);
+        setSize(newSizeInItems);
+    }
+
+    // Append one element, possibly reallocating to make room.
+    template<class T>
+    void pushBack(const T & item)
+    {
+        const int currSize = getSize();
+        if (currSize == getCapacity())
+        {
+            // Double size on push back when depleted.
+            // Fresh allocations start with 2 items.
+            allocate(currSize > 0 ? (currSize * 2) : 2);
+        }
+
+        NTB_ASSERT(sizeof(T) == getItemSize());
+        *reinterpret_cast<T *>(basePtr + (currSize * sizeof(T))) = item;
+        setSize(currSize + 1);
+    }
+
+    // Decrement size by one, removing element at the end of the array.
+    void popBack()
+    {
+        if (!isEmpty())
+        {
+            setSize(getSize() - 1);
+        }
+    }
+
+    //TODO test this!
+    //
+    // Insert at index, possibly growing the array and shifting to the right to make room.
+    template<class T>
+    void insert(const T & item, const int index)
+    {
+        // Inserting at the start of an empty array is permitted.
+        if (isEmpty() && index == 0)
+        {
+            pushBack<T>(item);
+            return;
+        }
+
+        // Otherwise, index must be valid.
+        NTB_ASSERT(index >= 0 && index < getSize());
+        NTB_ASSERT(sizeof(T) == getItemSize());
+
+        const int currSize = getSize();
+        allocate(currSize + 1);
+
+        if (index < currSize)
+        {
+            std::memmove(basePtr + ((index + 1) * sizeof(T)),
+                         basePtr + (index * sizeof(T)),
+                         (currSize - index) * sizeof(T));
+        }
+
+        *reinterpret_cast<T *>(basePtr + (index * sizeof(T))) = item;
+        setSize(currSize + 1);
+    }
+
+    //TODO test this!
+    //
+    // Removes at index, shifting the array by one.
+    void remove(const int index)
+    {
+        NTB_ASSERT(index >= 0 && index < getSize());
+
+        const int newSize = getSize() - 1;
+        if (newSize > 0) // If it wasn't the last item, we shift the remaining:
+        {
+            const int remaining = newSize - (index + 1);
+            if (remaining > 0)
+            {
+                const int itemSize = getItemSize();
+                std::memmove(basePtr + (index * itemSize),
+                             basePtr + ((index + 1) * itemSize),
+                             remaining * itemSize);
+            }
+        }
+        setSize(newSize);
+    }
+
+    //TODO test this!
+    //
+    // Swap the last element of the array into the given index.
+    // Unlike remove() this is constant time.
+    void removeAndSwap(const int index)
+    {
+        NTB_ASSERT(index >= 0 && index < getSize());
+
+        const int newSize = getSize() - 1;
+        if (index != newSize)
+        {
+            const int itemSize = getItemSize();
+            std::memmove(basePtr + (index * itemSize),
+                         basePtr + (newSize * itemSize),
+                         itemSize);
+        }
+        setSize(newSize);
+    }
+
+    //
+    // Access item with cast and bounds checking:
+    //
+    template<class T>
+    const T & get(const int index) const
+    {
+        NTB_ASSERT(isAllocated());
+        NTB_ASSERT(sizeof(T) == getItemSize());
+        NTB_ASSERT(index >= 0 && index < getSize());
+        return *reinterpret_cast<const T *>(basePtr + (index * sizeof(T)));
+    }
+    template<class T>
+    T & get(const int index)
+    {
+        NTB_ASSERT(isAllocated());
+        NTB_ASSERT(sizeof(T) == getItemSize());
+        NTB_ASSERT(index >= 0 && index < getSize());
+        return *reinterpret_cast<T *>(basePtr + (index * sizeof(T)));
+    }
+
+    //
+    // Pointer to base address:
+    // (T doesn't have to match itemSize in this case)
+    //
+    template<class T>
+    const T * getData() const
+    {
+        return reinterpret_cast<const T *>(basePtr);
+    }
+    template<class T>
+    T * getData()
+    {
+        return reinterpret_cast<T *>(basePtr);
+    }
+
+    //
+    // Misc queries:
+    //
+    bool isAllocated() const { return basePtr != NTB_NULL; }
+    bool isEmpty()     const { return ctrl.used == 0; }
+    int  getSize()     const { return ctrl.used;      }
+    int  getCapacity() const { return ctrl.capacity;  }
+    int  getItemSize() const { return ctrl.itemSize;  }
+    void clear()             { setSize(0);            }
+
+private:
+
+    void initInternal(const int itemBytes)
+    {
+        // Size we can fit in the 16 bits of ctrl.itemSize.
+        NTB_ASSERT(itemBytes <= 65536);
+        ctrl.used     = 0;
+        ctrl.capacity = 0;
+        ctrl.itemSize = itemBytes;
+        basePtr       = NTB_NULL;
+    }
+
+    void setNewStorage(UByte * newMemory)
+    {
+        detail::memFree(basePtr);
+        basePtr = newMemory;
+    }
+
+    void setSize(const int amount)     { ctrl.used     = amount; }
+    void setCapacity(const int amount) { ctrl.capacity = amount; }
+    void setItemSize(const int amount) { ctrl.itemSize = amount; }
+
+    //
+    // 4 or 8 bytes for the pointer and 64 bits
+    // shared with the capacity/size/item-size.
+    // PODArray total size should not be beyond
+    // 16 bytes on a 64-bits architecture.
+    //
+    // Max item size is 65536 bytes (16-bits)
+    //
+    #pragma pack(push, 1)
+    struct
+    {
+        int used     : 24; // Slots used by items.
+        int capacity : 24; // Total slots allocated.
+        int itemSize : 16; // Size in bytes of each item.
+    } ctrl;
+    #pragma pack(pop)
+
+    // Pointer to first slot.
+    UByte * basePtr;
+};
+
+// ========================================================
+// class ListNode:
+//
+// Some structures within the library are ordered using
+// intrusive lists. They inherit from this node type.
+// ========================================================
+
+//TODO make non-inline
+class ListNode
+{
+public:
+
+    ListNode()
+        : prev(NTB_NULL)
+        , next(NTB_NULL)
+    { }
+
+    bool isLinked() const { return prev != NTB_NULL && next != NTB_NULL; }
+    template<class T> T * getNext() const { return static_cast<T *>(next); }
+    template<class T> T * getPrev() const { return static_cast<T *>(prev); }
+
+protected:
+
+    // List nodes are not meant to be directly deleted,
+    // so we don't need a public virtual destructor.
+    ~ListNode() { }
+
+private:
+
+    // Only the list can directly access the member links.
+    friend class IntrusiveList;
+    ListNode * prev;
+    ListNode * next;
+};
+
+// ========================================================
+// class IntrusiveList:
+//
+// Intrusive doubly-linked list. Items inserted
+// into the structure must inherit from ListNode.
+// Items cannot be members of more than one list
+// at any given time (we try to assert for that).
+// Items also can't be inserted into the same list
+// more than once. Size is stored, so getSize() is O(N).
+// List is circularly referenced: head<->tail are linked.
+// ========================================================
+
+//TODO make non-inline
+class IntrusiveList NTB_FINAL_CLASS
+{
+    NTB_DISABLE_COPY_ASSIGN(IntrusiveList);
+
+public:
+
+    // Constructs an empty list.
+    IntrusiveList()
+        : head(NTB_NULL)
+        , size(0)
+    { }
+
+    //
+    // pushFront/Back:
+    // Append at the head or tail of the list.
+    // Both are constant time. Node must not be null!
+    //
+    void pushFront(ListNode * node)
+    {
+        NTB_ASSERT(node != NTB_NULL);
+        NTB_ASSERT(!node->isLinked()); // A node can only be a member of one list at a time!
+
+        if (!isEmpty())
+        {
+            // head->prev points the tail, and vice-versa:
+            ListNode * tail = head->prev;
+            node->next = head;
+            head->prev = node;
+            node->prev = tail;
+            head = node;
+        }
+        else // Empty list, first insertion:
+        {
+            head = node;
+            head->prev = head;
+            head->next = head;
+        }
+        ++size;
+    }
+
+    void pushBack(ListNode * node)
+    {
+        NTB_ASSERT(node != NTB_NULL);
+        NTB_ASSERT(!node->isLinked()); // A node can only be a member of one list at a time!
+
+        if (!isEmpty())
+        {
+            // head->prev points the tail, and vice-versa:
+            ListNode * tail = head->prev;
+            node->prev = tail;
+            tail->next = node;
+            node->next = head;
+            head->prev = node;
+        }
+        else // Empty list, first insertion:
+        {
+            head = node;
+            head->prev = head;
+            head->next = head;
+        }
+        ++size;
+    }
+
+    //
+    // popFront/Back:
+    // Removes one node from head or tail of the list, without destroying the object.
+    // Returns the removed node or null if the list is already empty. Both are constant time.
+    //
+    void popFront()
+    {
+        if (isEmpty()) { return; }
+
+        ListNode * removedNode = head;
+        ListNode * tail = head->prev;
+        head = head->next;
+        head->prev = tail;
+        --size;
+
+        removedNode->prev = NTB_NULL;
+        removedNode->next = NTB_NULL;
+    }
+
+    void popBack()
+    {
+        if (isEmpty()) { return; }
+
+        ListNode * removedNode = head->prev;
+        ListNode * tail = head->prev;
+        head->prev = tail->prev;
+        tail->prev->next = head;
+        --size;
+
+        removedNode->prev = NTB_NULL;
+        removedNode->next = NTB_NULL;
+    }
+
+    //
+    // Unlink nodes from anywhere in the list:
+    //
+    void unlink(ListNode * node)
+    {
+        // Assumes the node is linked to THIS LIST.
+        NTB_ASSERT(node != NTB_NULL);
+        NTB_ASSERT(node->isLinked());
+        NTB_ASSERT(!isEmpty());
+
+        if (node == head) // Head
+        {
+            popFront();
+        }
+        else if (node == head->prev) // Tail
+        {
+            popBack();
+        }
+        else // Middle
+        {
+            ListNode * nodePrev = node->prev;
+            ListNode * nodeNext = node->next;
+            nodePrev->next = nodeNext;
+            nodeNext->prev = nodePrev;
+            node->prev = NTB_NULL;
+            node->next = NTB_NULL;
+            --size;
+        }
+    }
+
+    void unlinkAndDelete(ListNode * node)
+    {
+        unlink(node);
+        NTB_DELETE node;
+    }
+
+    void unlinkAll()
+    {
+        ListNode * node = head;
+        while (size--)
+        {
+            ListNode * tmp = node;
+            node = node->next;
+
+            NTB_ASSERT(tmp != NTB_NULL);
+            tmp->prev = NTB_NULL;
+            tmp->next = NTB_NULL;
+        }
+        head = NTB_NULL;
+    }
+
+    void unlinkAndDeleteAll()
+    {
+        ListNode * node = head;
+        while (size--)
+        {
+            ListNode * tmp = node;
+            node = node->next;
+            NTB_DELETE tmp;
+        }
+        head = NTB_NULL;
+    }
+
+    //
+    // Access the head or tail elements
+    // of the doubly-linked list.
+    //
+    template<class T>
+    T * getFirst() const
+    {
+        return static_cast<T *>(head);
+    }
+    template<class T>
+    T * getLast() const
+    {
+        if (isEmpty()) { return NTB_NULL; }
+        return static_cast<T *>(head->prev);
+    }
+
+    //
+    // Constant-time queries:
+    //
+    bool isEmpty() const { return size == 0; }
+    int  getSize() const { return size; }
+
+private:
+
+    ListNode * head; // Head of list, null if list empty. Circularly referenced.
+    int size;        // Number of items currently in the list. 0 if list empty.
+};
+
+// ========================================================
+// class SmallStr:
+//
+// Simple dynamically sized string class with SSO - Small
+// String Optimization for strings under 40 characters.
+// A small buffer of chars is kept inline with the object
+// to avoid a dynamic memory alloc for small strings.
+// It can also grow to accommodate arbitrarily sized strings.
+// The overall design is somewhat similar to std::string.
+// Total structure size should be ~56 bytes.
+// ========================================================
+
+//TODO make non-inline
+class SmallStr NTB_FINAL_CLASS
+{
+public:
+
+    SmallStr()
+    {
+        initInternal(NTB_NULL, 0);
+    }
+
+    ~SmallStr()
+    {
+        if (isDynamic())
+        {
+            detail::memFree(backingStore.dynamic);
+        }
+        // else storage is inline with the object.
+    }
+
+    SmallStr(const char * str)
+    {
+        NTB_ASSERT(str != NTB_NULL);
+        initInternal(str, lengthOf(str));
+    }
+
+    SmallStr(const char * str, const int len)
+    {
+        NTB_ASSERT(str != NTB_NULL);
+        initInternal(str, len);
+    }
+
+    SmallStr(const SmallStr & other)
+    {
+        initInternal(other.getCString(), other.getLength());
+    }
+
+    SmallStr & operator = (const SmallStr & other)
+    {
+        setCString(other.getCString(), other.getLength());
+        return *this;
+    }
+
+    SmallStr & operator = (const char * str)
+    {
+        setCString(str);
+        return *this;
+    }
+
+    SmallStr & operator += (const SmallStr & other)
+    {
+        append(other.getCString(), other.getLength());
+        return *this;
+    }
+
+    SmallStr & operator += (const char * str)
+    {
+        append(str, lengthOf(str));
+        return *this;
+    }
+
+    void setCString(const char * str)
+    {
+        NTB_ASSERT(str != NTB_NULL);
+        setCString(str, lengthOf(str));
+    }
+
+    void setCString(const char * str, const int len)
+    {
+        NTB_ASSERT(str != NTB_NULL);
+
+        if (len <= 0 || *str == '\0')
+        {
+            clear();
+            return;
+        }
+        if (ctrl.maxSize > 0 && (len + 1) > ctrl.maxSize)
+        {
+            NTB_ERROR("Assigning to SmallStr would overflow maxSize!");
+            return;
+        }
+        if ((len + 1) > ctrl.capacity)
+        {
+            resizeInternal(len + 1);
+        }
+
+        detail::copyString(getCString(), ctrl.capacity, str);
+        ctrl.length = len;
+    }
+
+    void append(const char * str, const int len)
+    {
+        NTB_ASSERT(str != NTB_NULL);
+
+        if (len <= 0 || *str == '\0')
+        {
+            return;
+        }
+
+        const int lengthNeeded = ctrl.length + len;
+        if (ctrl.maxSize > 0 && (lengthNeeded + 1) > ctrl.maxSize)
+        {
+            NTB_ERROR("Appending to SmallStr would overflow maxSize!");
+            return;
+        }
+        if ((lengthNeeded + 1) > ctrl.capacity)
+        {
+            resizeInternal(lengthNeeded + 1);
+        }
+
+        std::memcpy(getCString() + ctrl.length, str, len);
+        getCString()[lengthNeeded] = '\0';
+        ctrl.length = lengthNeeded;
+    }
+
+    char & operator[] (const int index)
+    {
+        NTB_ASSERT(index >= 0 && index < getLength());
+        return getCString()[index];
+    }
+
+    char operator[] (const int index) const
+    {
+        NTB_ASSERT(index >= 0 && index < getLength());
+        return getCString()[index];
+    }
+
+    void clear()
+    {
+        // Does not free dynamic memory.
+        ctrl.length = 0;
+        getCString()[0] = '\0';
+    }
+
+    bool isDynamic()   const { return ctrl.capacity > static_cast<int>(sizeof(backingStore)); }
+    bool isEmpty()     const { return ctrl.length == 0; }
+    int  getLength()   const { return ctrl.length;      }
+    int  getCapacity() const { return ctrl.capacity;    }
+    int  getMaxSize()  const { return ctrl.maxSize;     }
+
+    void setMaxSize(const int numChars)
+    {
+        NTB_ASSERT(numChars <= 65536);
+        ctrl.maxSize = numChars;
+    }
+    const char * getCString() const
+    {
+        return (!isDynamic() ? backingStore.fixed : backingStore.dynamic);
+    }
+    char * getCString()
+    {
+        return (!isDynamic() ? backingStore.fixed : backingStore.dynamic);
+    }
+
+    // c_str() method is for compatibility with std::string.
+    const char * c_str() const { return getCString(); }
+
+    //
+    // Swap the internal contents of two SmallStrs:
+    //
+
+    friend void swap(SmallStr & first, SmallStr & second)
+    {
+        using std::swap;
+
+        if (first.isDynamic() && second.isDynamic())
+        {
+            swap(first.ctrl, second.ctrl);
+            swap(first.backingStore.dynamic, second.backingStore.dynamic);
+        }
+        else // Storage is inline with one/both the objects, need to strcpy.
+        {
+            SmallStr temp(first);
+            first  = second;
+            second = temp;
+        }
+    }
+
+    //
+    // Compare against other SmallStr or a char* string:
+    //
+
+    bool operator == (const SmallStr & other) const
+    {
+        return std::strcmp(getCString(), other.getCString()) == 0;
+    }
+    bool operator != (const SmallStr & other) const
+    {
+        return std::strcmp(getCString(), other.getCString()) != 0;
+    }
+
+    bool operator == (const char * str) const
+    {
+        NTB_ASSERT(str != NTB_NULL);
+        return std::strcmp(getCString(), str) == 0;
+    }
+    bool operator != (const char * str) const
+    {
+        NTB_ASSERT(str != NTB_NULL);
+        return std::strcmp(getCString(), str) != 0;
+    }
+
+    //
+    // Covert numbers/pointers/vectors to string:
+    //
+
+    enum { NumConvBufSize = 128 };
+
+    static SmallStr fromPointer(const void * ptr, const int base = 16)
+    {
+        // Hexadecimal is the default for pointers.
+        if (base == 16)
+        {
+            // # of chars to output: ptr32 = 8, ptr64 = 16
+            const int width = static_cast<int>(sizeof(void *) * 2);
+
+            // size_t is big enough to hold the platform's pointer value.
+            const std::size_t addr = reinterpret_cast<std::size_t>(ptr);
+
+            char buffer[NumConvBufSize];
+            std::snprintf(buffer, sizeof(buffer), "0x%0*zX", width, addr);
+            buffer[sizeof(buffer) - 1] = '\0';
+            return buffer;
+        }
+
+        // Cast to integer and display as decimal/bin/octal:
+        return fromNumber(static_cast<UInt64>(reinterpret_cast<std::uintptr_t>(ptr)), base);
+    }
+
+    static SmallStr fromNumber(const double num, const int base = 10)
+    {
+        if (base == 10)
+        {
+            char buffer[NumConvBufSize];
+            std::snprintf(buffer, sizeof(buffer), "%f", num);
+            buffer[sizeof(buffer) - 1] = '\0';
+
+            // Trim trailing zeros to the right of the decimal point:
+            for (char * ptr = buffer; *ptr != '\0'; ++ptr)
+            {
+                if (*ptr != '.')
+                {
+                    continue;
+                }
+                while (*++ptr != '\0') // Find the end of the string
+                {
+                }
+                while (*--ptr == '0') // Remove trailing zeros
+                {
+                    *ptr = '\0';
+                }
+                if (*ptr == '.') // If the dot was left alone at the end, remove it
+                {
+                    *ptr = '\0';
+                }
+                break;
+            }
+            return buffer;
+        }
+
+        // Cast to integer and display as hex/bin/octal:
+        union
+        {
+            double asDouble;
+            UInt64 asU64;
+        } val;
+
+        val.asU64 = 0; // In case UInt64 > double
+        val.asDouble = num;
+        return fromNumber(val.asU64, base);
+    }
+
+    static SmallStr fromNumber(const Int64 num, const int base = 10)
+    {
+        char buffer[NumConvBufSize];
+        detail::intToString(static_cast<UInt64>(num), buffer, sizeof(buffer), base, (num < 0));
+        return buffer;
+    }
+
+    static SmallStr fromNumber(const UInt64 num, const int base = 10)
+    {
+        char buffer[NumConvBufSize];
+        detail::intToString(num, buffer, sizeof(buffer), base, false);
+        return buffer;
+    }
+
+    static SmallStr fromFloatVec(const float vec[], const int elemCount, const char * prefix = "")
+    {
+        NTB_ASSERT(elemCount > 0 && elemCount <= 4);
+
+        SmallStr str(prefix);
+        str += "{";
+        for (int i = 0; i < elemCount; ++i)
+        {
+            str += fromNumber(static_cast<double>(vec[i]));
+            if (i != elemCount - 1)
+            {
+                str += ",";
+            }
+        }
+        str += "}";
+
+        return str;
+    }
+
+private:
+
+    void initInternal(const char * str, const int len)
+    {
+        ctrl.length   =  0;
+        ctrl.maxSize  = -1;
+        ctrl.capacity = static_cast<int>(sizeof(backingStore));
+        std::memset(&backingStore, 0, sizeof(backingStore));
+
+        if (str != NTB_NULL)
+        {
+            setCString(str, len);
+        }
+    }
+
+    void resizeInternal(int newCapacity)
+    {
+        const bool isDyn = isDynamic();
+
+        // This many extra chars are added to the new capacity request to
+        // avoid more allocations if the string grows again in the future.
+        // This can be tuned for environments with more limited memory.
+        newCapacity += 64;
+        char * mem = detail::memAlloc<char>(newCapacity);
+
+        // Notice that we don't bother copying the old string.
+        // This is intentional since this method is only called
+        // from setCString().
+        if (isDyn)
+        {
+            detail::memFree(backingStore.dynamic);
+        }
+
+        ctrl.capacity = newCapacity;
+        backingStore.dynamic = mem;
+    }
+
+    #pragma pack(push, 1)
+    // Bitfield used here to avoid additional
+    // unnecessary padding and because we don't
+    // really need the full range of an integer
+    // for SmallStr. So the 3 fields are packed
+    // into 64-bits, making the total structure
+    // size 48 bytes.
+    // maxSize limit is 65536 (16-bits).
+    // This is fine since it is only used by some
+    // parts of the UI to constrain text-field lengths
+    // and sizes of Panel string variables, which are
+    // actually already capped to 256 chars anyways.
+    struct
+    {
+        int length   : 24; // Chars used in string, not counting a '\0' at the end.
+        int capacity : 24; // Total chars available for use.
+        int maxSize  : 16; // Max size (counting the '\0') that this string is allowed to have.
+                           // If -1, can have any size. This is only used by the UI text fields.
+    } ctrl;
+
+    // Either we are using the small fixed-size buffer
+    // or the 'dynamic' field which is heap allocated.
+    // Dynamic memory is in use if capacity > sizeof(backingStore)
+    union
+    {
+        char * dynamic;
+        char fixed[40];
+    } backingStore;
+    #pragma pack(pop)
+};
+
+// ========================================================
+// Point structure (POD):
+// For 2D screen-space points. Stores the point's X and Y.
+// ========================================================
+
+struct Point
+{
+    int x;
+    int y;
+
+    void set(const int px, const int py)
+    {
+        x = px;
+        y = py;
+    }
+
+    void setZero()
+    {
+        x = 0;
+        y = 0;
+    }
+};
+
+// This could be a constructor, but I want to keep Point as a POD type.
+inline Point makePoint(const int px, const int py)
+{
+    const Point pt = { px, py };
+    return pt;
+}
+
+// ========================================================
+// Rectangle structure (POD):
+// For screen-space rectangles. Stores the min/max points.
+// ========================================================
+
+struct Rectangle
+{
+    int xMins;
+    int yMins;
+    int xMaxs;
+    int yMaxs;
+
+    int getPosX()   const { return xMins; }
+    int getPosY()   const { return yMins; }
+    int getWidth()  const { return xMaxs - xMins; }
+    int getHeight() const { return yMaxs - yMins; }
+    int getArea()   const { return getWidth() * getHeight(); }
+
+    bool containsPoint(const Point p) const
+    {
+        if (p.x < xMins || p.x > xMaxs) { return false; }
+        if (p.y < yMins || p.y > yMaxs) { return false; }
+        return true;
+    }
+
+    bool containsPoint(const int x, const int y) const
+    {
+        if (x < xMins || x > xMaxs) { return false; }
+        if (y < yMins || y > yMaxs) { return false; }
+        return true;
+    }
+
+    Rectangle expanded(const int x, const int y) const
+    {
+        const Rectangle rect = { xMins - x, yMins - y, xMaxs + x, yMaxs + y };
+        return rect;
+    }
+
+    Rectangle shrunk(const int x, const int y) const
+    {
+        const Rectangle rect = { xMins + x, yMins + y, xMaxs - x, yMaxs - y };
+        return rect;
+    }
+
+    void moveBy(const int displacementX, const int displacementY)
+    {
+        xMins += displacementX;
+        yMins += displacementY;
+        xMaxs += displacementX;
+        yMaxs += displacementY;
+    }
+
+    void expandWidth(const Rectangle & other)
+    {
+        xMins = std::min(xMins, other.xMins);
+        xMaxs = std::max(xMaxs, other.xMaxs);
+    }
+
+    void set(const int x0, const int y0, const int x1, const int y1)
+    {
+        xMins = x0;
+        yMins = y0;
+        xMaxs = x1;
+        yMaxs = y1;
+    }
+
+    void setZero()
+    {
+        xMins = 0;
+        yMins = 0;
+        xMaxs = 0;
+        yMaxs = 0;
+    }
+};
+
+// This could be a constructor, but I want to keep Rectangle as a POD type.
+inline Rectangle makeRect(const int x0, const int y0, const int x1, const int y1)
+{
+    const Rectangle rect = { x0, y0, x1, y1 };
+    return rect;
+}
+
+} // namespace ntb {}
+
+#endif // NEO_TWEAK_BAR_UTILS_HPP

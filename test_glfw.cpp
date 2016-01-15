@@ -1,0 +1,803 @@
+
+#include <cassert>
+#include <cmath>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
+
+#include <iostream>
+#include <vector>
+#include <string>
+
+#include <GL/gl3w.h> // An OpenGL extension wrangler (https://github.com/skaslev/gl3w).
+#include <GLFW/glfw3.h>
+#include <vectormath.h>
+
+#include "neo_tweak_bar.hpp"
+
+//TEMP
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wunused-const-variable"
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#pragma clang diagnostic ignored "-Wexit-time-destructors"
+#pragma clang diagnostic ignored "-Wweak-vtables"
+
+// Check for a couple C++11 goodies we'd like to use if available...
+#if NEO_TWEAK_BAR_CXX11_SUPPORTED
+#define OVERRIDE_METHOD override
+#define FINAL_CLASS final
+#define NULLPTR nullptr
+#else // !C++11
+#define OVERRIDE_METHOD
+#define FINAL_CLASS
+#define NULLPTR NULL
+#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
+
+// App window dimensions; Not resizable.
+static const int windowWidth = 1024;
+static const int windowHeight = 768;
+
+// Time in milliseconds since the application started.
+static ntb::Int64 getTimeMilliseconds()
+{
+    const double seconds = glfwGetTime();
+    return static_cast<ntb::Int64>(seconds * 1000.0);
+}
+
+// ================================================================================================
+
+class NtbShellInterfaceGLFW FINAL_CLASS
+    : public ntb::ShellInterface
+{
+public:
+
+    ntb::Int64 getTimeMilliseconds() const { return ::getTimeMilliseconds(); }
+};
+
+// ================================================================================================
+
+static const char * getGLErrorString(const GLenum errorCode)
+{
+    switch (errorCode)
+    {
+    case GL_NO_ERROR :
+        return "GL_NO_ERROR";
+    case GL_INVALID_ENUM :
+        return "GL_INVALID_ENUM";
+    case GL_INVALID_VALUE :
+        return "GL_INVALID_VALUE";
+    case GL_INVALID_OPERATION :
+        return "GL_INVALID_OPERATION";
+    case GL_INVALID_FRAMEBUFFER_OPERATION :
+        return "GL_INVALID_FRAMEBUFFER_OPERATION";
+    case GL_OUT_OF_MEMORY :
+        return "GL_OUT_OF_MEMORY";
+    case GL_STACK_UNDERFLOW :
+        return "GL_STACK_UNDERFLOW"; // Legacy; not used on GL3+
+    case GL_STACK_OVERFLOW :
+        return "GL_STACK_OVERFLOW"; // Legacy; not used on GL3+
+    default :
+        return "Unknown GL error";
+    } // switch (errorCode)
+}
+
+static void checkGLError(const char * file, int line, const char * func)
+{
+    GLenum err = 0;
+    char msg[512];
+    while ((err = glGetError()) != 0)
+    {
+        sprintf(msg, "%s(%d) : [%s] GL_CORE_ERROR=0x%x ( %s )\n", file, line, func, err, getGLErrorString(err));
+        fprintf(stderr, "%s", msg);
+    }
+}
+#define CHECK_GL_ERRORS() checkGLError(__FILE__, __LINE__, __func__)
+
+static GLuint compileShader(GLuint shader)
+{
+    glCompileShader(shader);
+    CHECK_GL_ERRORS();
+
+    GLint status;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+    CHECK_GL_ERRORS();
+
+    if (status == GL_FALSE)
+    {
+        GLint infoLogLength;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
+        CHECK_GL_ERRORS();
+        GLchar strInfoLog[512];
+        glGetShaderInfoLog(shader, sizeof(strInfoLog), NULLPTR, strInfoLog);
+        CHECK_GL_ERRORS();
+        fprintf(stderr, "Compile failure: %s\n", strInfoLog);
+        shader = 0;
+    }
+
+    return shader;
+}
+
+static GLuint linkProgram(GLuint program)
+{
+    glLinkProgram(program);
+    CHECK_GL_ERRORS();
+
+    GLint status;
+    glGetProgramiv(program, GL_LINK_STATUS, &status);
+    CHECK_GL_ERRORS();
+
+    if (status == GL_FALSE)
+    {
+        GLint infoLogLength;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
+        CHECK_GL_ERRORS();
+        GLchar strInfoLog[512];
+        glGetProgramInfoLog(program, sizeof(strInfoLog), NULLPTR, strInfoLog);
+        CHECK_GL_ERRORS();
+        fprintf(stderr, "Shader linker failure: %s\n", strInfoLog);
+        program = 0;
+    }
+
+    return program;
+}
+
+static float toNormScreenX(float x, int scrWidth)
+{
+    return ((2.0f * (x - 0.5f)) / scrWidth) - 1.0f;
+}
+
+static float toNormScreenY(float y, int scrHeight)
+{
+    return 1.0f - ((2.0f * (y - 0.5f)) / scrHeight);
+}
+
+static GLvoid * offsetPtr(std::size_t offset)
+{
+    return reinterpret_cast<GLvoid *>(offset);
+}
+
+static const ntb::Color32 * mkWhiteTex()
+{
+    static ntb::Color32 img[64 * 64];
+    for (int i = 0; i < 64 * 64; ++i)
+    {
+        img[i] = ntb::packColor(255, 255, 255, 255);
+    }
+    return img;
+}
+
+// ================================================================================================
+
+class NtbRenderInterfaceCoreGL FINAL_CLASS
+    : public ntb::RenderInterface
+{
+public:
+
+    NtbRenderInterfaceCoreGL();
+    ~NtbRenderInterfaceCoreGL();
+
+    void beginDraw() OVERRIDE_METHOD;
+    void endDraw() OVERRIDE_METHOD;
+
+    ntb::TextureHandle createTexture(int widthPixels, int heightPixels,
+                                     int colorChannels, const void * pixels) OVERRIDE_METHOD;
+
+    void destroyTexture(ntb::TextureHandle texture) OVERRIDE_METHOD;
+
+    void draw3DTriangles(const ntb::VertexPTC * verts, int vertCount,
+                         const ntb::UInt16 * indexes, int indexCount,
+                         ntb::TextureHandle texture) OVERRIDE_METHOD;
+
+    void draw2DTriangles(const ntb::VertexPTC * verts, int vertCount,
+                         const ntb::UInt16 * indexes, int indexCount,
+                         ntb::TextureHandle texture) OVERRIDE_METHOD;
+
+    // each vertex pair is a line.
+    void draw2DLines(const ntb::VertexPC * verts, int vertCount) OVERRIDE_METHOD;
+
+private:
+
+    void initShaders();
+    void initBuffers();
+
+    float maxZ;
+
+    ntb::TextureHandle whiteTex;
+
+    GLuint lines2dProgram;
+    GLuint lines2dVS;
+    GLuint lines2dFS;
+
+    GLuint tris2dProgram;
+    GLuint tris2dVS;
+    GLuint tris2dFS;
+
+    GLuint commonVAO;
+    GLuint lines2dVBO;
+    GLuint tris2dVBO;
+    GLuint tris2dIBO;
+
+    struct GLTexture
+    {
+        GLuint textureId;
+        GLint width;
+        GLint height;
+    };
+
+    std::vector<ntb::VertexPTC> temp2dVerts;
+    std::vector<ntb::VertexPC> temp2dLines;
+};
+
+// ========================================================
+
+NtbRenderInterfaceCoreGL::NtbRenderInterfaceCoreGL()
+{
+    initShaders();
+    initBuffers();
+
+    // We won't change this value during runtime, so it is safe to cache it.
+    maxZ = static_cast<float>(getMaxZ());
+
+    //  glEnable(GL_LINE_SMOOTH); // works, but not strictly necessary
+    //  glLineWidth(4.0f); // doesn't work, but we assume width=1 anyways
+
+    whiteTex = createTexture(64, 64, 4, (unsigned char *)mkWhiteTex());
+}
+
+NtbRenderInterfaceCoreGL::~NtbRenderInterfaceCoreGL()
+{
+    // TODO cleanup!
+}
+
+void NtbRenderInterfaceCoreGL::initShaders()
+{
+    // TODO don't hardcode GLSL #version! Get is from the GL!
+
+    //
+    // Line draw shaders:
+    //
+    {
+        const GLchar * lines2dVSsrc[] =
+        {
+          "#version 410 core\n"
+          "in vec3 inPosition;\n"
+          "in vec4 inColor;\n"
+          "\n"
+          "out vec4 vColor;\n"
+          "void main()\n"
+          "{\n"
+          "    gl_Position = vec4(inPosition, 1.0);\n"
+          "    vColor = inColor;\n"
+          "}\n"
+        };
+        lines2dVS = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(lines2dVS, 1, lines2dVSsrc, NULLPTR);
+        compileShader(lines2dVS);
+
+        const GLchar * lines2dFSsrc[] =
+        {
+          "#version 410 core\n"
+          "in  vec4 vColor;\n"
+          "out vec4 outColor;\n"
+          "void main()\n"
+          "{\n"
+          "    outColor = vColor;\n"
+          "}\n"
+        };
+        lines2dFS = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(lines2dFS, 1, lines2dFSsrc, NULLPTR);
+        compileShader(lines2dFS);
+
+        lines2dProgram = glCreateProgram();
+        glAttachShader(lines2dProgram, lines2dVS);
+        glAttachShader(lines2dProgram, lines2dFS);
+        glBindAttribLocation(lines2dProgram, 0, "inPosition");
+        glBindAttribLocation(lines2dProgram, 1, "inColor");
+        linkProgram(lines2dProgram);
+    }
+
+    //
+    // 2D tris shaders:
+    //
+    {
+        const GLchar * tris2dVSsrc[] =
+        {
+          "#version 410 core\n"
+          "in vec3 inPosition;\n"
+          "in vec2 inTexCoords;\n"
+          "in vec4 inColor;\n"
+          "\n"
+          "out vec2 vTexCoords;\n"
+          "out vec4 vColor;\n"
+          "void main()\n"
+          "{\n"
+          "    gl_Position = vec4(inPosition, 1.0);\n"
+          "    vTexCoords = inTexCoords;\n"
+          "    vColor = inColor;\n"
+          "}\n"
+        };
+        tris2dVS = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(tris2dVS, 1, tris2dVSsrc, NULLPTR);
+        compileShader(tris2dVS);
+
+        const GLchar * tris2dFSsrc[] =
+        {
+          "#version 410 core\n"
+          "uniform sampler2D colorTexture;\n"
+          "in  vec2 vTexCoords;\n"
+          "in  vec4 vColor;\n"
+          "out vec4 outColor;\n"
+          "void main()\n"
+          "{\n"
+          "    outColor = vColor * texture(colorTexture, vTexCoords).rrrr;\n"
+          "    //outColor = vColor * texture(colorTexture, vTexCoords);\n"
+          "    //outColor = vColor;\n"
+          "}\n"
+        };
+        tris2dFS = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(tris2dFS, 1, tris2dFSsrc, NULLPTR);
+        compileShader(tris2dFS);
+
+        tris2dProgram = glCreateProgram();
+        glAttachShader(tris2dProgram, tris2dVS);
+        glAttachShader(tris2dProgram, tris2dFS);
+        glBindAttribLocation(tris2dProgram, 0, "inPosition");
+        glBindAttribLocation(tris2dProgram, 1, "inTexCoords");
+        glBindAttribLocation(tris2dProgram, 2, "inColor");
+        linkProgram(tris2dProgram);
+    }
+}
+
+void NtbRenderInterfaceCoreGL::initBuffers()
+{
+    glGenVertexArrays(1, &commonVAO);
+    glGenBuffers(1, &lines2dVBO);
+    glGenBuffers(1, &tris2dVBO);
+    glGenBuffers(1, &tris2dIBO);
+}
+
+void NtbRenderInterfaceCoreGL::beginDraw()
+{
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_SCISSOR_TEST);
+
+    //  glDisable(GL_DEPTH_TEST);
+    glClearDepth(0);
+    glDepthFunc(GL_GEQUAL);
+    glEnable(GL_DEPTH_TEST);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // use a shared VAO to simplify stuff...
+    glBindVertexArray(commonVAO);
+
+    CHECK_GL_ERRORS();
+}
+
+void NtbRenderInterfaceCoreGL::endDraw()
+{
+    // Cleanup (optional)
+    glUseProgram(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    CHECK_GL_ERRORS();
+}
+
+ntb::TextureHandle NtbRenderInterfaceCoreGL::createTexture(const int widthPixels, const int heightPixels,
+                                                           const int colorChannels, const void * pixels)
+{
+    assert(widthPixels   > 0);
+    assert(heightPixels  > 0);
+    assert(colorChannels > 0);
+    assert(colorChannels <= 4); // Up to RGBA
+    assert(pixels != NULLPTR);
+
+    GLTexture * newTex = new GLTexture();
+    newTex->width = widthPixels;
+    newTex->height = heightPixels;
+
+    glGenTextures(1, &newTex->textureId);
+    glBindTexture(GL_TEXTURE_2D, newTex->textureId);
+
+    // Set the row alignment to the highest value that
+    // the size of a row divides evenly. Options are: 8,4,2,1.
+    const GLuint rowSizeBytes = widthPixels * colorChannels;
+    if ((rowSizeBytes % 8) == 0)
+    {
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
+    }
+    else if ((rowSizeBytes % 4) == 0)
+    {
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    }
+    else if ((rowSizeBytes % 2) == 0)
+    {
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+    }
+    else
+    {
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    }
+
+    const GLenum format = (colorChannels == 1) ? GL_RED : (colorChannels == 3) ? GL_RGB : GL_RGBA;
+    glTexImage2D(GL_TEXTURE_2D, 0, format, widthPixels, heightPixels, 0, format, GL_UNSIGNED_BYTE, pixels);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    CHECK_GL_ERRORS();
+
+    return reinterpret_cast<ntb::TextureHandle>(newTex);
+}
+
+void NtbRenderInterfaceCoreGL::destroyTexture(ntb::TextureHandle texture)
+{
+    if (texture == NULLPTR)
+    {
+        return;
+    }
+
+    GLTexture * texObj = reinterpret_cast<GLTexture *>(texture);
+    delete texObj;
+}
+
+void NtbRenderInterfaceCoreGL::draw3DTriangles(const ntb::VertexPTC * verts, const int vertCount,
+                                               const ntb::UInt16 * indexes, const int indexCount,
+                                               ntb::TextureHandle texture)
+{
+    //TODO
+    (void)verts;
+    (void)vertCount;
+    (void)indexes;
+    (void)indexCount;
+    (void)texture;
+}
+
+void NtbRenderInterfaceCoreGL::draw2DTriangles(const ntb::VertexPTC * verts, const int vertCount,
+                                               const ntb::UInt16 * indexes, const int indexCount,
+                                               ntb::TextureHandle texture)
+{
+    assert(verts != NULLPTR);
+    assert(indexes != NULLPTR);
+    assert(vertCount > 0);
+    assert(indexCount > 0);
+
+    //
+    // Map to OpenGL NDC:
+    // (NOTE: this is probably more efficient if done in the shader!)
+    //
+    temp2dVerts.reserve(vertCount);
+    for (int v = 0; v < vertCount; ++v)
+    {
+        const float x = toNormScreenX(verts[v].x, windowWidth);
+        const float y = toNormScreenY(verts[v].y, windowHeight);
+        const float z = ntb::remap(verts[v].z, 0.0f, maxZ, -1.0f, +1.0f);
+
+        const ntb::VertexPTC vertNdc = { x, y, z, verts[v].u, verts[v].v, verts[v].color };
+        temp2dVerts.push_back(vertNdc);
+    }
+
+    //
+    // Update the IBO/VBO and issue a draw call:
+    //
+
+    glBindBuffer(GL_ARRAY_BUFFER, tris2dVBO);
+    glBufferData(GL_ARRAY_BUFFER, temp2dVerts.size() * sizeof(ntb::VertexPTC), &temp2dVerts[0], GL_DYNAMIC_DRAW);
+    CHECK_GL_ERRORS();
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tris2dIBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(ntb::UInt16), indexes, GL_DYNAMIC_DRAW);
+    CHECK_GL_ERRORS();
+
+    // Positions:
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ntb::VertexPTC), offsetPtr(0));
+    CHECK_GL_ERRORS();
+
+    // UVs:
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ntb::VertexPTC), offsetPtr(sizeof(float) * 3));
+    CHECK_GL_ERRORS();
+
+    // Color:
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, GL_BGRA, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ntb::VertexPTC), offsetPtr(sizeof(float) * 5));
+    CHECK_GL_ERRORS();
+
+    glUseProgram(tris2dProgram);
+
+    // Texture is optional.
+    glActiveTexture(GL_TEXTURE0);
+    if (texture != NULLPTR)
+    {
+        glBindTexture(GL_TEXTURE_2D, reinterpret_cast<GLTexture *>(texture)->textureId);
+    }
+    else
+    {
+        glBindTexture(GL_TEXTURE_2D, reinterpret_cast<GLTexture *>(whiteTex)->textureId);
+    }
+
+    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, NULLPTR);
+    CHECK_GL_ERRORS();
+
+    temp2dVerts.clear();
+}
+
+void NtbRenderInterfaceCoreGL::draw2DLines(const ntb::VertexPC * verts, const int vertCount)
+{
+    assert(verts != NULLPTR);
+    assert(vertCount > 0);
+
+    //
+    // Map to OpenGL NDC:
+    // (NOTE: this is probably more efficient if done in the shader!)
+    //
+    temp2dLines.reserve(vertCount);
+    for (int v = 0; v < vertCount; ++v)
+    {
+        const float x = toNormScreenX(verts[v].x, windowWidth);
+        const float y = toNormScreenY(verts[v].y, windowHeight);
+        const float z = ntb::remap(verts[v].z, 0.0f, maxZ, -1.0f, +1.0f);
+
+        const ntb::VertexPC vertNdc = { x, y, z, verts[v].color };
+        temp2dLines.push_back(vertNdc);
+    }
+
+    //
+    // Update the VBO and issue a draw call:
+    //
+    assert(lines2dProgram != 0);
+    assert(lines2dVBO != 0);
+
+//    glDisable(GL_BLEND);
+
+    glBindBuffer(GL_ARRAY_BUFFER, lines2dVBO);
+    glBufferData(GL_ARRAY_BUFFER, temp2dLines.size() * sizeof(ntb::VertexPC), &temp2dLines[0], GL_DYNAMIC_DRAW);
+    CHECK_GL_ERRORS();
+
+    // Positions:
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ntb::VertexPC), offsetPtr(0));
+    CHECK_GL_ERRORS();
+
+    // Color:
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, GL_BGRA, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ntb::VertexPC), offsetPtr(sizeof(float) * 3));
+    CHECK_GL_ERRORS();
+
+    glUseProgram(lines2dProgram);
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(temp2dLines.size()));
+    CHECK_GL_ERRORS();
+
+    temp2dLines.clear();
+}
+
+// ================================================================================================
+
+static NtbRenderInterfaceCoreGL * renderInterface = NULLPTR;
+static NtbShellInterfaceGLFW * shellInterface = NULLPTR;
+static ntb::GUI   * gui1 = NULLPTR;
+static ntb::Panel * pan1 = NULLPTR;
+static ntb::Panel * pan2 = NULLPTR;
+static ntb::Panel * pan3 = NULLPTR;
+
+static void add_test_vars(ntb::Panel * panel)
+{
+    ntb::Variable * var;
+
+    static bool b = true;
+    var = panel->addBoolRW("bool var", &b);
+
+    static int i = 1;
+    var = panel->addNumberRW("int var", &i);
+
+    static unsigned int u = 2;
+    var = panel->addNumberRW(var, "uint var", &u);
+
+    static void * p = (void*)0xDEADBEEF;
+    var = panel->addPointerRO(var, "ptr var", &p);
+
+    static float f = 3.141592f;
+    var = panel->addNumberRW("float var", &f);
+
+    static double d = 2.345;
+    var = panel->addNumberRW(var, "double var", &d);
+
+    static std::string s = "Hello!";
+    var = panel->addStringRW("std::string var", &s);
+
+    panel->addHierarchyParent("hierarchy parent");
+}
+
+static void mouseScrollCallback(GLFWwindow * window, const double xOffset, const double yOffset)
+{
+    (void)window; // Unused.
+    (void)xOffset;
+
+    gui1->onMouseScroll(static_cast<int>(yOffset));
+    /*
+    if (yOffset < 0.0)
+    {
+        // Scroll forward
+    }
+    else
+    {
+        // Scroll back
+    }
+    */
+}
+
+static void mousePositionCallback(GLFWwindow * window, const double xPos, const double yPos)
+{
+    (void)window; // Unused.
+
+    int mx = static_cast<int>(xPos);
+    int my = static_cast<int>(yPos);
+
+    // Clamp to window bounds:
+    if      (mx > windowWidth)  { mx = windowWidth;  }
+    else if (mx < 0)            { mx = 0;            }
+    if      (my > windowHeight) { my = windowHeight; }
+    else if (my < 0)            { my = 0;            }
+
+    gui1->onMouseMotion(mx, my);
+}
+
+static void mouseButtonCallback(GLFWwindow * window, const int button, const int action, const int mods)
+{
+    (void)window; // Unused.
+    (void)mods;
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        const  ntb::Int64 doubleClickTimeMs = 350; // Milliseconds between clicks for a double click
+        static ntb::Int64 lastClickTimeMs   = 0;   // Milliseconds of last mouse click
+
+        int clicks;
+        if (action == GLFW_PRESS)
+        {
+            if ((getTimeMilliseconds() - lastClickTimeMs) <= doubleClickTimeMs)
+            {
+                clicks = 2;
+                lastClickTimeMs = 0;
+            }
+            else
+            {
+                clicks = 1;
+                lastClickTimeMs = getTimeMilliseconds();
+            }
+        }
+        else // Button released.
+        {
+            clicks = -1;
+        }
+
+        if (clicks != -1) printf("clicks: %s\n", (clicks == 2 ? "DOUBLE" : "CLICK"));
+        gui1->onMouseButton(ntb::MouseButton::Left, clicks);
+    }
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT)
+    {
+        const int clicks = (action == GLFW_PRESS) ? 1 : -1;
+        gui1->onMouseButton(ntb::MouseButton::Right, clicks);
+    }
+}
+
+static void sampleAppDraw()
+{
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    gui1->onFrameRender();
+}
+
+static void sampleAppStart()
+{
+    if (!glfwInit())
+    {
+        std::cerr << "Failed to initialize GLFW!" << std::endl;
+        return;
+    }
+
+    // Things we need for the window / GL render context:
+    glfwWindowHint(GLFW_RESIZABLE, false);
+    glfwWindowHint(GLFW_DEPTH_BITS, 32);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, true);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+
+    GLFWwindow * window = glfwCreateWindow(windowWidth, windowHeight,
+                                           "NTB Sample - Core OpenGL",
+                                           NULLPTR, NULLPTR);
+    if (!window)
+    {
+        std::cerr << "Failed to create GLFW window!" << std::endl;
+        return;
+    }
+
+    glfwMakeContextCurrent(window);
+
+    if (!gl3wInit())
+    {
+        std::cerr << "Failed to initialize GL3W extension library!" << std::endl;
+        return;
+    }
+
+    if (!gl3wIsSupported(3, 2))
+    {
+        std::cerr << "This sample application requires at least OpenGL version 3.2 to run!" << std::endl;
+        return;
+    }
+
+    // GLFW input callbacks:
+    glfwSetCursorPosCallback(window,   &mousePositionCallback);
+    glfwSetMouseButtonCallback(window, &mouseButtonCallback);
+    glfwSetScrollCallback(window,      &mouseScrollCallback);
+
+    renderInterface = new NtbRenderInterfaceCoreGL();
+    shellInterface = new NtbShellInterfaceGLFW();
+
+    ntb::initialize(renderInterface, shellInterface, NULLPTR);
+
+    gui1 = ntb::createGUI("Gui 1");
+    pan1 = gui1->createPanel("Pan 1");
+//    pan2 = gui1->createPanel("Pan 2");
+//    pan3 = gui1->createPanel("Pan 3");
+
+    {
+        static ntb::UByte cbytes[] = { 0, 200, 200, 180 };
+        static ntb::Color32 clr = ntb::packColor(cbytes[0], cbytes[1], cbytes[2], cbytes[3]);
+        pan1->addColorRW("My color", &clr);
+
+        static int foo = -42;
+        pan1->addNumberRW("foo", &foo);
+
+        static bool bar = false;
+        pan1->addBoolRW("bar", &bar);
+
+        static float pi = 3.141592f;
+        pan1->addNumberRW("PI", &pi);
+
+        static void * ptr = (void *)0xDEADBEEF;
+        pan1->addPointerRO("ptr", &ptr);
+
+        static const float v4[] = { 1.1f, 2.2f, 3.3f, 4.4f };
+        pan1->addFloatVecRO<4>("v4", v4);
+
+        static std::string long_str = "Some long string, testing 1234 - hello!";
+        pan1->addStringRW("long_str", &long_str);
+
+        pan1->printHierarchy();
+    }
+
+//    add_test_vars(pan1);
+//    add_test_vars(pan2);
+//    add_test_vars(pan3);
+
+    // Loop until the user closes the window:
+    while (!glfwWindowShouldClose(window))
+    {
+        sampleAppDraw();
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    ntb::shutdown();
+}
+
+void run_glfw_test_app()
+{
+    sampleAppStart();
+    gl3wShutdown();
+    glfwTerminate();
+}
