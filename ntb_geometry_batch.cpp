@@ -393,6 +393,8 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
     NTB_ASSERT(text != NTB_NULL);
     NTB_ASSERT(textLength > 0);
 
+    static const UInt16 indexes[6] = { 0, 1, 2, 2, 1, 3 };
+
     // Invariants for all characters:
     const float initialX    = x;
     const float charsZ      = static_cast<float>(currZ);
@@ -400,8 +402,9 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
     const float scaleV      = getFontCharSet().bitmapHeight;
     const float fixedWidth  = getFontCharSet().charWidth;
     const float fixedHeight = getFontCharSet().charHeight;
-    const float tabsWidth   = fixedWidth * 4.0f;           // TAB = 4 spaces.
-    static const UInt16 indexes[6] = { 0, 1, 2, 2, 1, 3 }; // CCW winding triangle.
+    const float tabW        = fixedWidth  * 4.0f * scaling; // TAB = 4 spaces.
+    const float chrW        = fixedWidth  * scaling;
+    const float chrH        = fixedHeight * scaling;
 
     for (int c = 0; c < textLength; ++c)
     {
@@ -412,17 +415,17 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
         }
         if (charValue == ' ')
         {
-            x += fixedWidth * scaling;
+            x += chrW;
             continue;
         }
         if (charValue == '\t')
         {
-            x += tabsWidth * scaling;
+            x += tabW;
             continue;
         }
         if (charValue == '\n')
         {
-            y += fixedHeight * scaling;
+            y += chrH;
             x  = initialX;
             continue;
         }
@@ -432,8 +435,6 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
         const float v0 = (fontChar.y + 0.5f) / scaleV;
         const float u1 = u0 + (fixedWidth  / scaleU);
         const float v1 = v0 + (fixedHeight / scaleV);
-        const float w  = fixedWidth  * scaling;
-        const float h  = fixedHeight * scaling;
 
         VertexPTC verts[4];
         verts[0].x = x;
@@ -442,17 +443,17 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
         verts[0].v = v0;
         verts[0].color = color;
         verts[1].x = x;
-        verts[1].y = y + h;
+        verts[1].y = y + chrH;
         verts[1].u = u0;
         verts[1].v = v1;
         verts[1].color = color;
-        verts[2].x = x + w;
+        verts[2].x = x + chrW;
         verts[2].y = y;
         verts[2].u = u1;
         verts[2].v = v0;
         verts[2].color = color;
-        verts[3].x = x + w;
-        verts[3].y = y + h;
+        verts[3].x = x + chrW;
+        verts[3].y = y + chrH;
         verts[3].u = u1;
         verts[3].v = v1;
         verts[3].color = color;
@@ -468,7 +469,7 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
         }
 
         baseVertexText += 4;
-        x += fixedWidth * scaling;
+        x += chrW;
     }
 
     // It's fine to increment once per string,
@@ -481,9 +482,10 @@ float GeometryBatch::calcTextWidth(const char * text, const int textLength, cons
     NTB_ASSERT(text != NTB_NULL);
 
     const float fixedWidth = getFontCharSet().charWidth;
-    const float tabsWidth  = fixedWidth * 4.0f; // TAB = 4 spaces.
-    float x = 0.0f;
+    const float tabW = fixedWidth * 4.0f * scaling; // TAB = 4 spaces.
+    const float chrW = fixedWidth * scaling;
 
+    float x = 0.0f;
     for (int c = 0; c < textLength; ++c)
     {
         const int charValue = text[c];
@@ -495,11 +497,11 @@ float GeometryBatch::calcTextWidth(const char * text, const int textLength, cons
         // Tabs are handled differently (4 spaces)
         if (charValue == '\t')
         {
-            x += tabsWidth * scaling;
+            x += tabW;
         }
         else // Non-tab char (including whitespace)
         {
-            x += fixedWidth * scaling;
+            x += chrW;
         }
     }
     return x;

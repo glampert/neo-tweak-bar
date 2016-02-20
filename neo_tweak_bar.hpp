@@ -100,7 +100,7 @@ protected:
     virtual void onUpdateUserValue()   const = 0;
     virtual void onLinkedToPanel(Panel & owner) = 0;
 
-	// VarDisplayWidget methods:
+    // VarDisplayWidget methods:
     virtual void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE = 0;
 };
 
@@ -463,11 +463,11 @@ private:
     // This actually links the variable to the list.
     Variable * addVarImpl(Variable * var);
 
-	// WindowWidget overrides:
-	void onAdjustLayout() NTB_OVERRIDE;
-	void onScrollContentUp() NTB_OVERRIDE;
-	void onScrollContentDown() NTB_OVERRIDE;
-	bool onMouseScroll(int yScroll) NTB_OVERRIDE;
+    // WindowWidget overrides:
+    void onAdjustLayout() NTB_OVERRIDE;
+    void onScrollContentUp() NTB_OVERRIDE;
+    void onScrollContentDown() NTB_OVERRIDE;
+    bool onMouseScroll(int yScroll) NTB_OVERRIDE;
     void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE;
 
     IntrusiveList  variables;
@@ -523,26 +523,26 @@ public:
     // GUI events / callbacks:
     // ------------------------------------------
 
-	//TODO candidate methods:
-	// - minimizeAllPanels() => minimize/maximize all from the side bar
-	// - maximizeAllPanels()    user can maximize them with a button
-	//
-	// - hideAllPanels() => completely hide the ntb UI, as if inexistent
-	// - showAllPanels()    user cannot bring them back via UI.
+    //TODO candidate methods:
+    // - minimizeAllPanels() => minimize/maximize all from the side bar
+    // - maximizeAllPanels()    user can maximize them with a button
+    //
+    // - hideAllPanels() => completely hide the ntb UI, as if inexistent
+    // - showAllPanels()    user cannot bring them back via UI.
 
-	void onFrameRender(bool forceRefresh = false);
+    void onFrameRender(bool forceRefresh = false);
 
-	// true returned if the event was consumed.
+    // true returned if the event was consumed.
 
-	// clicks <= 0 for button released.
-	// clicks >  0 click count, e.g.: 1 single click, 2 for double click, etc.
-	bool onMouseButton(MouseButton::Enum button, int clicks);
+    // clicks <= 0 for button released.
+    // clicks >  0 click count, e.g.: 1 single click, 2 for double click, etc.
+    bool onMouseButton(MouseButton::Enum button, int clicks);
 
-	bool onMouseMotion(int mx, int my);
+    bool onMouseMotion(int mx, int my);
 
-	// only vertical scroll for scroll bars.
-	// +Y=forward, -Y=back
-	bool onMouseScroll(int yScroll);
+    // only vertical scroll for scroll bars.
+    // +Y=forward, -Y=back
+    bool onMouseScroll(int yScroll);
 
     // ------------------------------------------
     // Miscellaneous:

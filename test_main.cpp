@@ -25,6 +25,16 @@ extern void run_glfw_test_app();
 // is to create the UI (thus filling the stack) then just destroy everything
 // at once on shutdown (just roll back the stack). Should look into this later...
 //
+// RENDERER NOTES:
+//
+// Could provide a couple default implementations for the RenderInterface.
+// Something standalone, so people that just want a quick-n-dirty
+// GL renderer or a D3D renderer don't have to copy-paste code from the samples.
+// Maybe have a GL-Core, GL-Fixed and D3D11 set of default renderers, each
+// in a separate .hpp file that you can include and use quickly if you just
+// want an ASAP C++ UI for your GL/D3D app. I'll need to implement those for
+// the samples anyways, so might as well separate them for reuse.
+//
 
 // --------------------------------------------------------------------
 
