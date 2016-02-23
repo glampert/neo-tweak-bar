@@ -22,8 +22,31 @@ public:
 };
 
 // ========================================================
-// Draw vertex types used by NTB and the Texture handle:
-// ========================================================
+
+// Opaque handle to a texture type, implemented by the user.
+struct OpaqueTextureType;
+typedef OpaqueTextureType * TextureHandle;
+
+struct ProjectionParameters
+{
+    Rectangle viewport; // should clip to this box
+    float fovYRadians;
+    float aspectRatio;
+    float zNear;
+    float zFar;
+    bool autoAdjustAspect;
+
+    // internal use
+    Mat4x4 viewProjMatrix;
+};
+
+struct DrawClippedInfo
+{
+    TextureHandle texture;
+    Rectangle clipBox;
+    int firstIndex;
+    int indexCount;
+};
 
 // Vertex with XYZ position, UV texture coords and RGBA(8:8:8:8) color.
 struct VertexPTC
@@ -40,10 +63,6 @@ struct VertexPC
     Color32 color;
 };
 
-// Opaque handle to a texture type, implemented by the user.
-struct OpaqueTextureType;
-typedef OpaqueTextureType * TextureHandle;
-
 // ========================================================
 // class RenderInterface:
 // ========================================================
@@ -52,28 +71,30 @@ class RenderInterface
 {
 public:
 
-    // optional
+    // everything is optional
+
     virtual void beginDraw();
     virtual void endDraw();
 
     virtual int getMaxZ() const;
+    virtual Rectangle getViewport() const;
 
     virtual TextureHandle createTexture(int widthPixels, int heightPixels,
-                                        int colorChannels, const void * pixels) = 0;
+                                        int colorChannels, const void * pixels);
+    virtual void destroyTexture(TextureHandle texture);
 
-    virtual void destroyTexture(TextureHandle texture) = 0;
-
-    virtual void draw2DLines(const VertexPC * verts, int vertCount) = 0;
+    virtual void draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ);
 
     virtual void draw2DTriangles(const VertexPTC * verts, int vertCount,
                                  const UInt16 * indexes, int indexCount,
-                                 TextureHandle texture) = 0;
+                                 TextureHandle texture, int frameMaxZ);
 
-    virtual void draw3DTriangles(const VertexPTC * verts, int vertCount,
-                                 const UInt16 * indexes, int indexCount,
-                                 TextureHandle texture) = 0;
+    virtual void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
+                                        const UInt16 * indexes, int indexCount,
+                                        const DrawClippedInfo * drawInfo, int clipVertsCount,
+                                        int frameMaxZ);
 
-    virtual ~RenderInterface();
+    virtual ~RenderInterface() = 0;
 };
 
 } // namespace ntb {}

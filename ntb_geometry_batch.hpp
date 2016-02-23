@@ -13,12 +13,6 @@
 namespace ntb
 {
 
-namespace detail { class ColorEx; }
-
-// ========================================================
-// Text rendering helpers / bitmap fonts:
-// ========================================================
-
 struct TextAlign
 {
     enum Enum
@@ -29,82 +23,13 @@ struct TextAlign
     };
 };
 
-//TODO TEMP -------------------------
-
-struct FontChar
-{
-    unsigned short x;
-    unsigned short y;
-};
-
-struct FontCharSet
-{
-    enum { MaxChars = 256 };
-    const unsigned char * bitmap;
-    int bitmapWidth;
-    int bitmapHeight;
-    int bitmapColorChannels;
-    int bitmapDecompressSize;
-    int charBaseHeight;
-    int charWidth;
-    int charHeight;
-    int charCount;
-    FontChar chars[MaxChars];
-};
-
-// These are defined at the end of the file. Data for the arrays
-// was generated with font-tool (https://github.com/glampert/font-tool)
-// from the Monoid font face (https://github.com/larsenwork/monoid)
-extern const FontCharSet fontMonoid18CharSet;
-extern const int fontMonoid18BitmapSizeBytes;
-extern const unsigned char fontMonoid18Bitmap[];
-
-// If you decide to change the font, these are the only things that
-// need to be updated. The fontXYZCharSet variables are never
-// referenced directly in the code, these functions are used instead.
-inline const FontCharSet & getFontCharSet() { return fontMonoid18CharSet; }
-inline const UByte * getFontBitmapPixels() { return fontMonoid18Bitmap; }
-inline int getFontBitmapSizeBytes() { return fontMonoid18BitmapSizeBytes; }
-
-inline
-int rleDecode(UByte * output, const int outSizeBytes, const UByte * input, const int inSizeBytes)
-{
-    if (output == NTB_NULL || input == NTB_NULL)
-    {
-        return -1;
-    }
-    if (outSizeBytes <= 0 || inSizeBytes <= 0)
-    {
-        return -1;
-    }
-
-    int bytesWritten = 0;
-    for (int i = 0; i < inSizeBytes; i += 2)
-    {
-        int rleCount = *input++;
-        const UByte rleByte = *input++;
-
-        // Replicate the RLE packet.
-        while (rleCount--)
-        {
-            *output++ = rleByte;
-            if (++bytesWritten == outSizeBytes && rleCount > 0)
-            {
-                // Reached end of output and we are not done yet, stop with an error.
-                return -1;
-            }
-        }
-    }
-    return bytesWritten;
-}
-
-//TODO TEMP -------------------------
-
 // ========================================================
 // class GeometryBatch:
 // ========================================================
 
-//TODO
+//TODO Maybe we make this a member of the detail{} namespace as well?
+// Then it will be possible to hide the implementation completely
+// if we just use pointers/references.
 class GeometryBatch NTB_FINAL_CLASS
 {
     NTB_DISABLE_COPY_ASSIGN(GeometryBatch);
@@ -114,8 +39,14 @@ public:
     GeometryBatch();
     ~GeometryBatch();
 
+    float getNextZ() { return static_cast<float>(currentZ++); }
+
     void beginDraw();
     void endDraw();
+
+    void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
+                                const UInt16 * indexes, int indexCount,
+                                const Rectangle & clipBox);
 
     void draw2DTriangles(const VertexPTC * verts, int vertCount,
                          const UInt16 * indexes, int indexCount);
@@ -150,6 +81,11 @@ public:
     // Width in pixels of a text string using the given font. Doesn't actually draw anything.
     static float calcTextWidth(const char * text, int textLength, float scaling);
 
+    // Width/height in pixels of a single character/glyph of the font in use.
+    // Note: We always assume a fixed width and height font.
+    static float getCharWidth();
+    static float getCharHeight();
+
 private:
 
     // Calls in the RenderInterface to allocate the glyph bitmap.
@@ -161,30 +97,31 @@ private:
     // The glyph bitmap decompressed and copied into a RenderInterface texture object.
     TextureHandle glyphTex;
 
-    // Z index for all 2D elements. Starts at 1 in beginDraw(),
+    // Z index for all 2D elements. Starts at 0 in beginDraw(),
     // incremented for each line/triangle that is added to the batch.
-    int currZ;
-
-    // Max value given by RenderInterface::getMaxZ().
-    // We assert at endDraw() that currZ is below
-    // this limit. Value is cached on beginDraw(), so
-    // getMaxZ() should not change during a draw sequence!
-    int maxZ;
+    int currentZ;
 
     // Current offsets for the 2D/text index buffers.
-    UInt16 baseVertex2d;
+    UInt16 baseVertex2D;
     UInt16 baseVertexText;
+    UInt16 baseVertexClipped;
 
     // Batch for 2D colored lines.
-    PODArray linesBatch;     // [VertexPC]
+    PODArray linesBatch;        // [VertexPC]
 
     // Batch for all untextured 2D triangles (indexed).
-    PODArray verts2dBatch;   // [VertexPTC] Misc 2D elements.
-    PODArray tris2dBatch;    // [UInt16]    Triangle indexes for the 2D elements.
+    PODArray verts2DBatch;      // [VertexPTC] Miscellaneous 2D elements.
+    PODArray tris2DBatch;       // [UInt16]    Triangle indexes for the 2D elements.
 
     // Batch for all 2D text glyphs (indexed).
-    PODArray textVertsBatch; // [VertexPTC] Vertexes for 2D text glyphs.
-    PODArray textTrisBatch;  // [UInt16]    Indexes for the 2D text triangles.
+    PODArray textVertsBatch;    // [VertexPTC] Vertexes for 2D text glyphs.
+    PODArray textTrisBatch;     // [UInt16]    Indexes for the 2D text triangles.
+
+    // Separate batch for the clipped 2D vertexes
+    // (normally sent from the 3D widgets).
+    PODArray drawClippedInfos;  // [DrawClippedInfo]
+    PODArray vertsClippedBatch; // [VertexPTC]
+    PODArray trisClippedBatch;  // [UInt16]
 };
 
 } // namespace ntb {}

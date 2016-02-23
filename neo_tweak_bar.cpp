@@ -723,12 +723,32 @@ void VarHierarchyParent::onDraw(GeometryBatch & geoBatch) const
     drawVarName(geoBatch);
 }
 
-Variable::Access VarHierarchyParent::getAccessMode() const { return Variable::ReadOnly; }
-Variable * VarHierarchyParent::setNumberFormatting(int)    { return this; }
-Variable * VarHierarchyParent::setMaxStringSize(int)       { return this; }
-void VarHierarchyParent::onUpdateCachedValue() const       { }
-void VarHierarchyParent::onUpdateUserValue() const         { }
-void VarHierarchyParent::onLinkedToPanel(Panel &)          { }
+Variable::Access VarHierarchyParent::getAccessMode() const
+{
+    return Variable::ReadOnly;
+}
+
+Variable * VarHierarchyParent::setNumberFormatting(int)
+{
+    return this;
+}
+
+Variable * VarHierarchyParent::setMaxStringSize(int)
+{
+    return this;
+}
+
+void VarHierarchyParent::onUpdateCachedValue() const
+{
+}
+
+void VarHierarchyParent::onUpdateUserValue() const
+{
+}
+
+void VarHierarchyParent::onLinkedToPanel(Panel &)
+{
+}
 
 } // namespace detail {}
 } // namespace ntb {}

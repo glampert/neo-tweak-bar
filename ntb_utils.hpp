@@ -15,6 +15,7 @@
 #include <utility>   // For std::swap, std::move
 #include <algorithm> // For std::sort, std::min, std::max
 
+#include <cmath> // tan
 #include <cstdlib> // abs/malloc/free
 #include <cstdio> // snprintf
 
@@ -29,14 +30,6 @@
 // ========================================================
 // TODO
 // ========================================================
-
-//
-// NOTE
-//
-// GET RID OF AS MUCH STUFF AS WE CAN.
-// BETTER MAKE THIS LIBRARY MORE LIGHTWEIGHT
-// PtrArray MIGHT END UP UNUSED!
-//
 
 #define NEO_TWEAK_BAR_CXX11_SUPPORTED 1
 #define NEO_TWEAK_BAR_STD_STRING_INTEROP 1
@@ -64,6 +57,18 @@
 //TODO TIDY; TEMP
 #include <cstdio> // for the printf below
 #define NTB_ERROR(message) std::printf("NTB ERROR: %s\n", message)
+
+#if NEO_TWEAK_BAR_CXX11_SUPPORTED
+    #define NTB_ALIGNED(expr, alignment) alignas(alignment) expr
+#else // !C++11
+    #if defined(__GNUC__) // Clang & GCC
+        #define NTB_ALIGNED(expr, alignment) expr __attribute__((aligned(alignment)))
+    #elif defined(_MSC_VER) // Visual Studio
+        #define NTB_ALIGNED(expr, alignment) __declspec(align(alignment)) expr
+    #else // Unknown compiler
+        #define NTB_ALIGNED(expr, alignment) expr /* hope for the best? */
+    #endif // Compiler id switch
+#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
 //TODO need a custom allocator...
 //
@@ -99,7 +104,7 @@ namespace detail
 
 //TODO replace with user supplied callbacks!
 template<class T>
-inline T * memAlloc(const std::size_t countInItems) // should just crash if out of mem! we don't check for null return!!!
+inline T * memAlloc(const std::size_t countInItems) //NOTE: should just crash if out of mem! we don't check for null return!!!
 {
     NTB_ASSERT(countInItems != 0);
     return reinterpret_cast<T *>(std::malloc(countInItems * sizeof(T)));
@@ -223,6 +228,16 @@ inline bool intToString(UInt64 number, char * dest, const int destSizeInChars, c
 
 } // namespace detail {}
 
+NTB_CONSTEXPR_FUNC inline float degToRad(const float degrees)
+{
+    return degrees * (3.1415926535897931f / 180.0f);
+}
+
+NTB_CONSTEXPR_FUNC inline float radToDeg(const float radians)
+{
+    return radians * (180.0f / 3.1415926535897931f);
+}
+
 // Don't care about 32-64bit truncation. Our strings are not nearly that long.
 inline int lengthOf(const char * str)
 {
@@ -254,6 +269,13 @@ template<class T>
 NTB_CONSTEXPR_FUNC inline T remap(const T x, const T inMin, const T inMax, const T outMin, const T outMax)
 {
     return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+}
+
+// Clamp 'x' between min/max bounds.
+template<class T>
+NTB_CONSTEXPR_FUNC inline T clamp(const T x, const T minimum, const T maximum)
+{
+    return (x < minimum) ? minimum : (x > maximum) ? maximum : x;
 }
 
 // Byte in [0,255] range to float in [0,1] range.
@@ -289,6 +311,7 @@ Color32 darkenRGB(Color32 color, float percent);
 
 // Very simple blending of float RGBA [0,1] range colors by a given percentage.
 Color32 blendColors(const float color1[], const float color2[], float percent);
+Color32 blendColors(Color32 color1, Color32 color2, float percent);
 
 // Hue Lightens Saturation <=> Red Green Blue conversions:
 void RGBToHLS(float fR, float fG, float fB, float & hue, float & light, float & saturation);
@@ -1262,7 +1285,7 @@ struct Point
 // This could be a constructor, but I want to keep Point as a POD type.
 inline Point makePoint(const int px, const int py)
 {
-    const Point pt = { px, py };
+    Point pt = { px, py };
     return pt;
 }
 
@@ -1278,11 +1301,17 @@ struct Rectangle
     int xMaxs;
     int yMaxs;
 
-    int getPosX()   const { return xMins; }
-    int getPosY()   const { return yMins; }
+    int getX()      const { return xMins; }
+    int getY()      const { return yMins; }
     int getWidth()  const { return xMaxs - xMins; }
     int getHeight() const { return yMaxs - yMins; }
     int getArea()   const { return getWidth() * getHeight(); }
+
+    float getAspect() const
+    {
+        return static_cast<float>(getWidth()) /
+               static_cast<float>(getHeight());
+    }
 
     bool containsPoint(const Point p) const
     {
@@ -1300,13 +1329,13 @@ struct Rectangle
 
     Rectangle expanded(const int x, const int y) const
     {
-        const Rectangle rect = { xMins - x, yMins - y, xMaxs + x, yMaxs + y };
+        Rectangle rect = { xMins - x, yMins - y, xMaxs + x, yMaxs + y };
         return rect;
     }
 
     Rectangle shrunk(const int x, const int y) const
     {
-        const Rectangle rect = { xMins + x, yMins + y, xMaxs - x, yMaxs - y };
+        Rectangle rect = { xMins + x, yMins + y, xMaxs - x, yMaxs - y };
         return rect;
     }
 
@@ -1341,12 +1370,245 @@ struct Rectangle
     }
 };
 
+// ================================================================================================
+
 // This could be a constructor, but I want to keep Rectangle as a POD type.
 inline Rectangle makeRect(const int x0, const int y0, const int x1, const int y1)
 {
-    const Rectangle rect = { x0, y0, x1, y1 };
+    Rectangle rect = { x0, y0, x1, y1 };
     return rect;
 }
+
+struct Vec3
+{
+    float x;
+    float y;
+    float z;
+
+    void set(const float xx, const float yy, const float zz)
+    {
+        x = xx;
+        y = yy;
+        z = zz;
+    }
+
+    void setZero()
+    {
+        x = 0.0f;
+        y = 0.0f;
+        z = 0.0f;
+    }
+
+    static Vec3 subtract(const Vec3 & a, const Vec3 & b)
+    {
+        Vec3 result;
+        result.x = a.x - b.x;
+        result.y = a.y - b.y;
+        result.z = a.z - b.z;
+        return result;
+    }
+
+    static Vec3 add(const Vec3 & a, const Vec3 & b)
+    {
+        Vec3 result;
+        result.x = a.x + b.x;
+        result.y = a.y + b.y;
+        result.z = a.z + b.z;
+        return result;
+    }
+
+    static Vec3 cross(const Vec3 & a, const Vec3 & b)
+    {
+        Vec3 result;
+        result.x = (a.y * b.z) - (a.z * b.y);
+        result.y = (a.z * b.x) - (a.x * b.z);
+        result.z = (a.x * b.y) - (a.y * b.x);
+        return result;
+    }
+
+    static Vec3 normalize(const Vec3 & v)
+    {
+        Vec3 result;
+        const float invLen = 1.0f / Vec3::length(v);
+        result.x = v.x * invLen;
+        result.y = v.y * invLen;
+        result.z = v.z * invLen;
+        return result;
+    }
+
+    static float length(const Vec3 & v)
+    {
+        return std::sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
+    }
+
+    static float dot(const Vec3 & a, const Vec3 & b)
+    {
+        return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+    }
+};
+
+inline Vec3 makeVec3(const float x, const float y, const float z)
+{
+    Vec3 result = { x, y, z };
+    return result;
+}
+
+struct Vec4
+{
+    float x;
+    float y;
+    float z;
+    float w;
+
+    void set(const float xx, const float yy, const float zz, const float ww)
+    {
+        x = xx;
+        y = yy;
+        z = zz;
+        w = ww;
+    }
+
+    void setZero()
+    {
+        x = 0.0f;
+        y = 0.0f;
+        z = 0.0f;
+        w = 0.0f;
+    }
+};
+
+inline Vec4 makeVec4(const float x, const float y, const float z, const float w)
+{
+    Vec4 result = { x, y, z, w };
+    return result;
+}
+
+struct Mat4x4
+{
+    typedef float Vec4Ptr[4];
+    Vec4 rows[4];
+
+    float       * getData()       { return reinterpret_cast<float       *>(this); }
+    const float * getData() const { return reinterpret_cast<const float *>(this); }
+
+    Vec4Ptr       * getRows()       { return reinterpret_cast<Vec4Ptr       *>(this); }
+    const Vec4Ptr * getRows() const { return reinterpret_cast<const Vec4Ptr *>(this); }
+
+    Vec4       & operator[](const int row)       { NTB_ASSERT(row >= 0 && row < 4); return rows[row]; }
+    const Vec4 & operator[](const int row) const { NTB_ASSERT(row >= 0 && row < 4); return rows[row]; }
+
+    void setIdentity()
+    {
+        rows[0].set(1.0f, 0.0f, 0.0f, 0.0f);
+        rows[1].set(0.0f, 1.0f, 0.0f, 0.0f);
+        rows[2].set(0.0f, 0.0f, 1.0f, 0.0f);
+        rows[3].set(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+
+    void setRows(const Vec4 & row0, const Vec4 & row1, const Vec4 & row2, const Vec4 & row3)
+    {
+        rows[0] = row0;
+        rows[1] = row1;
+        rows[2] = row2;
+        rows[3] = row3;
+    }
+
+    // Left-handed look-at view/camera matrix. Up vector is normally the unit Y axis.
+    static Mat4x4 lookAt(const Vec3 & eye, const Vec3 & target, const Vec3 & upVector)
+    {
+        const Vec3 look  = Vec3::normalize(Vec3::subtract(target, eye));
+        const Vec3 right = Vec3::cross(Vec3::normalize(upVector), look);
+        const Vec3 up    = Vec3::cross(look, right);
+
+        const float a = -Vec3::dot(right, eye);
+        const float b = -Vec3::dot(up,    eye);
+        const float c = -Vec3::dot(look,  eye);
+
+        Mat4x4 result;
+        result.rows[0].set(right.x, up.x, look.x, 0.0f);
+        result.rows[1].set(right.y, up.y, look.y, 0.0f);
+        result.rows[2].set(right.z, up.z, look.z, 0.0f);
+        result.rows[3].set(a,       b,    c,      1.0f);
+        return result;
+    }
+
+    // Left-handed perspective projection matrix.
+    static Mat4x4 perspective(const float fovYRadians, const float aspect, const float zNear, const float zFar)
+    {
+        const float invFovTan = 1.0f / std::tan(fovYRadians * 0.5f);
+        const float a = (aspect * invFovTan);
+        const float c = -(zFar + zNear) / (zFar - zNear);
+        const float e = (2.0f * zFar * zNear) / (zFar - zNear);
+
+        Mat4x4 result;
+        result.rows[0].set(a,    0.0f,      0.0f, 0.0f);
+        result.rows[1].set(0.0f, invFovTan, 0.0f, 0.0f);
+        result.rows[2].set(0.0f, 0.0f,      c,    1.0f);
+        result.rows[3].set(0.0f, 0.0f,      e,    0.0f);
+        return result;
+    }
+
+    // Multiply (or combine) two matrices.
+    static Mat4x4 multiply(const Mat4x4 & a, const Mat4x4 & b)
+    {
+        Mat4x4 result;
+        Vec4Ptr * R = result.getRows();
+        const Vec4Ptr * A = a.getRows();
+        const Vec4Ptr * B = b.getRows();
+        R[0][0] = (A[0][0] * B[0][0]) + (A[0][1] * B[1][0]) + (A[0][2] * B[2][0]) + (A[0][3] * B[3][0]);
+        R[0][1] = (A[0][0] * B[0][1]) + (A[0][1] * B[1][1]) + (A[0][2] * B[2][1]) + (A[0][3] * B[3][1]);
+        R[0][2] = (A[0][0] * B[0][2]) + (A[0][1] * B[1][2]) + (A[0][2] * B[2][2]) + (A[0][3] * B[3][2]);
+        R[0][3] = (A[0][0] * B[0][3]) + (A[0][1] * B[1][3]) + (A[0][2] * B[2][3]) + (A[0][3] * B[3][3]);
+        R[1][0] = (A[1][0] * B[0][0]) + (A[1][1] * B[1][0]) + (A[1][2] * B[2][0]) + (A[1][3] * B[3][0]);
+        R[1][1] = (A[1][0] * B[0][1]) + (A[1][1] * B[1][1]) + (A[1][2] * B[2][1]) + (A[1][3] * B[3][1]);
+        R[1][2] = (A[1][0] * B[0][2]) + (A[1][1] * B[1][2]) + (A[1][2] * B[2][2]) + (A[1][3] * B[3][2]);
+        R[1][3] = (A[1][0] * B[0][3]) + (A[1][1] * B[1][3]) + (A[1][2] * B[2][3]) + (A[1][3] * B[3][3]);
+        R[2][0] = (A[2][0] * B[0][0]) + (A[2][1] * B[1][0]) + (A[2][2] * B[2][0]) + (A[2][3] * B[3][0]);
+        R[2][1] = (A[2][0] * B[0][1]) + (A[2][1] * B[1][1]) + (A[2][2] * B[2][1]) + (A[2][3] * B[3][1]);
+        R[2][2] = (A[2][0] * B[0][2]) + (A[2][1] * B[1][2]) + (A[2][2] * B[2][2]) + (A[2][3] * B[3][2]);
+        R[2][3] = (A[2][0] * B[0][3]) + (A[2][1] * B[1][3]) + (A[2][2] * B[2][3]) + (A[2][3] * B[3][3]);
+        R[3][0] = (A[2][0] * B[0][0]) + (A[3][1] * B[1][0]) + (A[3][2] * B[2][0]) + (A[3][3] * B[3][0]);
+        R[3][1] = (A[2][0] * B[0][1]) + (A[3][1] * B[1][1]) + (A[3][2] * B[2][1]) + (A[3][3] * B[3][1]);
+        R[3][2] = (A[2][0] * B[0][2]) + (A[3][1] * B[1][2]) + (A[3][2] * B[2][2]) + (A[3][3] * B[3][2]);
+        R[3][3] = (A[2][0] * B[0][3]) + (A[3][1] * B[1][3]) + (A[3][2] * B[2][3]) + (A[3][3] * B[3][3]);
+        return result;
+    }
+
+    // Multiply the 3D point by the matrix, transforming it. Returns a 4D vector.
+    static Vec4 transformPoint(const Vec3 & p, const Mat4x4 & m)
+    {
+        Vec4 result;
+        const Vec4Ptr * M = m.getRows();
+        result.x = (M[0][0] * p.x) + (M[1][0] * p.y) + (M[2][0] * p.z) + M[3][0];
+        result.y = (M[0][1] * p.x) + (M[1][1] * p.y) + (M[2][1] * p.z) + M[3][1];
+        result.z = (M[0][2] * p.x) + (M[1][2] * p.y) + (M[2][2] * p.z) + M[3][2];
+        result.w = (M[0][3] * p.x) + (M[1][3] * p.y) + (M[2][3] * p.z) + M[3][3];
+        return result;
+    }
+
+    // Multiply the 3D point by the matrix. Assumes w = 1 and the last column of the matrix is padding.
+    static Vec3 transformPointAffine(const Vec3 & p, const Mat4x4 & m)
+    {
+        Vec3 result;
+        const Vec4Ptr * M = m.getRows();
+        result.x = (M[0][0] * p.x) + (M[1][0] * p.y) + (M[2][0] * p.z) + M[3][0];
+        result.y = (M[0][1] * p.x) + (M[1][1] * p.y) + (M[2][1] * p.z) + M[3][1];
+        result.z = (M[0][2] * p.x) + (M[1][2] * p.y) + (M[2][2] * p.z) + M[3][2];
+        return result;
+    }
+
+    // Multiply the homogeneous 4D vector with the given matrix, as a row vector, from left to right.
+    static Vec4 transformVector(const Vec4 & v, const Mat4x4 & m)
+    {
+        Vec4 result;
+        const Vec4Ptr * M = m.getRows();
+        result.x = (M[0][0] * v.x) + (M[1][0] * v.y) + (M[2][0] * v.z) + (M[3][0] * v.w);
+        result.y = (M[0][1] * v.x) + (M[1][1] * v.y) + (M[2][1] * v.z) + (M[3][1] * v.w);
+        result.z = (M[0][2] * v.x) + (M[1][2] * v.y) + (M[2][2] * v.z) + (M[3][2] * v.w);
+        result.w = (M[0][3] * v.x) + (M[1][3] * v.y) + (M[2][3] * v.z) + (M[3][3] * v.w);
+        return result;
+    }
+};
 
 } // namespace ntb {}
 

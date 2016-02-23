@@ -181,28 +181,40 @@ public:
     void beginDraw() OVERRIDE_METHOD;
     void endDraw() OVERRIDE_METHOD;
 
+    ntb::Rectangle getViewport() const NTB_OVERRIDE
+    {
+        return ntb::makeRect(0, 0, windowWidth, windowHeight);
+    }
+
     ntb::TextureHandle createTexture(int widthPixels, int heightPixels,
                                      int colorChannels, const void * pixels) OVERRIDE_METHOD;
 
     void destroyTexture(ntb::TextureHandle texture) OVERRIDE_METHOD;
 
-    void draw3DTriangles(const ntb::VertexPTC * verts, int vertCount,
-                         const ntb::UInt16 * indexes, int indexCount,
-                         ntb::TextureHandle texture) OVERRIDE_METHOD;
+    void drawClipped2DTriangles(const ntb::VertexPTC * verts, int vertCount,
+                                const ntb::UInt16 * indexes, int indexCount,
+                                const ntb::DrawClippedInfo * drawInfo, int clipVertsCount,
+                                int frameMaxZ) OVERRIDE_METHOD;
 
     void draw2DTriangles(const ntb::VertexPTC * verts, int vertCount,
                          const ntb::UInt16 * indexes, int indexCount,
-                         ntb::TextureHandle texture) OVERRIDE_METHOD;
+                         ntb::TextureHandle texture, int frameMaxZ) OVERRIDE_METHOD;
 
     // each vertex pair is a line.
-    void draw2DLines(const ntb::VertexPC * verts, int vertCount) OVERRIDE_METHOD;
+    void draw2DLines(const ntb::VertexPC * verts, int vertCount, int frameMaxZ) OVERRIDE_METHOD;
 
 private:
 
     void initShaders();
     void initBuffers();
 
-    float maxZ;
+    bool noDraw2D = false;
+    bool noDraw3D = false;
+
+    struct
+    {
+        GLint viewport[4];
+    } savedState;
 
     ntb::TextureHandle whiteTex;
 
@@ -211,8 +223,12 @@ private:
     GLuint lines2dFS;
 
     GLuint tris2dProgram;
+    GLuint tris3dProgram;
     GLuint tris2dVS;
     GLuint tris2dFS;
+
+    GLuint tris3dVS;
+    GLint mvpMatrixLoc;
 
     GLuint commonVAO;
     GLuint lines2dVBO;
@@ -237,13 +253,17 @@ NtbRenderInterfaceCoreGL::NtbRenderInterfaceCoreGL()
     initShaders();
     initBuffers();
 
-    // We won't change this value during runtime, so it is safe to cache it.
-    maxZ = static_cast<float>(getMaxZ());
-
     //  glEnable(GL_LINE_SMOOTH); // works, but not strictly necessary
     //  glLineWidth(4.0f); // doesn't work, but we assume width=1 anyways
 
     whiteTex = createTexture(64, 64, 4, (unsigned char *)mkWhiteTex());
+
+    glGetIntegerv(GL_VIEWPORT, savedState.viewport);
+    printf("\n");
+    printf("viewport.x = %d\n", savedState.viewport[0]);
+    printf("viewport.y = %d\n", savedState.viewport[1]);
+    printf("viewport.w = %d\n", savedState.viewport[2]);
+    printf("viewport.h = %d\n", savedState.viewport[3]);
 }
 
 NtbRenderInterfaceCoreGL::~NtbRenderInterfaceCoreGL()
@@ -299,7 +319,7 @@ void NtbRenderInterfaceCoreGL::initShaders()
     }
 
     //
-    // 2D tris shaders:
+    // 2D/3D tris shaders:
     //
     {
         const GLchar * tris2dVSsrc[] =
@@ -331,9 +351,8 @@ void NtbRenderInterfaceCoreGL::initShaders()
           "out vec4 outColor;\n"
           "void main()\n"
           "{\n"
-          "    outColor = vColor * texture(colorTexture, vTexCoords).rrrr;\n"
-          "    //outColor = vColor * texture(colorTexture, vTexCoords);\n"
-          "    //outColor = vColor;\n"
+          "    outColor = vColor;\n"
+          "    outColor.a *= texture(colorTexture, vTexCoords).r;\n"
           "}\n"
         };
         tris2dFS = glCreateShader(GL_FRAGMENT_SHADER);
@@ -347,6 +366,43 @@ void NtbRenderInterfaceCoreGL::initShaders()
         glBindAttribLocation(tris2dProgram, 1, "inTexCoords");
         glBindAttribLocation(tris2dProgram, 2, "inColor");
         linkProgram(tris2dProgram);
+
+        // ******************
+
+        const GLchar * tris3dVSsrc[] =
+        {
+          "#version 410 core\n"
+          "in vec3 inPosition;\n"
+          "in vec2 inTexCoords;\n"
+          "in vec4 inColor;\n"
+          "\n"
+          "uniform mat4 u_MvpMatrix;\n"
+          "\n"
+          "out vec2 vTexCoords;\n"
+          "out vec4 vColor;\n"
+          "void main()\n"
+          "{\n"
+          "    gl_Position = u_MvpMatrix * vec4(inPosition, 1.0);\n"
+          "    vTexCoords = inTexCoords;\n"
+          "    vColor = inColor;\n"
+          "}\n"
+        };
+        tris3dVS = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(tris3dVS, 1, tris3dVSsrc, NULLPTR);
+        compileShader(tris3dVS);
+
+        // We can share the fragment shader
+        //
+        tris3dProgram = glCreateProgram();
+        glAttachShader(tris3dProgram, tris3dVS);
+        glAttachShader(tris3dProgram, tris2dFS);
+        glBindAttribLocation(tris3dProgram, 0, "inPosition");
+        glBindAttribLocation(tris3dProgram, 1, "inTexCoords");
+        glBindAttribLocation(tris3dProgram, 2, "inColor");
+        linkProgram(tris3dProgram);
+
+        mvpMatrixLoc = glGetUniformLocation(tris3dProgram, "u_MvpMatrix");
+        assert(mvpMatrixLoc >= 0);
     }
 }
 
@@ -360,17 +416,17 @@ void NtbRenderInterfaceCoreGL::initBuffers()
 
 void NtbRenderInterfaceCoreGL::beginDraw()
 {
+    // to restore if we change it on draw 3D
+	glGetIntegerv(GL_VIEWPORT, savedState.viewport);
+
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glDisable(GL_CULL_FACE);
     glDisable(GL_SCISSOR_TEST);
 
-    //  glDisable(GL_DEPTH_TEST);
-    glClearDepth(0);
     glDepthFunc(GL_GEQUAL);
     glEnable(GL_DEPTH_TEST);
-    glClear(GL_DEPTH_BUFFER_BIT);
 
     // use a shared VAO to simplify stuff...
     glBindVertexArray(commonVAO);
@@ -451,37 +507,89 @@ void NtbRenderInterfaceCoreGL::destroyTexture(ntb::TextureHandle texture)
     delete texObj;
 }
 
-void NtbRenderInterfaceCoreGL::draw3DTriangles(const ntb::VertexPTC * verts, const int vertCount,
-                                               const ntb::UInt16 * indexes, const int indexCount,
-                                               ntb::TextureHandle texture)
+void NtbRenderInterfaceCoreGL::drawClipped2DTriangles(const ntb::VertexPTC * verts, const int vertCount,
+                                                      const ntb::UInt16 * indexes, const int indexCount,
+                                                      const ntb::DrawClippedInfo * drawInfo, const int clipVertsCount,
+                                                      const int frameMaxZ)
 {
-    //TODO
-    (void)verts;
-    (void)vertCount;
-    (void)indexes;
-    (void)indexCount;
-    (void)texture;
+    assert(verts != NULLPTR);
+    assert(indexes != NULLPTR);
+    assert(drawInfo != NULLPTR);
+    assert(vertCount > 0);
+    assert(indexCount > 0);
+    assert(clipVertsCount > 0);
+
+    if (noDraw3D) { return; }
+
+    glEnable(GL_SCISSOR_TEST);
+
+    for (int i = 0; i < clipVertsCount; ++i)
+    {
+        ntb::Rectangle viewport = drawInfo[i].clipBox;
+
+        const int framebufferW = savedState.viewport[2] - savedState.viewport[0];
+        const int framebufferH = savedState.viewport[3] - savedState.viewport[1];
+
+        const int diffW = (framebufferW - windowWidth);
+        const int diffH = (framebufferH - windowHeight);
+
+        // 1024 * scale = 2048
+        // y * scale = z
+        //
+        // scale = 2048/1024
+        // scale = y/z
+
+        int fbScaleX = 1;
+        int fbScaleY = 1;
+        if (diffW > 0) { fbScaleX = framebufferW / windowWidth;  }
+        if (diffH > 0) { fbScaleY = framebufferH / windowHeight; }
+
+        int viewportX = viewport.getX() * fbScaleX;
+        int viewportY = viewport.getY() * fbScaleY;
+        int viewportW = viewport.getWidth() * fbScaleX;
+        int viewportH = viewport.getHeight() * fbScaleY;
+
+        // Invert Y for OpenGL. In GL the origin of the
+        // window/framebuffer is the bottom left corner,
+        // and so is the origin of the viewport/scissor-box
+        // (that's why the - viewportH part is also needed).
+        viewportY = framebufferH - viewportY - viewportH;
+
+        glViewport(viewportX, viewportY, viewportW, viewportH);
+        glScissor(viewportX, viewportY, viewportW, viewportH);
+
+        //FIXME: better to optimize for a single VBO update!
+        draw2DTriangles(verts, vertCount,
+                        &indexes[drawInfo[i].firstIndex], drawInfo[i].indexCount,
+                        drawInfo[i].texture, frameMaxZ);
+    }
+
+    glDisable(GL_SCISSOR_TEST);
+    glViewport(savedState.viewport[0], savedState.viewport[1],
+               savedState.viewport[2], savedState.viewport[3]);
 }
 
 void NtbRenderInterfaceCoreGL::draw2DTriangles(const ntb::VertexPTC * verts, const int vertCount,
                                                const ntb::UInt16 * indexes, const int indexCount,
-                                               ntb::TextureHandle texture)
+                                               ntb::TextureHandle texture, const int frameMaxZ)
 {
     assert(verts != NULLPTR);
     assert(indexes != NULLPTR);
     assert(vertCount > 0);
     assert(indexCount > 0);
 
+    if (noDraw2D) { return; }
+
     //
     // Map to OpenGL NDC:
-    // (NOTE: this is probably more efficient if done in the shader!)
+    // (TODO NOTE: this is probably more efficient if done in the shader!)
     //
     temp2dVerts.reserve(vertCount);
     for (int v = 0; v < vertCount; ++v)
     {
         const float x = toNormScreenX(verts[v].x, windowWidth);
         const float y = toNormScreenY(verts[v].y, windowHeight);
-        const float z = ntb::remap(verts[v].z, 0.0f, maxZ, -1.0f, +1.0f);
+        const float z = ntb::remap(verts[v].z, 0.0f, static_cast<float>(frameMaxZ), -1.0f, +1.0f);
 
         const ntb::VertexPTC vertNdc = { x, y, z, verts[v].u, verts[v].v, verts[v].color };
         temp2dVerts.push_back(vertNdc);
@@ -504,7 +612,7 @@ void NtbRenderInterfaceCoreGL::draw2DTriangles(const ntb::VertexPTC * verts, con
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ntb::VertexPTC), offsetPtr(0));
     CHECK_GL_ERRORS();
 
-    // UVs:
+    // Texture coordinate:
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ntb::VertexPTC), offsetPtr(sizeof(float) * 3));
     CHECK_GL_ERRORS();
@@ -533,10 +641,12 @@ void NtbRenderInterfaceCoreGL::draw2DTriangles(const ntb::VertexPTC * verts, con
     temp2dVerts.clear();
 }
 
-void NtbRenderInterfaceCoreGL::draw2DLines(const ntb::VertexPC * verts, const int vertCount)
+void NtbRenderInterfaceCoreGL::draw2DLines(const ntb::VertexPC * verts, const int vertCount, const int frameMaxZ)
 {
     assert(verts != NULLPTR);
     assert(vertCount > 0);
+
+    if (noDraw2D) { return; }
 
     //
     // Map to OpenGL NDC:
@@ -547,7 +657,7 @@ void NtbRenderInterfaceCoreGL::draw2DLines(const ntb::VertexPC * verts, const in
     {
         const float x = toNormScreenX(verts[v].x, windowWidth);
         const float y = toNormScreenY(verts[v].y, windowHeight);
-        const float z = ntb::remap(verts[v].z, 0.0f, maxZ, -1.0f, +1.0f);
+        const float z = ntb::remap(verts[v].z, 0.0f, static_cast<float>(frameMaxZ), -1.0f, +1.0f);
 
         const ntb::VertexPC vertNdc = { x, y, z, verts[v].color };
         temp2dLines.push_back(vertNdc);
@@ -695,6 +805,9 @@ static void mouseButtonCallback(GLFWwindow * window, const int button, const int
 static void sampleAppDraw()
 {
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+
+    // NTB starts writing at Z=0 and increases.
+    glClearDepth(0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     gui1->onFrameRender();

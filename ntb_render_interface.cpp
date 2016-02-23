@@ -10,6 +10,13 @@ ShellInterface::~ShellInterface() { }
 // class RenderInterface:
 // ========================================================
 
+RenderInterface::~RenderInterface()
+{
+    // We don't want Clang to give us a '-Wweak-vtables' warning,
+    // so defining the destructor here avoids that by anchoring
+    // the vtable to this file.
+}
+
 int RenderInterface::getMaxZ() const
 {
     // We can have this much -1 layers of 2D elements.
@@ -21,16 +28,42 @@ int RenderInterface::getMaxZ() const
     return 999999;
 }
 
-RenderInterface::~RenderInterface()
+Rectangle RenderInterface::getViewport() const
 {
-    // We don't want Clang to give us a '-Wweak-vtables' warning,
-    // so defining the destructor here avoids that by anchoring
-    // the vtable to this file.
+    // A default arbitrary screen size.
+    return makeRect(0, 0, 1024, 768);
 }
 
-// Default stubs:
-void RenderInterface::beginDraw() { }
-void RenderInterface::endDraw()   { }
+TextureHandle RenderInterface::createTexture(int, int, int, const void *)
+{
+    return NTB_NULL;
+}
+
+void RenderInterface::destroyTexture(TextureHandle)
+{
+}
+
+void RenderInterface::beginDraw()
+{
+}
+
+void RenderInterface::endDraw()
+{
+}
+
+void RenderInterface::draw2DLines(const VertexPC *, int, int)
+{
+}
+
+void RenderInterface::draw2DTriangles(const VertexPTC *, int, const UInt16 *, int,
+                                      TextureHandle, int)
+{
+}
+
+void RenderInterface::drawClipped2DTriangles(const VertexPTC *, int, const UInt16 *, int,
+                                             const DrawClippedInfo *, int, int)
+{
+}
 
 // ========================================================
 // Color conversions / manipulation helpers:
@@ -98,6 +131,32 @@ Color32 blendColors(const float color1[], const float color2[], const float perc
 
     return packColor(floatToByte(fR), floatToByte(fG),
                      floatToByte(fB), floatToByte(fA));
+}
+
+Color32 blendColors(const Color32 color1, const Color32 color2, const float percent)
+{
+    UByte r1, g1, b1, a1;
+    unpackColor(color1, r1, g1, b1, a1);
+    const float fR1 = byteToFloat(r1);
+    const float fG1 = byteToFloat(g1);
+    const float fB1 = byteToFloat(b1);
+    const float fA1 = byteToFloat(a1);
+
+    UByte r2, g2, b2, a2;
+    unpackColor(color2, r2, g2, b2, a2);
+    const float fR2 = byteToFloat(r2);
+    const float fG2 = byteToFloat(g2);
+    const float fB2 = byteToFloat(b2);
+    const float fA2 = byteToFloat(a2);
+
+    const float t = 1.0f - percent;
+    const float finalR = (t * fR1) + (percent * fR2);
+    const float finalG = (t * fG1) + (percent * fG2);
+    const float finalB = (t * fB1) + (percent * fB2);
+    const float finalA = (t * fA1) + (percent * fA2);
+
+    return packColor(floatToByte(finalR), floatToByte(finalG),
+                     floatToByte(finalB), floatToByte(finalA));
 }
 
 void RGBToHLS(const float fR, const float fG, const float fB, float & hue, float & light, float & saturation)

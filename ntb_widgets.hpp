@@ -25,6 +25,7 @@ class InfoBarWidget;
 class ScrollBarWidget;
 class ValueSliderWidget;
 class ColorPickerWidget;
+class View3DWidget;
 class VarDisplayWidget;
 class WindowWidget;
 
@@ -127,7 +128,9 @@ public:
         BottomLeft,
         TopRight,
         BottomRight,
-        CornerCount
+
+        CornerCount,
+        CornerNone = CornerCount
     };
 
     Widget();
@@ -190,11 +193,11 @@ public:
 
     bool testFlag(const UInt32 mask) const
     {
-        return flags & mask;
+        return !!(flags & mask);
     }
     void setFlag(const UInt32 mask, const bool f)
     {
-        // Using one of the Standford bithacks in here:
+        // Using one of the Standford bit-hacks:
         // http://graphics.stanford.edu/~seander/bithacks.html
         flags = (flags & ~mask) | (-f & mask);
     }
@@ -528,6 +531,35 @@ private:
 };
 
 // ========================================================
+// class View3DWidget:
+// ========================================================
+
+class View3DWidget NTB_FINAL_CLASS
+    : public Widget
+{
+public:
+
+    View3DWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
+                 const char * title, const ProjectionParameters & proj);
+
+    void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE;
+    void onMove(int displacementX, int displacementY) NTB_OVERRIDE;
+
+    bool onMouseMotion(int mx, int my) NTB_OVERRIDE;
+
+    #if NEO_TWEAK_BAR_DEBUG
+    const char * getTypeString() const NTB_OVERRIDE { return "View3DWidget"; }
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    void refreshProjectionViewport();
+
+    ProjectionParameters projParams;
+    TitleBarWidget titleBar;
+};
+
+// ========================================================
 // class EditField:
 // ========================================================
 
@@ -729,7 +761,7 @@ public:
     void setUsableRect(const Rectangle & newRect) { usableRect = newRect; }
 
     ScrollBarWidget & getScrollBar() { return scrollBar; }
-    IntrusiveList   & getEditFieldList() { return editFields; }
+    IntrusiveList & getEditFieldList() { return editFields; }
 
     #if NEO_TWEAK_BAR_DEBUG
     const char * getTypeString() const NTB_OVERRIDE { return "WindowWidget"; }
