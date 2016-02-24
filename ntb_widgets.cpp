@@ -889,7 +889,6 @@ void InfoBarWidget::onResize(const int displacementX, const int displacementY, c
 //TODO:
 // [HOME] and [END] keys should scroll all the way to the top and bottom!!!
 //
-
 static const int ScrollBarWidth = NTB_SCALED(18);
 static const int ScrollBarButtonSize = NTB_SCALED(10);
 
@@ -1789,7 +1788,7 @@ void ColorPickerWidget::refreshUsableRect()
 }
 
 // ========================================================
-// class View3DWidget:
+// Helpers for the 3D view widget:
 // ========================================================
 
 struct SphereVert
@@ -1816,13 +1815,14 @@ struct BoxVert
 #include "sphere.cpp"
 #include "arrow.cpp"
 
+// Box geometry with proper UVs and normals
 static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const Color32 faceColors[6],
                             const float width, const float height, const float depth)
 {
     //
     // -0.5,+0.5 indexed box:
     //
-    const UInt16 boxFaces[][4] =
+    static const UInt16 boxFaces[][4] =
     {
         { 0, 1, 5, 4 },
         { 4, 5, 6, 7 },
@@ -1831,7 +1831,7 @@ static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const C
         { 1, 2, 6, 5 },
         { 0, 4, 7, 3 }
     };
-    const float boxPositions[][3] =
+    static const float boxPositions[][3] =
     {
         { -0.5f, -0.5f, -0.5f },
         { -0.5f, -0.5f,  0.5f },
@@ -1842,7 +1842,7 @@ static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const C
         {  0.5f,  0.5f,  0.5f },
         {  0.5f,  0.5f, -0.5f },
     };
-    const float boxNormalVectors[][3] =
+    static const float boxNormalVectors[][3] =
     {
         { -1.0f,  0.0f,  0.0f },
         {  0.0f,  1.0f,  0.0f },
@@ -1851,7 +1851,7 @@ static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const C
         {  0.0f,  0.0f,  1.0f },
         {  0.0f,  0.0f, -1.0f }
     };
-    const float boxTexCoords[][2] =
+    static const float boxTexCoords[][2] =
     {
         { 0.0f, 1.0f },
         { 1.0f, 1.0f },
@@ -1891,20 +1891,6 @@ static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const C
     }
 }
 
-Mat4x4 Mat4x4_rotationY(const float radians)
-{
-    const float c = std::cos(radians);
-    const float s = std::sin(radians);
-
-    Mat4x4 result;
-    result.setRows(makeVec4( c, 0.0f, s, 0.0f),
-                  makeVec4(0.0f, 1.0f, 0.0f, 0.0f),
-                  makeVec4(-s, 0.0f, c, 0.0f),
-                  makeVec4(0.0f, 0.0f, 0.0f, 1.0f));
-    return result;
-}
-Mat4x4 g_mdlMat;
-
 static void screenProjectionXY(VertexPTC & vOut, const VertexPTC & vIn, const Mat4x4 & viewProjMatrix, const Rectangle & viewport)
 {
     // Project the vertex (we don't care about z/depth here):
@@ -1922,11 +1908,61 @@ static void screenProjectionXY(VertexPTC & vOut, const VertexPTC & vIn, const Ma
     vOut.y = (((ndcY * 0.5f) + 0.5f) * viewport.getHeight()) + viewport.getY();
 }
 
+static float normalizeAngle360(float degrees)
+{
+    if (degrees >= 360.0f || degrees < 0.0f)
+    {
+        degrees -= std::floor(degrees * (1.0f / 360.0f)) * 360.0f;
+    }
+    return degrees;
+}
+
+static float normalizeAngle180(float degrees)
+{
+    degrees = normalizeAngle360(degrees);
+    if (degrees > 180.0f)
+    {
+        degrees -= 360.0f;
+    }
+    return degrees;
+}
+
+static bool angleNearZero(const float num)
+{
+    return std::fabs(num) <= 0.01f;
+}
+
+static float lerpAngles(float a, float b, const float t)
+{
+    // Ensure we wrap around the shortest way.
+    a = normalizeAngle180(a);
+    b = normalizeAngle180(b);
+	return (a + t * (b - a));
+}
+
+// ========================================================
+// class View3DWidget:
+// ========================================================
+
 View3DWidget::View3DWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
                            const char * title, const ProjectionParameters & proj)
     : Widget(myGUI, myParent, myRect)
+    , mouseSensitivity(0.5f)
+    , maxMouseDelta(20)
+    , invertMouseY(false)
+    , leftMouseButtonDown(false)
+    , interactiveControls(true)
+    , showXyzLabels(true)
+    , updateScrGeometry(true)
+    , resettingAngles(false)
+    , prevFrameTimeMs(0)
+    , scrProjectedVerts(sizeof(VertexPTC))
+    , scrProjectedIndexes(sizeof(UInt16))
     , projParams(proj)
 {
+    mouseDelta.setZero();
+    rotationDegrees.setZero();
+
     // Title bar is optional in this widget, so we can also use it as a component attached
     // to a WindowWidget or as a standalone popup-like window when a title/top-bar is provided.
     if (title != NTB_NULL)
@@ -1942,166 +1978,317 @@ View3DWidget::View3DWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
 
     addChild(&titleBar);
     refreshProjectionViewport();
+
+    // Need to be cached for the click tests.
+    const float chrW = GeometryBatch::getCharWidth()  * g_textScaling;
+    const float chrH = GeometryBatch::getCharHeight() * g_textScaling;
+    resetAnglesBtnRect.xMins = projParams.viewport.xMins + NTB_SCALED(3);
+    resetAnglesBtnRect.yMins = projParams.viewport.yMaxs - NTB_SCALED(2) - chrH;
+    resetAnglesBtnRect.xMaxs = resetAnglesBtnRect.xMins + chrW + NTB_SCALED(3);
+    resetAnglesBtnRect.yMaxs = resetAnglesBtnRect.yMins + chrH + NTB_SCALED(2);
 }
 
 void View3DWidget::onDraw(GeometryBatch & geoBatch) const
 {
+    const Int64 currentTimeMs = getShellInterface()->getTimeMilliseconds();
+    const Int64 deltaTimeMs   = currentTimeMs - prevFrameTimeMs;
+    prevFrameTimeMs = currentTimeMs;
+
+    if (resettingAngles)
+    {
+        const float resetSpeed = 2.0f;
+        const float deltaTimeSeconds = deltaTimeMs * 0.001;
+
+        rotationDegrees.x = lerpAngles(rotationDegrees.x, 0.0f, resetSpeed * deltaTimeSeconds);
+        rotationDegrees.y = lerpAngles(rotationDegrees.y, 0.0f, resetSpeed * deltaTimeSeconds);
+        rotationDegrees.z = lerpAngles(rotationDegrees.z, 0.0f, resetSpeed * deltaTimeSeconds);
+        updateScrGeometry = true;
+
+        if (angleNearZero(rotationDegrees.x) &&
+            angleNearZero(rotationDegrees.y) &&
+            angleNearZero(rotationDegrees.z))
+        {
+            rotationDegrees.setZero();
+            resettingAngles = false;
+        }
+    }
+
+    if (!isVisible())
+    {
+        return;
+    }
+
+    const Color32 vpOutlineColor = packColor(255, 255, 255);
+    const Color32 resetBtnColor  = packColor(255, 255, 225);
+    const Color32 xAxisColor     = packColor(225, 0, 0); // X=red
+    const Color32 yAxisColor     = packColor(0, 225, 0); // Y=green
+    const Color32 zAxisColor     = packColor(0, 0, 225); // Z=blue
+
     Widget::onDraw(geoBatch);
-    geoBatch.drawRectOutline(projParams.viewport, packColor(255, 255, 255));//TODO color should be configurable!
+    geoBatch.drawRectOutline(projParams.viewport, vpOutlineColor);
 
-    Rectangle textBox;
-    const float chrW = GeometryBatch::getCharWidth()  * g_textScaling;
-    const float chrH = GeometryBatch::getCharHeight() * g_textScaling;
+    if (interactiveControls)
+    {
+        Rectangle textBox = resetAnglesBtnRect;
+        textBox.moveBy(NTB_SCALED(2), NTB_SCALED(2)); // Better center the "R"
+        geoBatch.drawTextConstrained("R", 1, textBox, textBox, g_textScaling, resetBtnColor, TextAlign::Left);
+    }
 
-    textBox.xMins = projParams.viewport.xMaxs - chrW - NTB_SCALED(2);
-    textBox.yMins = projParams.viewport.yMaxs - chrH * 3;
-    textBox.xMaxs = textBox.xMins + chrW + NTB_SCALED(2);
-    textBox.yMaxs = textBox.yMins + chrH * 3;
+    if (showXyzLabels)
+    {
+        const float chrW = GeometryBatch::getCharWidth()  * g_textScaling;
+        const float chrH = GeometryBatch::getCharHeight() * g_textScaling;
 
-// bg box around the text
-//    geoBatch.drawRectFilled(textBox, packColor(255, 255, 255, 100));
+        Rectangle textBox;
+        textBox.xMins = projParams.viewport.xMaxs - chrW - NTB_SCALED(2);
+        textBox.yMins = projParams.viewport.yMaxs - chrH * 3;
+        textBox.xMaxs = textBox.xMins + chrW + NTB_SCALED(2);
+        textBox.yMaxs = textBox.yMins + chrH * 3;
 
-    geoBatch.drawTextConstrained("x", 1, textBox, textBox, g_textScaling, packColor(225, 0, 0), TextAlign::Right);
-    textBox = textBox.shrunk(0, chrH);
-    geoBatch.drawTextConstrained("y", 1, textBox, textBox, g_textScaling, packColor(0, 225, 0), TextAlign::Right);
-    textBox = textBox.shrunk(0, chrH);
-    geoBatch.drawTextConstrained("z", 1, textBox, textBox, g_textScaling, packColor(0, 0, 225), TextAlign::Right);
+        geoBatch.drawTextConstrained("x", 1, textBox, textBox, g_textScaling, xAxisColor, TextAlign::Right);
+        textBox = textBox.shrunk(0, chrH);
+        geoBatch.drawTextConstrained("y", 1, textBox, textBox, g_textScaling, yAxisColor, TextAlign::Right);
+        textBox = textBox.shrunk(0, chrH);
+        geoBatch.drawTextConstrained("z", 1, textBox, textBox, g_textScaling, zAxisColor, TextAlign::Right);
+    }
 
-    static float rot = 0.0f;
-    g_mdlMat = Mat4x4_rotationY(rot);
-    rot += 0.005f;
+    if (updateScrGeometry)
+    {
+        const Mat4x4 matRx = Mat4x4::rotationX(degToRad(rotationDegrees.x));
+        const Mat4x4 matRy = Mat4x4::rotationY(degToRad(rotationDegrees.y));
+        const Mat4x4 matRz = Mat4x4::rotationZ(degToRad(rotationDegrees.z));
+        const Mat4x4 modelToWorldMatrix = Mat4x4::multiply(Mat4x4::multiply(matRz, matRx), matRy);
+
+        clearScreenVertexCaches();
+
+        // SPHERE
+        addScreenProjectedArrow(modelToWorldMatrix,  0.28f, xAxisColor, ArrowDirX);
+        addScreenProjectedArrow(modelToWorldMatrix,  0.28f, yAxisColor, ArrowDirY);
+        addScreenProjectedArrow(modelToWorldMatrix,  0.28f, zAxisColor, ArrowDirZ);
+        addScreenProjectedSphere(modelToWorldMatrix, 0.20f);
+        addScreenProjectedSphere(modelToWorldMatrix, 0.20f);
+
+        // ARROW
+        //addScreenProjectedArrow(modelToWorldMatrix, 0.35f, packColor(255, 255, 0), ArrowDirZ);
+
+        // BOX
+        //addScreenProjectedBox(modelToWorldMatrix, 0.4f, 0.4f, 0.4f, packColor(0, 128, 128));
+
+        updateScrGeometry = false;
+    }
+
+    submitScreenVertexCaches(geoBatch);
+}
+
+void View3DWidget::clearScreenVertexCaches() const
+{
+    scrProjectedVerts.clear();
+    scrProjectedIndexes.clear();
+}
+
+void View3DWidget::submitScreenVertexCaches(GeometryBatch & geoBatch) const
+{
+    geoBatch.drawClipped2DTriangles(
+            scrProjectedVerts.getData<VertexPTC>(), scrProjectedVerts.getSize(),
+            scrProjectedIndexes.getData<UInt16>(),  scrProjectedIndexes.getSize(),
+            projParams.viewport, projParams.viewport);
+}
+
+void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, const float scaleXYZ) const
+{
+    RenderInterface * renderer  = getRenderInterface();
+    const Rectangle scrViewport = renderer->getViewport();
+    const bool highlighted      = isMouseIntersecting();
+    const Color32 brightness    = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor    = packColor(0, 0, 0, 255);
+    const SphereVert * pVert    = g_sphereVerts;
+    const int vertCount         = lengthOf(g_sphereVerts);
+    UInt16 nextVertexIndex      = scrProjectedVerts.getSize();
+
+    for (int v = 0; v < vertCount; ++v, ++pVert)
+    {
+        const Vec3 wp = Mat4x4::transformPointAffine(pVert->position, modelToWorldMatrix);
+        const Color32 vertColor = blendColors(shadeColor, pVert->color & brightness,
+                                              std::fabs(clamp(wp.z, -1.0f, 1.0f)));
+
+        VertexPTC scrVert = { wp.x * scaleXYZ, wp.y * scaleXYZ, wp.z * scaleXYZ, 0.0f, 0.0f, vertColor };
+        screenProjectionXY(scrVert, scrVert, projParams.viewProjMatrix, scrViewport);
+
+        scrProjectedVerts.pushBack<VertexPTC>(scrVert);
+        scrProjectedIndexes.pushBack<UInt16>(nextVertexIndex++);
+    }
+}
+
+void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, const float scaleXYZ,
+                                           const Color32 color, const ArrowDir dir) const
+{
+    RenderInterface * renderer  = getRenderInterface();
+    const Rectangle scrViewport = renderer->getViewport();
+    const bool highlighted      = isMouseIntersecting();
+    const Color32 brightness    = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor    = packColor(0, 0, 0, 255);
+    const ArrowVert * pVert     = g_arrowVerts;
+    const int vertCount         = lengthOf(g_arrowVerts);
+    UInt16 nextVertexIndex      = scrProjectedVerts.getSize();
+
+    for (int v = 0; v < vertCount; ++v, ++pVert)
+    {
+        ArrowVert av = *pVert;
+        switch (dir)
+        {
+        case ArrowDirX :
+            std::swap(av.position.x, av.position.z);
+            std::swap(av.normal.x,   av.normal.z);
+            break;
+        case ArrowDirY :
+            std::swap(av.position.y, av.position.z);
+            std::swap(av.normal.y,   av.normal.z);
+            break;
+        default :
+            // ArrowDirZ is the default direction.
+            break;
+        } // switch (dir)
+
+        const Vec3 wp = Mat4x4::transformPointAffine(av.position, modelToWorldMatrix);
+        const Vec3 wn = Mat4x4::transformPointAffine(av.normal,   modelToWorldMatrix);
+
+        const Color32 vertColor = blendColors(shadeColor, color & brightness,
+                                              std::fabs(clamp(wn.z, -1.0f, 1.0f)));
+
+        VertexPTC scrVert = { wp.x * scaleXYZ, wp.y * scaleXYZ, wp.z * scaleXYZ, 0.0f, 0.0f, vertColor };
+        screenProjectionXY(scrVert, scrVert, projParams.viewProjMatrix, scrViewport);
+
+        scrProjectedVerts.pushBack<VertexPTC>(scrVert);
+        scrProjectedIndexes.pushBack<UInt16>(nextVertexIndex++);
+    }
+}
+
+void View3DWidget::addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, const float w,
+                                         const float h, const float d, const Color32 color) const
+{
+    BoxVert tempBoxVerts[24];
+    UInt16  tempBoxIndexes[36];
 
     RenderInterface * renderer  = getRenderInterface();
     const Rectangle scrViewport = renderer->getViewport();
-    const float scrZ            = geoBatch.getNextZ();
+    const bool highlighted      = isMouseIntersecting();
+    const Color32 brightness    = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor    = packColor(0, 0, 0, 255);
+    const BoxVert * pVert       = tempBoxVerts;
+    const UInt16  * pIndex      = tempBoxIndexes;
+    const int vertCount         = lengthOf(tempBoxVerts);
+    const int indexCount        = lengthOf(tempBoxIndexes);
 
-    // SPHERE
-#if 0
-    int vindex = 0;
-    float scale = 0.2f;
-    std::vector<VertexPTC> finalVerts;
-    std::vector<UInt16> finalIndexes;
+    // Each face could be colored independently, but we aren't using that now.
+    const Color32 tempFaceColors[6] = { color, color, color, color, color, color };
+    makeTexturedBox(tempBoxVerts, tempBoxIndexes, tempFaceColors, w, h, d);
 
-    const SphereVert * pVert = g_sphereVerts;
-    const int vertCount = lengthOf(g_sphereVerts);
-
-    const bool highlighted   = isMouseIntersecting();
-    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
-    const Color32 shadeColor = packColor(0, 0, 0, 255);
-
-    for (int v = 0; v < vertCount; ++v, ++pVert)
-    {
-        const Vec3 p = Mat4x4::transformPointAffine(pVert->position, g_mdlMat);
-        const Color32 vertColor = blendColors(shadeColor, pVert->color & brightness,
-                                              std::fabs(clamp(p.z, -1.0f, 1.0f)));
-
-        VertexPTC finalVert = { p.x * scale, p.y * scale, p.z * scale, 0.0f, 0.0f, vertColor };
-        screenProjectionXY(finalVert, finalVert, projParams.viewProjMatrix, scrViewport);
-        finalVert.z += scrZ;
-
-        finalVerts.push_back(finalVert);
-        finalIndexes.push_back(vindex++);
-    }
-
-    geoBatch.drawClipped2DTriangles(finalVerts.data(), finalVerts.size(),
-            finalIndexes.data(), finalIndexes.size(), projParams.viewport);
-#endif // 0
-
-    // ARROW
-#if 1
-    int vindex = 0;
-    float scale = 0.4f;
-    std::vector<VertexPTC> finalVerts;
-    std::vector<UInt16> finalIndexes;
-
-    const ArrowVert * pVert = g_arrowVerts;
-    const int vertCount = lengthOf(g_arrowVerts);
-
-    const bool highlighted   = isMouseIntersecting();
-    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
-    const Color32 shadeColor = packColor(0, 0, 0, 255);
-    const Color32 arrowColor = packColor(255, 255, 0);
+    scrProjectedVerts.allocateExact(vertCount);
+    scrProjectedIndexes.allocateExact(indexCount);
 
     for (int v = 0; v < vertCount; ++v, ++pVert)
     {
-        const Vec3 p = Mat4x4::transformPointAffine(pVert->position, g_mdlMat);
-        const Vec3 n = Mat4x4::transformPointAffine(pVert->normal, g_mdlMat);
-
-        const Color32 vertColor = blendColors(shadeColor, arrowColor & brightness,
-                                              std::fabs(clamp(n.z, -1.0f, 1.0f)));
-
-        VertexPTC finalVert = { p.x * scale, p.y * scale, p.z * scale, 0.0f, 0.0f, vertColor };
-        screenProjectionXY(finalVert, finalVert, projParams.viewProjMatrix, scrViewport);
-        finalVert.z += scrZ;
-
-        finalVerts.push_back(finalVert);
-        finalIndexes.push_back(vindex++);
-    }
-
-    geoBatch.drawClipped2DTriangles(finalVerts.data(), finalVerts.size(),
-            finalIndexes.data(), finalIndexes.size(), projParams.viewport);
-#endif // 0
-
-    // BOX
-#if 0
-    int vnum = 0;
-    VertexPTC finalVerts[24];
-    BoxVert boxVerts[24];
-    UInt16 boxIndexes[36];
-
-    const Color32 faceColors[6] = {
-        packColor(255, 0, 0),
-        packColor(0, 255, 0),
-        packColor(0, 0, 255),
-        packColor(255, 255, 0),
-        packColor(255, 0, 255),
-        packColor(255, 255, 255) };
-    makeTexturedBox(boxVerts, boxIndexes, faceColors, 0.4f, 0.4f, 0.4f);
-
-    const BoxVert * pVert = boxVerts;
-    const int vertCount = lengthOf(boxVerts);
-
-    const bool highlighted   = isMouseIntersecting();
-    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
-    const Color32 shadeColor = packColor(0, 0, 0, 255);
-
-    for (int v = 0; v < vertCount; ++v, ++pVert)
-    {
-        const Vec3 p = Mat4x4::transformPointAffine(pVert->position, g_mdlMat);
-        const Vec3 n = Mat4x4::transformPointAffine(pVert->normal, g_mdlMat);
+        const Vec3 wp = Mat4x4::transformPointAffine(pVert->position, modelToWorldMatrix);
+        const Vec3 wn = Mat4x4::transformPointAffine(pVert->normal,   modelToWorldMatrix);
 
         const Color32 vertColor = blendColors(shadeColor, pVert->color & brightness,
-                                              std::fabs(clamp(n.z, -1.0f, 1.0f)));
+                                              std::fabs(clamp(wn.z, -1.0f, 1.0f)));
 
-        VertexPTC finalVert = { p.x, p.y, p.z, 0.0f, 0.0f, vertColor };
-        screenProjectionXY(finalVert, finalVert, projParams.viewProjMatrix, scrViewport);
-        finalVert.z += scrZ;
+        VertexPTC scrVert = { wp.x, wp.y, wp.z, pVert->u, pVert->v, vertColor };
+        screenProjectionXY(scrVert, scrVert, projParams.viewProjMatrix, scrViewport);
 
-        finalVerts[vnum++] = finalVert;
+        scrProjectedVerts.pushBack<VertexPTC>(scrVert);
     }
 
-    geoBatch.drawClipped2DTriangles(finalVerts, lengthOf(finalVerts),
-            boxIndexes, lengthOf(boxIndexes), projParams.viewport);
-#endif // 0
+    // Unlike the others, the box geometry is actually indexed!
+    for (int i = 0; i < indexCount; ++i, ++pIndex)
+    {
+        scrProjectedIndexes.pushBack<UInt16>(*pIndex);
+    }
 }
 
 void View3DWidget::onMove(const int displacementX, const int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
+    resetAnglesBtnRect.moveBy(displacementX, displacementY);
     refreshProjectionViewport();
+}
+
+bool View3DWidget::onMouseButton(const MouseButton::Enum button, const int clicks)
+{
+    const bool eventHandled = Widget::onMouseButton(button, clicks);
+
+    if (interactiveControls && isMouseIntersecting())
+    {
+        if (leftClick(button, clicks))
+        {
+            // Clicking the "R" button resets the angles.
+            if (resetAnglesBtnRect.containsPoint(lastMousePos))
+            {
+                resettingAngles   = true;
+                updateScrGeometry = true;
+            }
+            else
+            {
+                leftMouseButtonDown = true;
+            }
+        }
+        else if (clicks <= 0)
+        {
+            leftMouseButtonDown = false;
+            mouseDelta.setZero();
+        }
+    }
+
+    return eventHandled | leftMouseButtonDown;
 }
 
 bool View3DWidget::onMouseMotion(const int mx, const int my)
 {
-    const bool eventHandled = Widget::onMouseMotion(mx, my);
+    mouseDelta.x = mx - lastMousePos.x;
+    mouseDelta.y = my - lastMousePos.y;
+    mouseDelta.x = clamp(mouseDelta.x, -maxMouseDelta, maxMouseDelta);
+    mouseDelta.y = clamp(mouseDelta.y, -maxMouseDelta, maxMouseDelta);
+
+    bool eventHandled = Widget::onMouseMotion(mx, my);
 
     // We want to highlight these when the parent window gains focus.
-    if (isMouseIntersecting())
+    if (interactiveControls && isMouseIntersecting())
     {
-        titleBar.setHighlightedColors();
+        if (leftMouseButtonDown && projParams.viewport.containsPoint(mx, my))
+        {
+            const float dirY = invertMouseY ? -1.0f : 1.0f;
+            rotationDegrees.x -= mouseDelta.y * mouseSensitivity * dirY;
+            rotationDegrees.y += mouseDelta.x * mouseSensitivity;
+            rotationDegrees.x = normalizeAngle360(rotationDegrees.x);
+            rotationDegrees.y = normalizeAngle360(rotationDegrees.y);
+
+            mouseDelta.setZero();
+            resettingAngles   = false;
+            updateScrGeometry = true;
+            eventHandled      = true;
+        }
+
+        // Highlight the child title-bar as well, if we have one.
+        if (titleBar.isVisible())
+        {
+            titleBar.setHighlightedColors();
+        }
     }
 
     return eventHandled;
+}
+
+bool View3DWidget::onMouseScroll(const int yScroll)
+{
+    if (interactiveControls && isMouseIntersecting() && leftMouseButtonDown)
+    {
+        resettingAngles   = false;
+        updateScrGeometry = true;
+        rotationDegrees.z = normalizeAngle360(rotationDegrees.z + (yScroll * mouseSensitivity));
+        return true;
+    }
+    return false;
 }
 
 void View3DWidget::refreshProjectionViewport()
@@ -3038,7 +3225,10 @@ WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
         projParams.zFar = 100.0f;
         projParams.autoAdjustAspect = true;
 
-        addChild(new View3DWidget(myGUI, this, box, "3D View 1", projParams));
+        auto v3d = new View3DWidget(myGUI, this, box, "3D View 1", projParams);
+        //v3d->setInteractive(false);
+        //v3d->setShowXyzLabels(false);
+        addChild(v3d);
     }
     {
         Rectangle box;
@@ -3065,7 +3255,8 @@ WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
                            makeVec3(0.0f, 1.0f, 0.0f));
         projParams.viewProjMatrix = Mat4x4::multiply(viewMatrix, projMatrix);
 
-        addChild(new View3DWidget(myGUI, this, box, nullptr, projParams));
+        auto v3d = new View3DWidget(myGUI, this, box, nullptr, projParams);
+        addChild(v3d);
     }
 }
 

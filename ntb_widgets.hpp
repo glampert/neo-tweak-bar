@@ -534,6 +534,17 @@ private:
 // class View3DWidget:
 // ========================================================
 
+struct ProjectionParameters
+{
+    Rectangle viewport;
+    float fovYRadians;
+    float aspectRatio;
+    float zNear;
+    float zFar;
+    bool autoAdjustAspect;
+    Mat4x4 viewProjMatrix;
+};
+
 class View3DWidget NTB_FINAL_CLASS
     : public Widget
 {
@@ -545,7 +556,25 @@ public:
     void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE;
     void onMove(int displacementX, int displacementY) NTB_OVERRIDE;
 
+    bool onMouseButton(MouseButton::Enum button, int clicks) NTB_OVERRIDE;
     bool onMouseMotion(int mx, int my) NTB_OVERRIDE;
+    bool onMouseScroll(int yScroll) NTB_OVERRIDE;
+
+    // TODO expose somewhere in the front-end!
+    void setInvertMouseY(const bool invert) { invertMouseY = invert; }
+    bool isMouseYInverted() const { return invertMouseY; }
+
+    void  setMouseSensitivity(const float sensitivity) { mouseSensitivity = sensitivity; }
+    float getMouseSensitivity() const { return mouseSensitivity; }
+
+    void setMaxMouseDelta(const int max) { maxMouseDelta = max; }
+    int  getMaxMouseDelta() const { return maxMouseDelta; }
+
+    void setShowXyzLabels(const bool show) { showXyzLabels = show; }
+    bool isShowingXyzLabels() const { return showXyzLabels; }
+
+    void setInteractive(const bool interactive) { interactiveControls = interactive; }
+    bool isInteractive() const { return interactiveControls; }
 
     #if NEO_TWEAK_BAR_DEBUG
     const char * getTypeString() const NTB_OVERRIDE { return "View3DWidget"; }
@@ -553,9 +582,38 @@ public:
 
 private:
 
+    enum ArrowDir { ArrowDirX, ArrowDirY, ArrowDirZ };
+    void clearScreenVertexCaches() const;
+    void submitScreenVertexCaches(GeometryBatch & geoBatch) const;
+    void addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, float scaleXYZ) const;
+    void addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, float scaleXYZ, Color32 color, ArrowDir dir) const;
+    void addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, float w, float h, float d, Color32 color) const;
     void refreshProjectionViewport();
 
-    ProjectionParameters projParams;
+    // Local mouse states:
+    Point mouseDelta;                     // XY deltas to compute the mouse rotations.
+    float mouseSensitivity;               // [0,1] range: 0=very low; 1=very high.
+    int   maxMouseDelta;                  // Any range; default is 20.
+    bool  invertMouseY;                   // Inverts mouse rotation of the object in the Y-axis.
+    bool  leftMouseButtonDown;
+
+    // Misc switches:
+    bool interactiveControls;             // Allow mouse input and the reset button. Defaults to true.
+    bool showXyzLabels;                   // Show the XYZ label at the right corner. Defaults to true.
+
+    // Rotation angles:
+    mutable bool  updateScrGeometry;      // Only update the geometry caches when needed (on input/angles changed).
+    mutable bool  resettingAngles;        // True when "R" clicked. New mouse input cancels it.
+    mutable Vec3  rotationDegrees;        // AKA pitch (X), yaw (Y) and roll (Z).
+    mutable Int64 prevFrameTimeMs;        // Needed to compute a delta-time for angle reset lerp.
+    Rectangle     resetAnglesBtnRect;     // Tiny reset button in the corner ("R").
+
+    // Screen projected geometry caches:
+    mutable PODArray scrProjectedVerts;   // Cached 3D object vertexes projected to screen, ready for drawing.
+    mutable PODArray scrProjectedIndexes; // Index buffer for the above verts, since RenderInterface requires it.
+    ProjectionParameters projParams;      // Cached projection/viewport settings.
+
+    // The (optional) title bar:
     TitleBarWidget titleBar;
 };
 

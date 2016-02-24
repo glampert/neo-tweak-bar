@@ -752,7 +752,7 @@ public:
         Color
     };
 
-    float  data[4]; // X,Y,Z,W
+    float  data[4]; // (X,Y,Z,W)
     UInt16 type;    // For UI displaying
 
     Float4Ex(const Type t = Undefined)

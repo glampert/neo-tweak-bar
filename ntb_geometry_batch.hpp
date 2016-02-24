@@ -46,7 +46,7 @@ public:
 
     void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
                                 const UInt16 * indexes, int indexCount,
-                                const Rectangle & clipBox);
+                                const Rectangle & viewport, const Rectangle & clipBox);
 
     void draw2DTriangles(const VertexPTC * verts, int vertCount,
                          const UInt16 * indexes, int indexCount);

@@ -159,6 +159,7 @@ void print_sizes()
     std::cout << "sizeof(VarDisplayWidget)   = " << sizeof(ntb::VarDisplayWidget) << std::endl;
     std::cout << "sizeof(Variable)           = " << sizeof(ntb::Variable) << std::endl;
     std::cout << "sizeof(VarHierarchyParent) = " << sizeof(ntb::detail::VarHierarchyParent) << std::endl;
+    std::cout << "sizeof(View3DWidget)       = " << sizeof(ntb::View3DWidget) << std::endl;
     std::cout << "sizeof(Panel)              = " << sizeof(ntb::Panel) << std::endl;
     std::cout << "sizeof(GUI)                = " << sizeof(ntb::GUI) << std::endl;
     std::cout << "sizeof(EditField)          = " << sizeof(ntb::EditField) << std::endl;

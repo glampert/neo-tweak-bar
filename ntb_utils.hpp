@@ -1370,14 +1370,20 @@ struct Rectangle
     }
 };
 
-// ================================================================================================
-
 // This could be a constructor, but I want to keep Rectangle as a POD type.
 inline Rectangle makeRect(const int x0, const int y0, const int x1, const int y1)
 {
     Rectangle rect = { x0, y0, x1, y1 };
     return rect;
 }
+
+// ================================================================================================
+// TODO Note:
+// Should probably replace the cmath functions with local wrappers
+// to ease porting to platforms without double precision (which only
+// have the f suffixed ones) or if people want to provide customs.
+// Likely wrap that stuff into a math{} namespace (or a static Mathf class??)
+//
 
 struct Vec3
 {
@@ -1511,6 +1517,61 @@ struct Mat4x4
         rows[1] = row1;
         rows[2] = row2;
         rows[3] = row3;
+    }
+
+    // Rotation matrices:
+    static Mat4x4 rotationX(const float radians)
+    {
+        Mat4x4 result;
+        const float c = std::cos(radians);
+        const float s = std::sin(radians);
+        result.rows[0].set(1.0f,  0.0f, 0.0f, 0.0f);
+        result.rows[1].set(0.0f,  c,    s,    0.0f);
+        result.rows[2].set(0.0f, -s,    c,    0.0f);
+        result.rows[3].set(0.0f,  0.0f, 0.0f, 1.0f);
+        return result;
+    }
+    static Mat4x4 rotationY(const float radians)
+    {
+        Mat4x4 result;
+        const float c = std::cos(radians);
+        const float s = std::sin(radians);
+        result.rows[0].set(c,    0.0f, s,    0.0f),
+        result.rows[1].set(0.0f, 1.0f, 0.0f, 0.0f);
+        result.rows[2].set(-s,   0.0f, c,    0.0f);
+        result.rows[3].set(0.0f, 0.0f, 0.0f, 1.0f);
+        return result;
+    }
+    static Mat4x4 rotationZ(const float radians)
+    {
+        Mat4x4 result;
+        const float c = std::cos(radians);
+        const float s = std::sin(radians);
+        result.rows[0].set( c,   s,    0.0f, 0.0f);
+        result.rows[1].set(-s,   c,    0.0f, 0.0f);
+        result.rows[2].set(0.0f, 0.0f, 1.0f, 0.0f);
+        result.rows[3].set(0.0f, 0.0f, 0.0f, 1.0f);
+        return result;
+    }
+
+    // Translation/scaling:
+    static Mat4x4 translation(const float x, const float y, const float z)
+    {
+        Mat4x4 result;
+        result.rows[0].set(1.0f, 0.0f, 0.0f, 0.0f);
+        result.rows[1].set(0.0f, 1.0f, 0.0f, 0.0f);
+        result.rows[2].set(0.0f, 0.0f, 1.0f, 0.0f);
+        result.rows[3].set(x,    y,    z,    1.0f);
+        return result;
+    }
+    static Mat4x4 scaling(const float x, const float y, const float z)
+    {
+        Mat4x4 result;
+        result.rows[0].set(x,    0.0f, 0.0f, 0.0f);
+        result.rows[1].set(0.0f, y,    0.0f, 0.0f);
+        result.rows[2].set(0.0f, 0.0f, z,    0.0f);
+        result.rows[3].set(0.0f, 0.0f, 0.0f, 1.0f);
+        return result;
     }
 
     // Left-handed look-at view/camera matrix. Up vector is normally the unit Y axis.

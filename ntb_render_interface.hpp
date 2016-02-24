@@ -27,22 +27,10 @@ public:
 struct OpaqueTextureType;
 typedef OpaqueTextureType * TextureHandle;
 
-struct ProjectionParameters
-{
-    Rectangle viewport; // should clip to this box
-    float fovYRadians;
-    float aspectRatio;
-    float zNear;
-    float zFar;
-    bool autoAdjustAspect;
-
-    // internal use
-    Mat4x4 viewProjMatrix;
-};
-
 struct DrawClippedInfo
 {
-    TextureHandle texture;
+    TextureHandle texture; // may be null
+    Rectangle viewport;
     Rectangle clipBox;
     int firstIndex;
     int indexCount;
@@ -91,7 +79,7 @@ public:
 
     virtual void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
                                         const UInt16 * indexes, int indexCount,
-                                        const DrawClippedInfo * drawInfo, int clipVertsCount,
+                                        const DrawClippedInfo * drawInfo, int drawInfoCount,
                                         int frameMaxZ);
 
     virtual ~RenderInterface() = 0;

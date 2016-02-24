@@ -193,7 +193,7 @@ public:
 
     void drawClipped2DTriangles(const ntb::VertexPTC * verts, int vertCount,
                                 const ntb::UInt16 * indexes, int indexCount,
-                                const ntb::DrawClippedInfo * drawInfo, int clipVertsCount,
+                                const ntb::DrawClippedInfo * drawInfo, int drawInfoCount,
                                 int frameMaxZ) OVERRIDE_METHOD;
 
     void draw2DTriangles(const ntb::VertexPTC * verts, int vertCount,
@@ -509,7 +509,7 @@ void NtbRenderInterfaceCoreGL::destroyTexture(ntb::TextureHandle texture)
 
 void NtbRenderInterfaceCoreGL::drawClipped2DTriangles(const ntb::VertexPTC * verts, const int vertCount,
                                                       const ntb::UInt16 * indexes, const int indexCount,
-                                                      const ntb::DrawClippedInfo * drawInfo, const int clipVertsCount,
+                                                      const ntb::DrawClippedInfo * drawInfo, const int drawInfoCount,
                                                       const int frameMaxZ)
 {
     assert(verts != NULLPTR);
@@ -517,19 +517,19 @@ void NtbRenderInterfaceCoreGL::drawClipped2DTriangles(const ntb::VertexPTC * ver
     assert(drawInfo != NULLPTR);
     assert(vertCount > 0);
     assert(indexCount > 0);
-    assert(clipVertsCount > 0);
+    assert(drawInfoCount > 0);
 
     if (noDraw3D) { return; }
 
     glEnable(GL_SCISSOR_TEST);
 
-    for (int i = 0; i < clipVertsCount; ++i)
+    for (int i = 0; i < drawInfoCount; ++i)
     {
-        ntb::Rectangle viewport = drawInfo[i].clipBox;
+        const ntb::Rectangle viewport = drawInfo[i].viewport;
+        const ntb::Rectangle clipBox  = drawInfo[i].clipBox;
 
         const int framebufferW = savedState.viewport[2] - savedState.viewport[0];
         const int framebufferH = savedState.viewport[3] - savedState.viewport[1];
-
         const int diffW = (framebufferW - windowWidth);
         const int diffH = (framebufferH - windowHeight);
 
@@ -549,14 +549,20 @@ void NtbRenderInterfaceCoreGL::drawClipped2DTriangles(const ntb::VertexPTC * ver
         int viewportW = viewport.getWidth() * fbScaleX;
         int viewportH = viewport.getHeight() * fbScaleY;
 
+        int clipX = clipBox.getX() * fbScaleX;
+        int clipY = clipBox.getY() * fbScaleY;
+        int clipW = clipBox.getWidth() * fbScaleX;
+        int clipH = clipBox.getHeight() * fbScaleY;
+
         // Invert Y for OpenGL. In GL the origin of the
         // window/framebuffer is the bottom left corner,
         // and so is the origin of the viewport/scissor-box
         // (that's why the - viewportH part is also needed).
         viewportY = framebufferH - viewportY - viewportH;
+        clipY = framebufferH - clipY - clipH;
 
         glViewport(viewportX, viewportY, viewportW, viewportH);
-        glScissor(viewportX, viewportY, viewportW, viewportH);
+        glScissor(clipX, clipY, clipW, clipH);
 
         //FIXME: better to optimize for a single VBO update!
         draw2DTriangles(verts, vertCount,

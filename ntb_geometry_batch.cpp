@@ -158,7 +158,7 @@ void GeometryBatch::endDraw()
 
 void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int vertCount,
                                            const UInt16 * indexes, const int indexCount,
-                                           const Rectangle & clipBox)
+                                           const Rectangle & viewport, const Rectangle & clipBox)
 {
     NTB_ASSERT(verts   != NTB_NULL);
     NTB_ASSERT(indexes != NTB_NULL);
@@ -167,6 +167,7 @@ void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int ve
 
     DrawClippedInfo drawInfo;
     drawInfo.texture    = NTB_NULL;
+    drawInfo.viewport   = viewport;
     drawInfo.clipBox    = clipBox;
     drawInfo.firstIndex = trisClippedBatch.getSize();
     drawInfo.indexCount = indexCount;
@@ -179,10 +180,14 @@ void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int ve
     }
     baseVertexClipped += vertCount;
 
+    const float z = getNextZ();
     for (int v = 0; v < vertCount; ++v)
     {
-        // Note that we don't add the Z here. The 3D widgets will have already set it.
-        vertsClippedBatch.pushBack<VertexPTC>(verts[v]);
+        VertexPTC vert = verts[v];
+        vert.z += z; // Note that we actually add to the existing Z value.
+                     // This is required by the 3D objects being screen protected.
+
+        vertsClippedBatch.pushBack<VertexPTC>(vert);
     }
 }
 
@@ -205,7 +210,7 @@ void GeometryBatch::draw2DTriangles(const VertexPTC * verts, const int vertCount
     for (int v = 0; v < vertCount; ++v)
     {
         VertexPTC vert = verts[v];
-        vert.z = z;
+        vert.z = z; // Just overwriting is fine.
         verts2DBatch.pushBack<VertexPTC>(vert);
     }
 }
