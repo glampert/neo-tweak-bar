@@ -147,8 +147,8 @@ public:
     virtual void onScrollContentDown();
     virtual void onAdjustLayout();
     virtual void onDisableEditing();
-    virtual void enableDrag(bool enable);
     virtual void setVisible(const bool visible) { setFlag(FlagVisible, visible); }
+    virtual void setMouseIntersecting(const bool intersect) { setFlag(FlagMouseIntersecting, intersect); }
 
     bool isVisible() const { return testFlag(FlagVisible); }
     bool isMinimized() const { return testFlag(FlagMinimized); }
@@ -158,8 +158,7 @@ public:
 
     void setMinimized(const bool minimized) { setFlag(FlagMinimized, minimized); }
     void setScrolledOutOfView(const bool outOfView) { setFlag(FlagScrolledOutOfView, outOfView); }
-    void setMouseIntersecting(const bool intersect) { setFlag(FlagMouseIntersecting, intersect); }
-    void setMouseDragEnabled(const bool enabled) { setFlag(FlagMouseDragEnabled, enabled); }
+    void setMouseDragEnabled(bool enabled);
 
     void setGUI(GUI * newGUI) { NTB_ASSERT(newGUI != NTB_NULL); gui = newGUI; }
     void setParent(Widget * newParent) { parent = newParent; }
@@ -204,12 +203,12 @@ public:
 
     #if NEO_TWEAK_BAR_DEBUG
     virtual void printHierarchy(std::ostream & out = std::cout, const SmallStr & indent = "") const;
-    virtual const char * getTypeString() const { return "Widget"; }
+    virtual SmallStr getTypeString() const { return "Widget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 protected:
 
-    void drawWidget(GeometryBatch & geoBatch) const;
+    void drawSelf(GeometryBatch & geoBatch) const;
     void drawChildren(GeometryBatch & geoBatch) const;
 
     GUI * gui;                  // direct pointer to the owning UI for things like colorscheme and scaling. never null
@@ -290,7 +289,7 @@ public:
     void setEventListener(ButtonEventListener * newListener) { eventListener = newListener; }
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE { return "ButtonWidget"; }
+    SmallStr getTypeString() const NTB_OVERRIDE { return "ButtonWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
@@ -331,7 +330,7 @@ public:
     const SmallStr & getTitle() const { return titleText; }
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE { return "TitleBarWidget"; }
+    SmallStr getTypeString() const NTB_OVERRIDE { return "TitleBarWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
@@ -365,7 +364,7 @@ public:
     const SmallStr & getText() const { return infoText; }
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE { return "InfoBarWidget"; }
+    SmallStr getTypeString() const NTB_OVERRIDE { return "InfoBarWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
@@ -404,7 +403,7 @@ public:
     bool isMouseScrollInverted() const { return invertMouseScroll; }
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE { return "ScrollBarWidget"; }
+    SmallStr getTypeString() const NTB_OVERRIDE { return "ScrollBarWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
@@ -465,7 +464,7 @@ public:
     bool onButtonDown(ButtonWidget & button) NTB_OVERRIDE;
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE { return "ValueSliderWidget"; }
+    SmallStr getTypeString() const NTB_OVERRIDE { return "ValueSliderWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
@@ -509,7 +508,7 @@ public:
     bool onButtonDown(ButtonWidget & button) NTB_OVERRIDE;
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE { return "ColorPickerWidget"; }
+    SmallStr getTypeString() const NTB_OVERRIDE { return "ColorPickerWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
@@ -560,6 +559,8 @@ public:
     bool onMouseMotion(int mx, int my) NTB_OVERRIDE;
     bool onMouseScroll(int yScroll) NTB_OVERRIDE;
 
+    void setMouseIntersecting(bool intersect) NTB_OVERRIDE;
+
     // TODO expose somewhere in the front-end!
     void setInvertMouseY(const bool invert) { invertMouseY = invert; }
     bool isMouseYInverted() const { return invertMouseY; }
@@ -577,7 +578,7 @@ public:
     bool isInteractive() const { return interactiveControls; }
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE { return "View3DWidget"; }
+    SmallStr getTypeString() const NTB_OVERRIDE { return "View3DWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
@@ -717,7 +718,7 @@ public:
     const SmallStr & getVarName() const { return varName; }
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE;
+    SmallStr getTypeString() const NTB_OVERRIDE;
     #endif // NEO_TWEAK_BAR_DEBUG
 
 protected:
@@ -767,7 +768,7 @@ private:
 
     Rectangle incrButton;
     Rectangle decrButton;
-    Rectangle sliderButton;
+    Rectangle editPopupButton;
 
     // Box where the variable value is displayed.
     // Text is clipped to fit this rect.
@@ -822,22 +823,25 @@ public:
     IntrusiveList & getEditFieldList() { return editFields; }
 
     #if NEO_TWEAK_BAR_DEBUG
-    const char * getTypeString() const NTB_OVERRIDE { return "WindowWidget"; }
+    SmallStr getTypeString() const NTB_OVERRIDE { return "WindowWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
 
+    void drawResizeHandles(GeometryBatch & geoBatch) const;
     void resizeWithMin(Corner corner, int & x, int & y, int offsetX, int offsetY);
     void refreshUsableRect();
 
-    Rectangle usableRect;  // discounts the top/side bars
-    Corner resizingCorner; // which corner being resized by user input
+    Rectangle     usableRect;     // Discounts the top/side bars.
+    Corner        resizingCorner; // Which corner being resized by user input.
+    Widget *      popupWidget;    // Each window can have one open popup at a time. Popups are always window children.
+    IntrusiveList editFields;     // Global list of EditFields attached to this window for easy access.
 
-    IntrusiveList editFields; // Global list of EditFields attached to this window so we can easily reach them.
-
+    // These are always present in a window, so we
+    // can avoid a malloc and declare them inline.
     ScrollBarWidget scrollBar;
-    TitleBarWidget titleBar;
-    InfoBarWidget infoBar;
+    TitleBarWidget  titleBar;
+    InfoBarWidget   infoBar;
 };
 
 } // namespace ntb {}

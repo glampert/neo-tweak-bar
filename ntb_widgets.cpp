@@ -300,13 +300,13 @@ Widget::~Widget()
 void Widget::onDraw(GeometryBatch & geoBatch) const
 {
     // Self draw:
-    drawWidget(geoBatch);
+    drawSelf(geoBatch);
 
     // Now draw the children widgets on top:
     drawChildren(geoBatch);
 }
 
-void Widget::drawWidget(GeometryBatch & geoBatch) const
+void Widget::drawSelf(GeometryBatch & geoBatch) const
 {
     if (!isVisible())
     {
@@ -371,8 +371,6 @@ bool Widget::onMouseMotion(const int mx, const int my)
         onMove(mx - lastMousePos.x, my - lastMousePos.y);
     }
 
-    setMouseIntersecting(false);
-
     // Propagate the event to its children,
     // since they might overlap the parent.
     bool intersectingChildWidget = false;
@@ -394,24 +392,24 @@ bool Widget::onMouseMotion(const int mx, const int my)
     else
     {
         setNormalColors();
+        setMouseIntersecting(false);
     }
 
     // Remember the mouse pointer position so we can
-    // compute the displacements on mouse drag.
+    // compute the displacements for mouse drag.
     lastMousePos.x = mx;
     lastMousePos.y = my;
-
     return isMouseIntersecting() | intersectingChildWidget;
 }
 
-bool Widget::onMouseScroll(const int /* yScroll */)
+bool Widget::onMouseScroll(int)
 {
     // No scroll event handling by default.
     // Only the scroll bars / sliders use this.
     return false;
 }
 
-void Widget::onResize(int /* displacementX */, int /* displacementY */, Corner /* corner */)
+void Widget::onResize(int, int, Corner)
 {
     // Widget is NOT resizeable by default.
     // Resizeable UI elements have to override this method.
@@ -446,9 +444,9 @@ void Widget::onDisableEditing()
     }
 }
 
-void Widget::enableDrag(const bool enable)
+void Widget::setMouseDragEnabled(const bool enable)
 {
-    setMouseDragEnabled(enable);
+    setFlag(FlagMouseDragEnabled, enable);
 
     // Child elements move with the parent.
     const int childCount = getChildCount();
@@ -497,7 +495,7 @@ int Widget::uiScaleBy(const int val, const float scale) const
 #if NEO_TWEAK_BAR_DEBUG
 void Widget::printHierarchy(std::ostream & out, const SmallStr & indent) const
 {
-    out << indent.getCString() << getTypeString() << "\n";
+    out << indent.getCString() << getTypeString().getCString() << "\n";
     out << "|";
 
     const int childCount = getChildCount();
@@ -515,7 +513,7 @@ void Widget::printHierarchy(std::ostream & out, const SmallStr & indent) const
 // class ButtonEventListener:
 // ========================================================
 
-bool ButtonEventListener::onButtonDown(ButtonWidget & /* button */)
+bool ButtonEventListener::onButtonDown(ButtonWidget &)
 {
     return false; // Button event ignored.
 }
@@ -740,11 +738,11 @@ bool TitleBarWidget::onMouseButton(const MouseButton::Enum button, const int cli
         // And we have a left click, enable window dragging.
         if (leftClick(button, clicks))
         {
-            parent->enableDrag(true);
+            parent->setMouseDragEnabled(true);
         }
         else
         {
-            parent->enableDrag(false);
+            parent->setMouseDragEnabled(false);
         }
 
         return true;
@@ -794,8 +792,9 @@ void TitleBarWidget::onResize(const int displacementX, const int displacementY, 
 void TitleBarWidget::onMove(const int displacementX, const int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
-    buttons[BtnMinimize].onMove(displacementX, displacementY);
-    buttons[BtnMaximize].onMove(displacementX, displacementY);
+
+//    buttons[BtnMinimize].onMove(displacementX, displacementY);
+//    buttons[BtnMaximize].onMove(displacementX, displacementY);
 }
 
 bool TitleBarWidget::onButtonDown(ButtonWidget & button)
@@ -945,7 +944,7 @@ void ScrollBarWidget::onDraw(GeometryBatch & geoBatch) const
     }
 
     // No child elements attached.
-    drawWidget(geoBatch);
+    drawSelf(geoBatch);
 
     // Window contents are not scrollable. Don't draw a bar slider or buttons.
     if (scrollBarSizeFactor <= 0)
@@ -1005,6 +1004,8 @@ bool ScrollBarWidget::onMouseButton(const MouseButton::Enum button, const int cl
 
 bool ScrollBarWidget::onMouseMotion(const int mx, const int my)
 {
+    bool eventHandled = Widget::onMouseMotion(mx, my);
+
     if (holdingScrollSlider)
     {
         // Lower threshold the scroll bar slider moves faster, but less precise.
@@ -1022,13 +1023,15 @@ bool ScrollBarWidget::onMouseMotion(const int mx, const int my)
             doScrollDown();
             accumulatedScrollSliderDrag = 0;
         }
+
+        eventHandled = true;
     }
     else
     {
         accumulatedScrollSliderDrag = 0;
     }
 
-    return Widget::onMouseMotion(mx, my);
+    return eventHandled;
 }
 
 bool ScrollBarWidget::onMouseScroll(const int yScroll)
@@ -1346,8 +1349,8 @@ void ValueSliderWidget::onMove(const int displacementX, const int displacementY)
     barRect.moveBy(displacementX, displacementY);
     sliderRect.moveBy(displacementX, displacementY);
 
-    buttons[BtnMinus].onMove(displacementX, displacementY);
-    buttons[BtnPlus].onMove(displacementX, displacementY);
+//    buttons[BtnMinus].onMove(displacementX, displacementY);
+//    buttons[BtnPlus].onMove(displacementX, displacementY);
 }
 
 bool ValueSliderWidget::onButtonDown(ButtonWidget & button)
@@ -1718,6 +1721,9 @@ void ColorPickerWidget::onDraw(GeometryBatch & geoBatch) const
 void ColorPickerWidget::onMove(const int displacementX, const int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
+
+//    titleBar.onMove(displacementX, displacementY);
+//    scrollBar.onMove(displacementX, displacementY);
     usableRect.moveBy(displacementX, displacementY);
 }
 
@@ -1738,13 +1744,23 @@ bool ColorPickerWidget::onMouseButton(const MouseButton::Enum button, const int 
 
 bool ColorPickerWidget::onMouseMotion(const int mx, const int my)
 {
-    const bool eventHandled = Widget::onMouseMotion(mx, my);
+    // Prevent it from being dragged out the top of the screen:
+    int clampedY = my;
+    if (isMouseDragEnabled())
+    {
+        const int displacementY = my - lastMousePos.y;
+        if ((rect.yMins + displacementY) < 0)
+        {
+            clampedY = my - (rect.yMins + displacementY);
+        }
+    }
+    const bool eventHandled = Widget::onMouseMotion(mx, clampedY);
 
     // We want to highlight these when the parent window gains focus.
     if (isMouseIntersecting())
     {
-        scrollBar.setHighlightedColors();
         titleBar.setHighlightedColors();
+        scrollBar.setHighlightedColors();
     }
 
     return eventHandled;
@@ -2210,6 +2226,8 @@ void View3DWidget::addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, cons
 void View3DWidget::onMove(const int displacementX, const int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
+
+//    titleBar.onMove(displacementX, displacementY);
     resetAnglesBtnRect.moveBy(displacementX, displacementY);
     refreshProjectionViewport();
 }
@@ -2250,7 +2268,17 @@ bool View3DWidget::onMouseMotion(const int mx, const int my)
     mouseDelta.x = clamp(mouseDelta.x, -maxMouseDelta, maxMouseDelta);
     mouseDelta.y = clamp(mouseDelta.y, -maxMouseDelta, maxMouseDelta);
 
-    bool eventHandled = Widget::onMouseMotion(mx, my);
+    // Prevent it from being dragged out the top of the screen:
+    int clampedY = my;
+    if (isMouseDragEnabled())
+    {
+        const int displacementY = my - lastMousePos.y;
+        if ((rect.yMins + displacementY) < 0)
+        {
+            clampedY = my - (rect.yMins + displacementY);
+        }
+    }
+    bool eventHandled = Widget::onMouseMotion(mx, clampedY);
 
     // We want to highlight these when the parent window gains focus.
     if (interactiveControls && isMouseIntersecting())
@@ -2281,7 +2309,7 @@ bool View3DWidget::onMouseMotion(const int mx, const int my)
 
 bool View3DWidget::onMouseScroll(const int yScroll)
 {
-    if (interactiveControls && isMouseIntersecting() && leftMouseButtonDown)
+    if (isVisible() && isMouseIntersecting() && interactiveControls && leftMouseButtonDown)
     {
         resettingAngles   = false;
         updateScrGeometry = true;
@@ -2289,6 +2317,17 @@ bool View3DWidget::onMouseScroll(const int yScroll)
         return true;
     }
     return false;
+}
+
+void View3DWidget::setMouseIntersecting(const bool intersect)
+{
+    Widget::setMouseIntersecting(intersect);
+
+    // If we lost mouse focus just cancel the last button down event.
+    if (!intersect)
+    {
+        leftMouseButtonDown = false;
+    }
 }
 
 void View3DWidget::refreshProjectionViewport()
@@ -2586,7 +2625,7 @@ void VarDisplayWidget::addExpandCollapseButton()
 
 void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
 {
-    drawWidget(geoBatch);
+    drawSelf(geoBatch);
     if (!isHierarchyCollapsed())
     {
         drawChildren(geoBatch);
@@ -2617,9 +2656,9 @@ void VarDisplayWidget::drawValueEditButtons(GeometryBatch & geoBatch) const
         return;
     }
 
-    geoBatch.drawRectFilled(incrButton,   packColor(0, 0, 255, 128)); //TODO add configurable colors!
-    geoBatch.drawRectFilled(decrButton,   packColor(0, 255, 0, 128));
-    geoBatch.drawRectFilled(sliderButton, packColor(0, 0, 0, 128));
+    geoBatch.drawRectFilled(incrButton, packColor(0, 0, 255, 128)); //TODO add configurable colors!
+    geoBatch.drawRectFilled(decrButton, packColor(0, 255, 0, 128));
+    geoBatch.drawRectFilled(editPopupButton, packColor(0, 0, 0, 128));
 
     const Color32 lineColor  = packColor(255, 255, 255); //TODO could be configurable...
     const Color32 shadeColor = packColor(0, 0, 0);
@@ -2633,12 +2672,12 @@ void VarDisplayWidget::drawValueEditButtons(GeometryBatch & geoBatch) const
                        decrButton.yMins + (decrButton.getHeight() / 2),
                        lineColor, shadeColor);
 
-    const int w = (sliderButton.getWidth()  / 4) + NTB_SCALED(1);
-    const int h = (sliderButton.getHeight() / 3) + NTB_SCALED(1);
-    geoBatch.drawRectFilled(makeRect(sliderButton.xMins + w,
-                                     sliderButton.yMins + h,
-                                     sliderButton.xMaxs - w,
-                                     sliderButton.yMaxs - h),
+    const int w = (editPopupButton.getWidth()  / 4) + NTB_SCALED(1);
+    const int h = (editPopupButton.getHeight() / 3) + NTB_SCALED(1);
+    geoBatch.drawRectFilled(makeRect(editPopupButton.xMins + w,
+                                     editPopupButton.yMins + h,
+                                     editPopupButton.xMaxs - w,
+                                     editPopupButton.yMaxs - h),
                                      lineColor);
 }
 
@@ -2865,17 +2904,18 @@ void VarDisplayWidget::onMove(const int displacementX, const int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
 
-    dataDisplayRect.moveBy(displacementX, displacementY);
     incrButton.moveBy(displacementX, displacementY);
     decrButton.moveBy(displacementX, displacementY);
-    sliderButton.moveBy(displacementX, displacementY);
+    editPopupButton.moveBy(displacementX, displacementY);
+    dataDisplayRect.moveBy(displacementX, displacementY);
 
-    // Propagate to the var hierarchy:
+    /*
     const int childCount = getChildCount();
     for (int c = 0; c < childCount; ++c)
     {
         getChild(c)->onMove(displacementX, displacementY);
     }
+    */
 }
 
 bool VarDisplayWidget::onMouseButton(const MouseButton::Enum button, const int clicks)
@@ -2896,7 +2936,7 @@ bool VarDisplayWidget::onMouseButton(const MouseButton::Enum button, const int c
                 onValueDecremented();
                 return true;
             }
-            else if (sliderButton.containsPoint(lastMousePos))
+            else if (editPopupButton.containsPoint(lastMousePos))
             {
                 onOpenValueEditPopup();
                 return true;
@@ -2972,6 +3012,7 @@ bool VarDisplayWidget::onMouseMotion(const int mx, const int my)
     }*/
 
     bool eventHandled = Widget::onMouseMotion(mx, my);
+
     if (valueClickAndHold)
     {
         if (dataDisplayRect.containsPoint(mx, my))
@@ -3134,12 +3175,12 @@ Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(const bool editButtons
     int yMaxs = rect.yMaxs;
 
     // The offsets are really just one pixel, I didn't forget NTB_SCALED!
-    sliderButton.xMins = xMaxs - buttonWidth;
-    sliderButton.yMins = yMins + 1;
-    sliderButton.xMaxs = xMaxs - 1;
-    sliderButton.yMaxs = yMaxs - 1;
+    editPopupButton.xMins = xMaxs - buttonWidth;
+    editPopupButton.yMins = yMins + 1;
+    editPopupButton.xMaxs = xMaxs - 1;
+    editPopupButton.yMaxs = yMaxs - 1;
 
-    decrButton = sliderButton;
+    decrButton = editPopupButton;
     decrButton.xMins -= buttonWidth + 1;
     decrButton.xMaxs -= buttonWidth + 1;
 
@@ -3151,7 +3192,7 @@ Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(const bool editButtons
     {
         const int buttonsWidthTotal = incrButton.getWidth() +
                                       decrButton.getWidth() +
-                                      sliderButton.getWidth();
+                                      editPopupButton.getWidth();
         xMaxs -= buttonsWidthTotal;
         xMaxs -= NTB_SCALED(4);
     }
@@ -3160,15 +3201,13 @@ Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(const bool editButtons
 }
 
 #if NEO_TWEAK_BAR_DEBUG
-const char * VarDisplayWidget::getTypeString() const
+SmallStr VarDisplayWidget::getTypeString() const
 {
-    // Just for debugging. The static local is no big deal.
-    static SmallStr temp;
-    temp = "VarDisplayWidget ";
-    temp += "(";
-    temp += getVarName();
-    temp += ")";
-    return temp.getCString();
+    SmallStr varStr = "VarDisplayWidget ";
+    varStr += "(";
+    varStr += getVarName();
+    varStr += ")";
+    return varStr;
 }
 #endif // NEO_TWEAK_BAR_DEBUG
 
@@ -3179,6 +3218,7 @@ const char * VarDisplayWidget::getTypeString() const
 WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect, const char * title)
     : Widget(myGUI, myParent, myRect)
     , resizingCorner(CornerNone)
+    , popupWidget(NTB_NULL)
 {
     Rectangle barRect;
 
@@ -3210,13 +3250,18 @@ WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
     refreshUsableRect();
 
     //TODO TESTS; remove
-    //addChild(new ColorPickerWidget(myGUI, this, rect.xMaxs + NTB_SCALED(10), rect.yMins));
+    //*
+    auto cp = new ColorPickerWidget(myGUI, this, rect.xMaxs + NTB_SCALED(10), rect.yMins);
+    addChild(cp);
+    popupWidget = cp;
+    //*/
+    /*
     {
         Rectangle box;
-        box.xMins = rect.xMaxs + NTB_SCALED(10);
+        box.xMins = rect.xMaxs + NTB_SCALED(190);
         box.yMins = rect.yMins;
-        box.xMaxs = box.xMins + 256 + 12;
-        box.yMaxs = box.yMins + 256 + 35;
+        box.xMaxs = box.xMins + NTB_SCALED(140);//256 + 12;
+        box.yMaxs = box.yMins + NTB_SCALED(155);//256 + 35;
 
         ProjectionParameters projParams;
         projParams.fovYRadians = degToRad(60.0f);
@@ -3229,7 +3274,10 @@ WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
         //v3d->setInteractive(false);
         //v3d->setShowXyzLabels(false);
         addChild(v3d);
+        popupWidget = v3d;
     }
+    //*/
+    /*
     {
         Rectangle box;
         box.xMins = rect.xMaxs + NTB_SCALED(10);
@@ -3255,9 +3303,11 @@ WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
                            makeVec3(0.0f, 1.0f, 0.0f));
         projParams.viewProjMatrix = Mat4x4::multiply(viewMatrix, projMatrix);
 
-        auto v3d = new View3DWidget(myGUI, this, box, nullptr, projParams);
+        auto v3d = new View3DWidget(myGUI, this, box, NTB_NULL, projParams);
         addChild(v3d);
+        popupWidget = v3d;
     }
+    //*/
 }
 
 WindowWidget::~WindowWidget()
@@ -3275,9 +3325,41 @@ void WindowWidget::onDraw(GeometryBatch & geoBatch) const
         return;
     }
 
-    Widget::onDraw(geoBatch);
+    // First draw the window itself:
+    drawSelf(geoBatch);
 
-    //
+    // If we have an open popup, it must draw last, at the top.
+    // We have to override Widget::onDraw to draw the children
+    // first and them the popup (which is also a window child).
+    if (popupWidget != NTB_NULL)
+    {
+        const int childCount = getChildCount();
+        for (int c = 0; c < childCount; ++c)
+        {
+            const Widget * child = getChild(c);
+            if (child != popupWidget)
+            {
+                child->onDraw(geoBatch);
+            }
+        }
+    }
+    else // Same logic of Widget::onDraw
+    {
+        drawChildren(geoBatch);
+    }
+
+    // Has to be on top of everything...
+    drawResizeHandles(geoBatch);
+
+    // But the popup still has to be above the resize handles.
+    if (popupWidget != NTB_NULL)
+    {
+        popupWidget->onDraw(geoBatch);
+    }
+}
+
+void WindowWidget::drawResizeHandles(GeometryBatch & geoBatch) const
+{
     // This messy block of code draws the wedges in each corner
     // of the panel to indicate the window is resizeable.
     //
@@ -3286,7 +3368,6 @@ void WindowWidget::onDraw(GeometryBatch & geoBatch) const
     //
     const Color32 wedgeColor = packColor(255, 255, 255); //TODO could be configurable...
     const Color32 shadeColor = packColor(0, 0, 0);
-
     const int cornerWedgeLineSize = NTB_SCALED(12);
     const int cornerWedgeLineOffs = NTB_SCALED(4);
 
@@ -3294,7 +3375,6 @@ void WindowWidget::onDraw(GeometryBatch & geoBatch) const
     const int xMaxs = rect.xMaxs;
     const int yMins = rect.yMins;
     const int yMaxs = rect.yMaxs;
-
     int xFrom, yFrom, xTo, yTo;
 
     // Top-left corner, horizontal line width shade:
@@ -3377,7 +3457,7 @@ void WindowWidget::onDraw(GeometryBatch & geoBatch) const
     geoBatch.drawRectFilled(bottomRight, packColor(255,0,0));
     //*/
 
-    //  geoBatch.drawRectFilled(usableRect, packColor(255,0,0, 100));
+    //geoBatch.drawRectFilled(usableRect, packColor(255,0,0, 100));
 }
 
 bool WindowWidget::onMouseButton(const MouseButton::Enum button, const int clicks)
@@ -3411,7 +3491,7 @@ bool WindowWidget::onMouseButton(const MouseButton::Enum button, const int click
             {
                 resizingCorner = Corner(c); // Save for onMouseMotion()
                 onDisableEditing();         // All edit fields lose focus
-                enableDrag(false);          // Cancel any mouse drag
+                setMouseDragEnabled(false); // Cancel any mouse drag
                 return true;
             }
         }
@@ -3529,7 +3609,9 @@ bool WindowWidget::onMouseScroll(const int yScroll)
 void WindowWidget::onMove(const int displacementX, const int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
-    refreshUsableRect(); // Keep the effective usable area up-to-date.
+
+    // Keep the effective usable area up-to-date.
+    refreshUsableRect();
 }
 
 void WindowWidget::onAdjustLayout()

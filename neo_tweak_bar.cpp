@@ -238,10 +238,6 @@ Variable * Panel::addVarImpl(Variable * var)
 
 void Panel::onAdjustLayout()
 {
-    //
-    //FIXME this function is buggy as fuck!!!
-    //
-
     WindowWidget::onAdjustLayout();
     if (variables.isEmpty())
     {
