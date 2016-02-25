@@ -1569,7 +1569,7 @@ ColorPickerWidget::ColorPickerWidget(GUI * myGUI, Widget * myParent, const int x
     // 20 lines total, only 10 fit in the Color Picker window.
     scrollBar.updateLineScrollState(20, 10);
     colorButtonLinesScrolledUp = 0;
-    selectedColorIndex = -1;
+    selectedColorIndex = None;
 
     // The color table colors are initially sorted by
     // name but grouping similar colors together looks
@@ -1754,16 +1754,7 @@ bool ColorPickerWidget::onMouseMotion(const int mx, const int my)
             clampedY = my - (rect.yMins + displacementY);
         }
     }
-    const bool eventHandled = Widget::onMouseMotion(mx, clampedY);
-
-    // We want to highlight these when the parent window gains focus.
-    if (isMouseIntersecting())
-    {
-        titleBar.setHighlightedColors();
-        scrollBar.setHighlightedColors();
-    }
-
-    return eventHandled;
+    return Widget::onMouseMotion(mx, clampedY);
 }
 
 bool ColorPickerWidget::onMouseScroll(const int yScroll)
@@ -1776,9 +1767,21 @@ bool ColorPickerWidget::onMouseScroll(const int yScroll)
     return false;
 }
 
+void ColorPickerWidget::setMouseIntersecting(const bool intersect)
+{
+    Widget::setMouseIntersecting(intersect);
+
+    // We want to highlight the side/top bars when the parent gains focus.
+    if (intersect)
+    {
+        titleBar.setHighlightedColors();
+        scrollBar.setHighlightedColors();
+    }
+}
+
 bool ColorPickerWidget::onButtonDown(ButtonWidget & button)
 {
-    //TODO
+    //TODO handle the close button at the top bar
     return false;
 }
 
@@ -2281,27 +2284,19 @@ bool View3DWidget::onMouseMotion(const int mx, const int my)
     bool eventHandled = Widget::onMouseMotion(mx, clampedY);
 
     // We want to highlight these when the parent window gains focus.
-    if (interactiveControls && isMouseIntersecting())
+    if (interactiveControls && leftMouseButtonDown &&
+        isMouseIntersecting() && projParams.viewport.containsPoint(mx, my))
     {
-        if (leftMouseButtonDown && projParams.viewport.containsPoint(mx, my))
-        {
-            const float dirY = invertMouseY ? -1.0f : 1.0f;
-            rotationDegrees.x -= mouseDelta.y * mouseSensitivity * dirY;
-            rotationDegrees.y += mouseDelta.x * mouseSensitivity;
-            rotationDegrees.x = normalizeAngle360(rotationDegrees.x);
-            rotationDegrees.y = normalizeAngle360(rotationDegrees.y);
+        const float dirY = invertMouseY ? -1.0f : 1.0f;
+        rotationDegrees.x -= mouseDelta.y * mouseSensitivity * dirY;
+        rotationDegrees.y += mouseDelta.x * mouseSensitivity;
+        rotationDegrees.x = normalizeAngle360(rotationDegrees.x);
+        rotationDegrees.y = normalizeAngle360(rotationDegrees.y);
 
-            mouseDelta.setZero();
-            resettingAngles   = false;
-            updateScrGeometry = true;
-            eventHandled      = true;
-        }
-
-        // Highlight the child title-bar as well, if we have one.
-        if (titleBar.isVisible())
-        {
-            titleBar.setHighlightedColors();
-        }
+        mouseDelta.setZero();
+        resettingAngles   = false;
+        updateScrGeometry = true;
+        eventHandled      = true;
     }
 
     return eventHandled;
@@ -2323,8 +2318,11 @@ void View3DWidget::setMouseIntersecting(const bool intersect)
 {
     Widget::setMouseIntersecting(intersect);
 
-    // If we lost mouse focus just cancel the last button down event.
-    if (!intersect)
+    if (intersect)
+    {
+        titleBar.setHighlightedColors();
+    }
+    else // If we lost mouse focus just cancel the last button down event.
     {
         leftMouseButtonDown = false;
     }
@@ -2357,6 +2355,197 @@ void View3DWidget::refreshProjectionViewport()
                            makeVec3(0.0f, 0.0f, -1.0f),
                            makeVec3(0.0f, 1.0f,  0.0f));
         projParams.viewProjMatrix = Mat4x4::multiply(viewMatrix, projMatrix);
+    }
+}
+
+// ========================================================
+// class ListWidget:
+// ========================================================
+
+ListWidget::ListWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect)
+    : Widget(myGUI, myParent, myRect)
+    , entries(sizeof(Entry))
+    , selectedEntry(None)
+    , hoveredEntry(None)
+{
+}
+
+void ListWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    Widget::onDraw(geoBatch);
+
+    const ColorScheme & myColors = getColors();
+    const int entryCount = entries.getSize();
+
+    //TODO configurable color for this!
+    const Color32 btnFillColorNormal     = packColor(80,  80,  80 );
+    const Color32 btnFillColorSelected   = packColor(110, 110, 110);
+    const Color32 btnOutlineColorNormal  = packColor(0,   0,   0  );
+    const Color32 btnOutlineColorHovered = packColor(180, 180, 180);
+
+    for (int e = 0; e < entryCount; ++e)
+    {
+        const Entry & entry = entries.get<Entry>(e);
+
+        geoBatch.drawRectFilled(entry.rect,  (e == selectedEntry) ? btnFillColorSelected   : btnFillColorNormal);
+        geoBatch.drawRectOutline(entry.rect, (e == hoveredEntry)  ? btnOutlineColorHovered : btnOutlineColorNormal);
+
+        Rectangle textBox = entry.rect;
+        textBox.moveBy(0, uiScaled(3)); // Prevent from touching the upper border.
+
+        const char * pEntryText = strings.getCString() + entry.firstChar;
+        geoBatch.drawTextConstrained(pEntryText, entry.lengthInChars, textBox, textBox,
+                                     g_textScaling, myColors.text.alternate, TextAlign::Center);
+    }
+}
+
+void ListWidget::onMove(const int displacementX, const int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+
+    const int entryCount = entries.getSize();
+    for (int e = 0; e < entryCount; ++e)
+    {
+        Entry & entry = entries.get<Entry>(e);
+        entry.rect.moveBy(displacementX, displacementY);
+    }
+}
+
+bool ListWidget::onMouseButton(const MouseButton::Enum button, const int clicks)
+{
+    bool eventHandled = Widget::onMouseButton(button, clicks);
+
+    // Find if one of the entries was clicked:
+    if (isMouseIntersecting())
+    {
+        const int index = findEntryForPoint(lastMousePos.x, lastMousePos.y);
+        if (index != None)
+        {
+            selectedEntry = index;
+            eventHandled  = true;
+        }
+    }
+
+    return eventHandled;
+}
+
+bool ListWidget::onMouseMotion(const int mx, const int my)
+{
+    bool eventHandled = Widget::onMouseMotion(mx, my);
+
+    // Check for intersection with the entries to highlight the hovered item:
+    if (isMouseIntersecting())
+    {
+        hoveredEntry = findEntryForPoint(mx, my);
+        if (hoveredEntry != None)
+        {
+            eventHandled = true;
+        }
+    }
+    else
+    {
+        hoveredEntry = None;
+    }
+
+    return eventHandled;
+}
+
+int ListWidget::findEntryForPoint(const int x, const int y) const
+{
+    const int entryCount = entries.getSize();
+    for (int e = 0; e < entryCount; ++e)
+    {
+        const Entry & entry = entries.get<Entry>(e);
+        if (entry.rect.containsPoint(x, y))
+        {
+            return e;
+        }
+    }
+    return None;
+}
+
+void ListWidget::allocEntries(const int count)
+{
+    strings.clear();
+    entries.clear();
+    entries.resize(count);
+    entries.zeroFill();
+    selectedEntry = None;
+    hoveredEntry  = None;
+}
+
+int ListWidget::getNumOfEntries() const
+{
+    return entries.getSize();
+}
+
+void ListWidget::addEntryText(const int index, const char * value)
+{
+    Entry & entry       = entries.get<Entry>(index);
+    entry.firstChar     = strings.getLength();
+    entry.lengthInChars = lengthOf(value);
+
+    addEntryRect(index, entry.lengthInChars);
+    strings.append(value, entry.lengthInChars);
+}
+
+SmallStr ListWidget::getEntryText(const int index) const
+{
+    const Entry & entry = entries.get<Entry>(index);
+    return SmallStr(strings.getCString() + entry.firstChar, entry.lengthInChars);
+}
+
+int ListWidget::getSelectedEntry() const
+{
+    return selectedEntry;
+}
+
+bool ListWidget::hasSelectedEntry() const
+{
+    return selectedEntry != None;
+}
+
+void ListWidget::clearSelectedEntry()
+{
+    selectedEntry = None;
+}
+
+void ListWidget::addEntryRect(const int entryIndex, const int entryLengthInChars)
+{
+    const int spacing = NTB_SCALED(3);
+    const int entryHeight = (GeometryBatch::getCharHeight() * g_textScaling) + spacing;
+    const int entryWidth  = (GeometryBatch::getCharWidth() * g_textScaling * entryLengthInChars) + (spacing * 2);
+
+    Rectangle newRect = rect.shrunk(spacing, spacing);
+    newRect.yMins += (entryHeight + spacing) * entryIndex;
+    newRect.yMaxs  = newRect.yMins + entryHeight;
+    newRect.xMaxs  = newRect.xMins + entryWidth;
+    entries.get<Entry>(entryIndex).rect = newRect;
+
+    // Expand the background window if needed:
+    if (newRect.xMaxs > rect.xMaxs)
+    {
+        rect.xMaxs = newRect.xMaxs + spacing;
+    }
+    if (newRect.yMaxs > rect.yMaxs)
+    {
+        rect.yMaxs = newRect.yMaxs + spacing;
+    }
+
+    // Adjust the remaining rectangles to match the widest one:
+    int e, widest = 0;
+    const int entryCount = entries.getSize();
+    for (e = 0; e < entryCount; ++e)
+    {
+        const Entry & entry = entries.get<Entry>(e);
+        if (entry.rect.xMaxs > widest)
+        {
+            widest = entry.rect.xMaxs;
+        }
+    }
+    for (e = 0; e < entryCount; ++e)
+    {
+        entries.get<Entry>(e).rect.xMaxs = widest;
     }
 }
 
@@ -3250,7 +3439,21 @@ WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
     refreshUsableRect();
 
     //TODO TESTS; remove
-    //*
+    auto lw = new ListWidget(myGUI, this, makeRect(rect.xMaxs + NTB_SCALED(10), rect.yMins, rect.xMaxs + NTB_SCALED(60), rect.yMins + NTB_SCALED(50)));
+    lw->allocEntries(5);
+    lw->addEntryText(0, "Hello");
+    lw->addEntryText(1, "Hello World!");
+    lw->addEntryText(2, "Testing 2");
+    lw->addEntryText(3, "Testing a slightly longer string");
+    lw->addEntryText(4, "Testing 4");
+    assert(lw->getEntryText(0) == "Hello");
+    assert(lw->getEntryText(1) == "Hello World!");
+    assert(lw->getEntryText(2) == "Testing 2");
+    assert(lw->getEntryText(3) == "Testing a slightly longer string");
+    assert(lw->getEntryText(4) == "Testing 4");
+    addChild(lw);
+    popupWidget = lw;
+    /*
     auto cp = new ColorPickerWidget(myGUI, this, rect.xMaxs + NTB_SCALED(10), rect.yMins);
     addChild(cp);
     popupWidget = cp;
@@ -3571,17 +3774,7 @@ bool WindowWidget::onMouseMotion(const int mx, const int my)
         break;
     } // switch (resizingCorner)
 
-    const bool eventHandled = Widget::onMouseMotion(mx, clampedY);
-
-    // We want to highlight these when the parent window gains focus.
-    if (isMouseIntersecting())
-    {
-        scrollBar.setHighlightedColors();
-        titleBar.setHighlightedColors();
-        infoBar.setHighlightedColors();
-    }
-
-    return eventHandled;
+    return Widget::onMouseMotion(mx, clampedY);
 }
 
 bool WindowWidget::onMouseScroll(const int yScroll)
@@ -3604,6 +3797,19 @@ bool WindowWidget::onMouseScroll(const int yScroll)
     }
 
     return false;
+}
+
+void WindowWidget::setMouseIntersecting(const bool intersect)
+{
+    Widget::setMouseIntersecting(intersect);
+
+    // We want to highlight these when the parent window gains focus.
+    if (intersect)
+    {
+        scrollBar.setHighlightedColors();
+        titleBar.setHighlightedColors();
+        infoBar.setHighlightedColors();
+    }
 }
 
 void WindowWidget::onMove(const int displacementX, const int displacementY)

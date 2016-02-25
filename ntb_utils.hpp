@@ -373,6 +373,12 @@ public:
         deallocate();
     }
 
+    void zeroFill()
+    {
+        if (!isAllocated()) { return; }
+        std::memset(basePtr, 0, getCapacity() * getItemSize());
+    }
+
     // Explicitly allocate storage or expand current. Size not changed.
     // No-op when new capacity is less than or equal the current.
     void allocate()
@@ -888,6 +894,10 @@ private:
 // ========================================================
 
 //TODO make non-inline
+//
+//TODO 2: update the similar SmallStr class in lib-cfg!
+// It still has the resizeInternal/setCString bugs!!!
+//
 class SmallStr NTB_FINAL_CLASS
 {
 public:
@@ -969,10 +979,11 @@ public:
         }
         if ((len + 1) > ctrl.capacity)
         {
-            resizeInternal(len + 1);
+            resizeInternal(len + 1, false);
         }
 
-        detail::copyString(getCString(), ctrl.capacity, str);
+        std::memcpy(getCString(), str, len);
+        getCString()[len] = '\0';
         ctrl.length = len;
     }
 
@@ -993,7 +1004,7 @@ public:
         }
         if ((lengthNeeded + 1) > ctrl.capacity)
         {
-            resizeInternal(lengthNeeded + 1);
+            resizeInternal(lengthNeeded + 1, true);
         }
 
         std::memcpy(getCString() + ctrl.length, str, len);
@@ -1206,7 +1217,7 @@ private:
         }
     }
 
-    void resizeInternal(int newCapacity)
+    void resizeInternal(int newCapacity, const bool preserveOldStr)
     {
         const bool isDyn = isDynamic();
 
@@ -1214,18 +1225,19 @@ private:
         // avoid more allocations if the string grows again in the future.
         // This can be tuned for environments with more limited memory.
         newCapacity += 64;
-        char * mem = detail::memAlloc<char>(newCapacity);
+        char * newMemory = detail::memAlloc<char>(newCapacity);
 
-        // Notice that we don't bother copying the old string.
-        // This is intentional since this method is only called
-        // from setCString().
+        if (preserveOldStr)
+        {
+            std::memcpy(newMemory, getCString(), getLength() + 1);
+        }
         if (isDyn)
         {
             detail::memFree(backingStore.dynamic);
         }
 
         ctrl.capacity = newCapacity;
-        backingStore.dynamic = mem;
+        backingStore.dynamic = newMemory;
     }
 
     #pragma pack(push, 1)

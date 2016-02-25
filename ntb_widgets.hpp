@@ -26,6 +26,7 @@ class ScrollBarWidget;
 class ValueSliderWidget;
 class ColorPickerWidget;
 class View3DWidget;
+class ListWidget;
 class VarDisplayWidget;
 class WindowWidget;
 
@@ -270,6 +271,7 @@ public:
     ButtonWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
                  Icon myIcon, ButtonEventListener * listener = NTB_NULL);
 
+    //TODO should make this construct/init interface uniform with all widgets...
     void construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
                    Icon myIcon, ButtonEventListener * listener = NTB_NULL);
 
@@ -487,7 +489,6 @@ private:
 //  so we can make it shared with all windows that have the same color scheme
 //  (probably at the GUI level)
 //
-//
 class ColorPickerWidget NTB_FINAL_CLASS
     : public Widget, public ButtonEventListener
 {
@@ -501,6 +502,8 @@ public:
     bool onMouseButton(MouseButton::Enum button, int clicks) NTB_OVERRIDE;
     bool onMouseMotion(int mx, int my) NTB_OVERRIDE;
     bool onMouseScroll(int yScroll) NTB_OVERRIDE;
+
+    void setMouseIntersecting(bool intersect) NTB_OVERRIDE;
 
     void onScrollContentUp() NTB_OVERRIDE;
     void onScrollContentDown() NTB_OVERRIDE;
@@ -523,6 +526,7 @@ private:
     Rectangle usableRect; // discounts the top/side bars
 
     int colorButtonLinesScrolledUp;
+    static const int None = -1;
     mutable int selectedColorIndex; // index into g_colorTable[]. -1 no selection
 
     TitleBarWidget titleBar;
@@ -619,6 +623,71 @@ private:
 };
 
 // ========================================================
+// class ListWidget:
+// ========================================================
+
+// +---------+
+// | Entry 0 |
+// +---------+
+// | Entry 1 |
+// +---------+
+// | .....   |
+// +---------+
+// Window size adjusted to the longest string.
+//
+// NOTE: might be worth exposing this widget in the
+// front-end as a ButtonPanel class...
+//
+class ListWidget NTB_FINAL_CLASS
+    : public Widget
+{
+public:
+
+    ListWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect);
+
+    void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE;
+    void onMove(int displacementX, int displacementY) NTB_OVERRIDE;
+
+    bool onMouseButton(MouseButton::Enum button, int clicks) NTB_OVERRIDE;
+    bool onMouseMotion(int mx, int my) NTB_OVERRIDE;
+
+    void allocEntries(int count);
+    int getNumOfEntries() const;
+
+    void addEntryText(int index, const char * value);
+    SmallStr getEntryText(int index) const;
+
+    int  getSelectedEntry() const;
+    bool hasSelectedEntry() const;
+    void clearSelectedEntry();
+
+private:
+
+    void addEntryRect(int entryIndex, int entryLengthInChars);
+    int findEntryForPoint(int x, int y) const;
+
+    struct Entry
+    {
+        // Clickable rectangle:
+        Rectangle rect;
+
+        // Offsets into 'strings':
+        int firstChar;
+        int lengthInChars;
+    };
+    PODArray entries; // [Entry]
+
+    // User selection in the list. No selection if < 0.
+    static const int None = -1;
+    int selectedEntry;
+    int hoveredEntry;
+
+    // All strings in the list entries/buttons are
+    // packed into this string, no spacing in between.
+    SmallStr strings;
+};
+
+// ========================================================
 // class EditField:
 // ========================================================
 
@@ -626,10 +695,6 @@ class EditField NTB_FINAL_CLASS
     : public ListNode
 {
 public:
-
-    // Max length in characters, including a '\0' at the end, of an
-    // edit field/line. Input is ignored if this line limit is reached.
-//    enum { EditLineMaxSize = 256 };
 
     EditField();
 
@@ -812,6 +877,7 @@ public:
     virtual bool onMouseButton(MouseButton::Enum button, int clicks) NTB_OVERRIDE;
     virtual bool onMouseMotion(int mx, int my) NTB_OVERRIDE;
     virtual bool onMouseScroll(int yScroll) NTB_OVERRIDE;
+    virtual void setMouseIntersecting(bool intersect) NTB_OVERRIDE;
 
     // deactivates current active one (if any!)
     virtual void onDisableEditing() NTB_OVERRIDE;
