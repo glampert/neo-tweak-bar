@@ -77,96 +77,96 @@ void unpackColor(const Color32 color, UByte & r, UByte & g, UByte & b, UByte & a
     a = static_cast<UByte>((color & 0xFF000000) >> 24);
 }
 
-Color32 lighthenRGB(const Color32 color, const float percent)
+Color32 lighthenRGB(const Color32 color, const Float32 percent)
 {
     UByte bR, bG, bB, bA;
     unpackColor(color, bR, bG, bB, bA);
 
-    const float scale = percent / 100.0f;
+    const Float32 scale = percent / 100.0f;
 
-    float fR = byteToFloat(bR);
+    Float32 fR = byteToFloat(bR);
     fR += fR * scale;
     fR = std::min(fR, 1.0f);
 
-    float fG = byteToFloat(bG);
+    Float32 fG = byteToFloat(bG);
     fG += fG * scale;
     fG = std::min(fG, 1.0f);
 
-    float fB = byteToFloat(bB);
+    Float32 fB = byteToFloat(bB);
     fB += fB * scale;
     fB = std::min(fB, 1.0f);
 
     return packColor(floatToByte(fR), floatToByte(fG), floatToByte(fB), bA);
 }
 
-Color32 darkenRGB(const Color32 color, const float percent)
+Color32 darkenRGB(const Color32 color, const Float32 percent)
 {
     UByte bR, bG, bB, bA;
     unpackColor(color, bR, bG, bB, bA);
 
-    const float scale = percent / 100.0f;
+    const Float32 scale = percent / 100.0f;
 
-    float fR = byteToFloat(bR);
+    Float32 fR = byteToFloat(bR);
     fR -= fR * scale;
     fR = std::max(fR, 0.0f);
 
-    float fG = byteToFloat(bG);
+    Float32 fG = byteToFloat(bG);
     fG -= fG * scale;
     fG = std::max(fG, 0.0f);
 
-    float fB = byteToFloat(bB);
+    Float32 fB = byteToFloat(bB);
     fB -= fB * scale;
     fB = std::max(fB, 0.0f);
 
     return packColor(floatToByte(fR), floatToByte(fG), floatToByte(fB), bA);
 }
 
-Color32 blendColors(const float color1[], const float color2[], const float percent)
+Color32 blendColors(const Float32 color1[], const Float32 color2[], const Float32 percent)
 {
-    const float t = 1.0f - percent;
-    const float fR = (t * color1[0]) + (percent * color2[0]);
-    const float fG = (t * color1[1]) + (percent * color2[1]);
-    const float fB = (t * color1[2]) + (percent * color2[2]);
-    const float fA = (t * color1[3]) + (percent * color2[3]);
+    const Float32 t = 1.0f - percent;
+    const Float32 fR = (t * color1[0]) + (percent * color2[0]);
+    const Float32 fG = (t * color1[1]) + (percent * color2[1]);
+    const Float32 fB = (t * color1[2]) + (percent * color2[2]);
+    const Float32 fA = (t * color1[3]) + (percent * color2[3]);
 
     return packColor(floatToByte(fR), floatToByte(fG),
                      floatToByte(fB), floatToByte(fA));
 }
 
-Color32 blendColors(const Color32 color1, const Color32 color2, const float percent)
+Color32 blendColors(const Color32 color1, const Color32 color2, const Float32 percent)
 {
     UByte r1, g1, b1, a1;
     unpackColor(color1, r1, g1, b1, a1);
-    const float fR1 = byteToFloat(r1);
-    const float fG1 = byteToFloat(g1);
-    const float fB1 = byteToFloat(b1);
-    const float fA1 = byteToFloat(a1);
+    const Float32 fR1 = byteToFloat(r1);
+    const Float32 fG1 = byteToFloat(g1);
+    const Float32 fB1 = byteToFloat(b1);
+    const Float32 fA1 = byteToFloat(a1);
 
     UByte r2, g2, b2, a2;
     unpackColor(color2, r2, g2, b2, a2);
-    const float fR2 = byteToFloat(r2);
-    const float fG2 = byteToFloat(g2);
-    const float fB2 = byteToFloat(b2);
-    const float fA2 = byteToFloat(a2);
+    const Float32 fR2 = byteToFloat(r2);
+    const Float32 fG2 = byteToFloat(g2);
+    const Float32 fB2 = byteToFloat(b2);
+    const Float32 fA2 = byteToFloat(a2);
 
-    const float t = 1.0f - percent;
-    const float finalR = (t * fR1) + (percent * fR2);
-    const float finalG = (t * fG1) + (percent * fG2);
-    const float finalB = (t * fB1) + (percent * fB2);
-    const float finalA = (t * fA1) + (percent * fA2);
+    const Float32 t = 1.0f - percent;
+    const Float32 finalR = (t * fR1) + (percent * fR2);
+    const Float32 finalG = (t * fG1) + (percent * fG2);
+    const Float32 finalB = (t * fB1) + (percent * fB2);
+    const Float32 finalA = (t * fA1) + (percent * fA2);
 
     return packColor(floatToByte(finalR), floatToByte(finalG),
                      floatToByte(finalB), floatToByte(finalA));
 }
 
-void RGBToHLS(const float fR, const float fG, const float fB, float & hue, float & light, float & saturation)
+void RGBToHLS(const Float32 fR, const Float32 fG, const Float32 fB, Float32 & hue, Float32 & light, Float32 & saturation)
 {
     // Compute HLS from RGB. The R,G,B triplet is between [0,1],
     // hue is between [0,360], light and saturation are [0,1].
 
-    float r = 0.0f;
-    float g = 0.0f;
-    float b = 0.0f;
+    Float32 r = 0.0f;
+    Float32 g = 0.0f;
+    Float32 b = 0.0f;
 
     if (fR > 0.0f) { r = fR;   }
     if (r  > 1.0f) { r = 1.0f; }
@@ -175,21 +175,21 @@ void RGBToHLS(const float fR, const float fG, const float fB, float & hue, float
     if (fB > 0.0f) { b = fB;   }
     if (b  > 1.0f) { b = 1.0f; }
 
-    float minVal = r;
+    Float32 minVal = r;
     if (g < minVal) { minVal = g; }
     if (b < minVal) { minVal = b; }
 
-    float maxVal = r;
+    Float32 maxVal = r;
     if (g > maxVal) { maxVal = g; }
     if (b > maxVal) { maxVal = b; }
 
-    const float mDiff = maxVal - minVal;
-    const float mSum  = maxVal + minVal;
-    const float l     = 0.5f * mSum;
+    const Float32 mDiff = maxVal - minVal;
+    const Float32 mSum  = maxVal + minVal;
+    const Float32 l     = 0.5f * mSum;
 
-    float rNorm = 0.0f;
-    float gNorm = 0.0f;
-    float bNorm = 0.0f;
+    Float32 rNorm = 0.0f;
+    Float32 gNorm = 0.0f;
+    Float32 bNorm = 0.0f;
 
     light = l;
 
@@ -233,14 +233,14 @@ void RGBToHLS(const float fR, const float fG, const float fB, float & hue, float
     }
 }
 
-void HLSToRGB(const float hue, const float light, const float saturation, float & fR, float & fG, float & fB)
+void HLSToRGB(const Float32 hue, const Float32 light, const Float32 saturation, Float32 & fR, Float32 & fG, Float32 & fB)
 {
     // Compute RGB from HLS. The light and saturation are between [0,1]
     // and hue is between [0,360]. The returned R,G,B triplet is between [0,1].
 
-    float rh = 0.0f;
-    float rl = 0.0f;
-    float rs = 0.0f;
+    Float32 rh = 0.0f;
+    Float32 rl = 0.0f;
+    Float32 rs = 0.0f;
 
     if (hue > 0.0f)
     {
@@ -269,7 +269,7 @@ void HLSToRGB(const float hue, const float light, const float saturation, float 
         rs = 1.0f;
     }
 
-    float rm2;
+    Float32 rm2;
     if (rl <= 0.5f)
     {
         rm2 = rl * (1.0f + rs);
@@ -279,7 +279,7 @@ void HLSToRGB(const float hue, const float light, const float saturation, float 
         rm2 = rl + rs - rl * rs;
     }
 
-    const float rm1 = 2.0f * rl - rm2;
+    const Float32 rm1 = 2.0f * rl - rm2;
 
     if (!rs)
     {
@@ -291,7 +291,7 @@ void HLSToRGB(const float hue, const float light, const float saturation, float 
     {
         struct Helper
         {
-            static float HLS2RGB(float a, float b, float h)
+            static Float32 HLS2RGB(Float32 a, Float32 b, Float32 h)
             {
                 if (h > 360.0f) { h = h - 360.0f; }
                 if (h < 0.0f  ) { h = h + 360.0f; }

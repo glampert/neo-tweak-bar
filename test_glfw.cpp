@@ -42,7 +42,7 @@ static const int windowHeight = 768;
 // Time in milliseconds since the application started.
 static ntb::Int64 getTimeMilliseconds()
 {
-    const double seconds = glfwGetTime();
+    const ntb::Float64 seconds = glfwGetTime();
     return static_cast<ntb::Int64>(seconds * 1000.0);
 }
 
@@ -735,11 +735,108 @@ static void add_test_vars(ntb::Panel * panel)
     panel->addHierarchyParent("hierarchy parent");
 }
 
-static void mouseScrollCallback(GLFWwindow * window, const double xOffset, const double yOffset)
-{
-    (void)window; // Unused.
-    (void)xOffset;
+//TODO NumPad keys will probably require additional translation!
+//
+using namespace ntb;
+static bool capsLockMode = false;
 
+static void asciiKeyCallback(GLFWwindow * /*window*/, const unsigned int key, const int mods)
+{
+    // Handled in the other callback because GLFW doesn't give us CONTROL modifiers in here.
+    if ((key >= 'a' && key <= 'z') ||
+        (key >= 'A' && key <= 'Z'))
+    {
+        return;
+    }
+
+    KeyCode keyCode;
+    KeyModFlags keyModFlags = 0;
+
+    if (mods & GLFW_MOD_SHIFT) { keyModFlags |= KeyModifiers::Shift; }
+    if (mods & GLFW_MOD_SUPER) { keyModFlags |= KeyModifiers::Cmd;   }
+
+    if (key > 0 && key <= 255)
+    {
+        keyCode = key;
+    }
+    else
+    {
+        keyCode = 0; // Unknown/null key; ignore.
+    }
+
+    gui1->onKeyPressed(keyCode, keyModFlags);
+}
+
+static void specialKeyCallback(GLFWwindow * /*window*/, const int key, int /*scanCode*/, const int action, const int mods)
+{
+    if (action == GLFW_RELEASE)
+    {
+        if (key == GLFW_KEY_CAPS_LOCK) { capsLockMode = false; }
+        return;
+    }
+
+    KeyCode keyCode = 0;
+    KeyModFlags keyModFlags = 0;
+
+    if (mods & GLFW_MOD_SHIFT)   { keyModFlags |= KeyModifiers::Shift; }
+    if (mods & GLFW_MOD_CONTROL) { keyModFlags |= KeyModifiers::Ctrl;  }
+    if (mods & GLFW_MOD_SUPER)   { keyModFlags |= KeyModifiers::Cmd;   }
+
+    // The alphabet keys are handled here because GLFW refuses to give us
+    // a CONTROL modifier in the char callback above. The other punctuation
+    // keys are handled there to properly deal with SHIFT modes.
+    if (key >= 'A' && key <= 'Z')
+    {
+        // GLFW uses uppercase key codes by default.
+        if (!(mods & GLFW_MOD_SHIFT) && !capsLockMode)
+        {
+            keyCode = static_cast<KeyCode>(std::tolower(key));
+        }
+        else
+        {
+            keyCode = static_cast<KeyCode>(key);
+        }
+    }
+    else // Special non-ASCII keys:
+    {
+        switch (key)
+        {
+        case GLFW_KEY_ENTER     : keyCode = SpecialKeys::Return;     break;
+        case GLFW_KEY_ESCAPE    : keyCode = SpecialKeys::Escape;     break;
+        case GLFW_KEY_BACKSPACE : keyCode = SpecialKeys::Backspace;  break;
+        case GLFW_KEY_DELETE    : keyCode = SpecialKeys::Delete;     break;
+        case GLFW_KEY_TAB       : keyCode = SpecialKeys::Tab;        break;
+        case GLFW_KEY_HOME      : keyCode = SpecialKeys::Home;       break;
+        case GLFW_KEY_END       : keyCode = SpecialKeys::End;        break;
+        case GLFW_KEY_PAGE_UP   : keyCode = SpecialKeys::PageUp;     break;
+        case GLFW_KEY_PAGE_DOWN : keyCode = SpecialKeys::PageDown;   break;
+        case GLFW_KEY_UP        : keyCode = SpecialKeys::UpArrow;    break;
+        case GLFW_KEY_DOWN      : keyCode = SpecialKeys::DownArrow;  break;
+        case GLFW_KEY_RIGHT     : keyCode = SpecialKeys::RightArrow; break;
+        case GLFW_KEY_LEFT      : keyCode = SpecialKeys::LeftArrow;  break;
+        case GLFW_KEY_INSERT    : keyCode = SpecialKeys::Insert;     break;
+        case GLFW_KEY_F1        : keyCode = SpecialKeys::F1;         break;
+        case GLFW_KEY_F2        : keyCode = SpecialKeys::F2;         break;
+        case GLFW_KEY_F3        : keyCode = SpecialKeys::F3;         break;
+        case GLFW_KEY_F4        : keyCode = SpecialKeys::F4;         break;
+        case GLFW_KEY_F5        : keyCode = SpecialKeys::F5;         break;
+        case GLFW_KEY_F6        : keyCode = SpecialKeys::F6;         break;
+        case GLFW_KEY_F7        : keyCode = SpecialKeys::F7;         break;
+        case GLFW_KEY_F8        : keyCode = SpecialKeys::F8;         break;
+        case GLFW_KEY_F9        : keyCode = SpecialKeys::F9;         break;
+        case GLFW_KEY_F10       : keyCode = SpecialKeys::F10;        break;
+        case GLFW_KEY_F11       : keyCode = SpecialKeys::F11;        break;
+        case GLFW_KEY_F12       : keyCode = SpecialKeys::F12;        break;
+        case GLFW_KEY_CAPS_LOCK : capsLockMode = true;               break;
+        default : break; // Unknown key; ignore.
+        } // switch (key)
+    }
+
+    gui1->onKeyPressed(keyCode, keyModFlags);
+}
+
+static void mouseScrollCallback(GLFWwindow * /*window*/, double /*xOffset*/, const double yOffset)
+{
     gui1->onMouseScroll(static_cast<int>(yOffset));
     /*
     if (yOffset < 0.0)
@@ -753,10 +850,8 @@ static void mouseScrollCallback(GLFWwindow * window, const double xOffset, const
     */
 }
 
-static void mousePositionCallback(GLFWwindow * window, const double xPos, const double yPos)
+static void mousePositionCallback(GLFWwindow * /*window*/, const double xPos, const double yPos)
 {
-    (void)window; // Unused.
-
     int mx = static_cast<int>(xPos);
     int my = static_cast<int>(yPos);
 
@@ -769,11 +864,8 @@ static void mousePositionCallback(GLFWwindow * window, const double xPos, const 
     gui1->onMouseMotion(mx, my);
 }
 
-static void mouseButtonCallback(GLFWwindow * window, const int button, const int action, const int mods)
+static void mouseButtonCallback(GLFWwindow * /*window*/, const int button, const int action, int /*mods*/)
 {
-    (void)window; // Unused.
-    (void)mods;
-
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
         const  ntb::Int64 doubleClickTimeMs = 350; // Milliseconds between clicks for a double click
@@ -862,6 +954,8 @@ static void sampleAppStart()
     glfwSetCursorPosCallback(window,   &mousePositionCallback);
     glfwSetMouseButtonCallback(window, &mouseButtonCallback);
     glfwSetScrollCallback(window,      &mouseScrollCallback);
+    glfwSetCharModsCallback(window,    &asciiKeyCallback);
+    glfwSetKeyCallback(window,         &specialKeyCallback);
 
     renderInterface = new NtbRenderInterfaceCoreGL();
     shellInterface = new NtbShellInterfaceGLFW();
@@ -873,10 +967,14 @@ static void sampleAppStart()
 //    pan2 = gui1->createPanel("Pan 2");
 //    pan3 = gui1->createPanel("Pan 3");
 
+    pan1->setSize(400,400);
+//    pan2->setSize(100,100)->setPosition(300, 50);
+//    pan3->setPosition(1024-500, 10);
+
     {
-        static ntb::UByte cbytes[] = { 0, 200, 200, 180 };
-        static ntb::Color32 clr = ntb::packColor(cbytes[0], cbytes[1], cbytes[2], cbytes[3]);
-        pan1->addColorRW("My color", &clr);
+//        static ntb::UByte cbytes[] = { 0, 200, 200, 180 };
+//        static ntb::Color32 clr = ntb::packColor(cbytes[0], cbytes[1], cbytes[2], cbytes[3]);
+//        pan1->addColorRW("My color", &clr);
 
         static int foo = -42;
         pan1->addNumberRW("foo", &foo);
@@ -885,7 +983,8 @@ static void sampleAppStart()
         pan1->addBoolRW("bar", &bar);
 
         static float pi = 3.141592f;
-        pan1->addNumberRW("PI", &pi);
+        Variable * var_pi = pan1->addNumberRW("PI", &pi);
+        var_pi->setCustomTextColor(ntb::packColor(0,255,255));
 
         static void * ptr = (void *)0xDEADBEEF;
         pan1->addPointerRO("ptr", &ptr);
@@ -893,7 +992,7 @@ static void sampleAppStart()
         static const float v4[] = { 1.1f, 2.2f, 3.3f, 4.4f };
         pan1->addFloatVecRO<4>("v4", v4);
 
-        static std::string long_str = "Some long string, testing 1234 - hello!";
+        static std::string long_str = "testing 123";//"Some long string, testing 1234 - hello!";
         pan1->addStringRW("long_str", &long_str);
 
         pan1->printHierarchy();

@@ -15,21 +15,19 @@ namespace ntb
 
 struct TextAlign
 {
-    enum Enum
+    enum
     {
         Left,
         Right,
         Center
     };
+    typedef Int8 Enum;
 };
 
 // ========================================================
 // class GeometryBatch:
 // ========================================================
 
-//TODO Maybe we make this a member of the detail{} namespace as well?
-// Then it will be possible to hide the implementation completely
-// if we just use pointers/references.
 class GeometryBatch NTB_FINAL_CLASS
 {
     NTB_DISABLE_COPY_ASSIGN(GeometryBatch);
@@ -39,7 +37,7 @@ public:
     GeometryBatch();
     ~GeometryBatch();
 
-    float getNextZ() { return static_cast<float>(currentZ++); }
+    Float32 getNextZ() { return static_cast<Float32>(currentZ++); }
 
     void beginDraw();
     void endDraw();
@@ -75,16 +73,16 @@ public:
 
     // Handles newlines, spaces and tabs.
     void drawTextConstrained(const char * text, int textLength, Rectangle alignBox,
-                             const Rectangle & clipBox, float scaling, Color32 color,
+                             const Rectangle & clipBox, Float32 scaling, Color32 color,
                              TextAlign::Enum align);
 
     // Width in pixels of a text string using the given font. Doesn't actually draw anything.
-    static float calcTextWidth(const char * text, int textLength, float scaling);
+    static Float32 calcTextWidth(const char * text, int textLength, Float32 scaling);
 
     // Width/height in pixels of a single character/glyph of the font in use.
     // Note: We always assume a fixed width and height font.
-    static float getCharWidth();
-    static float getCharHeight();
+    static Float32 getCharWidth();
+    static Float32 getCharHeight();
 
 private:
 
@@ -92,7 +90,7 @@ private:
     void createGlyphTexture();
 
     // Handles newlines, spaces and tabs. String doesn't have to be NUL-terminated, we rely on textLength instead.
-    void drawTextImpl(const char * text, int textLength, float x, float y, float scaling, Color32 color);
+    void drawTextImpl(const char * text, int textLength, Float32 x, Float32 y, Float32 scaling, Color32 color);
 
     // The glyph bitmap decompressed and copied into a RenderInterface texture object.
     TextureHandle glyphTex;

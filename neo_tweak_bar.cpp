@@ -18,12 +18,8 @@
 namespace ntb
 {
 
-//FIXME temp stuff just for testing/development!
-static int pan_xof = 0;
-static int pan_yof = 0;
-
-static const float g_uiScale = 1.3f;
-#define NTB_SCALED_BY(val, scale) static_cast<int>(static_cast<float>(val) * (scale))
+static const Float32 g_uiScale = 1.3f;
+#define NTB_SCALED_BY(val, scale) static_cast<int>(static_cast<Float32>(val) * (scale))
 #define NTB_SCALED(val) NTB_SCALED_BY(val, g_uiScale)
 
 // ========================================================
@@ -49,7 +45,7 @@ StackAllocator  * getStackAllocator()  { return g_stackAllocator;  }
 // Library initialization/shutdown and GUI allocation:
 // ========================================================
 
-bool initialize(RenderInterface * renderer, ShellInterface * shell, StackAllocator * stackAlloc)
+bool initialize(RenderInterface * renderer, ShellInterface * shell, StackAllocator * alloc)
 {
     // These are required.
     if (renderer == NTB_NULL || shell == NTB_NULL)
@@ -59,7 +55,7 @@ bool initialize(RenderInterface * renderer, ShellInterface * shell, StackAllocat
 
     g_renderInterface = renderer;
     g_shellInterface  = shell;
-    g_stackAllocator  = stackAlloc;
+    g_stackAllocator  = alloc;
     g_libraryIsInit   = true;
     return true;
 }
@@ -102,7 +98,7 @@ bool destroyGUI(GUI * gui)
     }
 
     // First make sure the GUI is actually linked to the global list:
-    if (!findGUI(gui->getName().getCString()))
+    if (!findGUI(gui->getName()))
     {
         return false;
     }
@@ -128,7 +124,7 @@ GUI * findGUI(const char * guiName)
     GUI * pGUI = getGUIList().getFirst<GUI>();
     for (int count = getGUIList().getSize(); count--; pGUI = pGUI->getNext<GUI>())
     {
-        if (pGUI->getName() == guiName)
+        if (stringsEqual(pGUI->getName(), guiName))
         {
             return pGUI;
         }
@@ -153,7 +149,7 @@ Variable::~Variable()
     // '-Wweak-vtables' from Clang.
 }
 
-const SmallStr & Variable::getName() const
+const char * Variable::getName() const
 {
     return VarDisplayWidget::getVarName();
 }
@@ -172,13 +168,13 @@ VarDisplayWidget * Variable::getVarDisplayWidget()
 // class Panel:
 // ========================================================
 
-Panel::Panel(GUI * myGUI, const char * name)
-    : WindowWidget(myGUI, NTB_NULL, makeRect(50+pan_xof, 50+pan_yof, NTB_SCALED(333)+pan_xof, NTB_SCALED(300)+pan_yof), name)
+static const int DefaultPanelWidth  = 250;
+static const int DefaultPanelHeight = 300;
+
+Panel::Panel(GUI * myGUI, const char * name, const Rectangle & myRect)
+    : WindowWidget(myGUI, NTB_NULL, myRect, name)
     , panelName(name)
 {
-    //TEMP
-    pan_xof += 180;
-    pan_yof += 80;
 }
 
 Panel::~Panel()
@@ -197,7 +193,7 @@ Variable * Panel::findVariable(const char * varName) const
     Variable * pVar = variables.getFirst<Variable>();
     for (int count = variables.getSize(); count--; pVar = pVar->getNext<Variable>())
     {
-        if (pVar->getName() == varName)
+        if (stringsEqual(pVar->getName(), varName))
         {
             return pVar;
         }
@@ -214,7 +210,7 @@ bool Panel::destroyVariable(Variable * var)
 
     // We don't take chances. Make sure the Variable actually
     // belongs to this Panel before attempting to remove it.
-    if (!findVariable(var->getName().getCString()))
+    if (!findVariable(var->getName()))
     {
         return false;
     }
@@ -342,7 +338,7 @@ void Panel::onAdjustLayout()
         //dataRect.xMaxs = smallestRectXMax;
         pVar->setDataDisplayRect(dataRect);
 
-//      printf("VAR(%p): %s (parent: %p)\n", pVar, pVar->getName().getCStr(), pVar->getParent());
+//      printf("VAR(%p): %s (parent: %p)\n", pVar, pVar->getName(), pVar->getParent());
 //      printf("visible:   %d\n", pVar->isVisible());
 //      printf("minimized: %d\n", pVar->isMinimized());
 //      printf("scrolled:  %d\n", pVar->isScrolledOutOfView());
@@ -393,7 +389,7 @@ void Panel::onDraw(GeometryBatch & geoBatch) const
     Variable * pVar = variables.getFirst<Variable>();
     for (int count = variables.getSize(); count--; pVar = pVar->getNext<Variable>())
     {
-        pVar->onUpdateCachedValue();
+        pVar->onUpdateDisplayValue();
     }
 
     WindowWidget::onDraw(geoBatch);
@@ -419,12 +415,58 @@ GUI * Panel::getGUI()
     return WindowWidget::getGUI();
 }
 
+int Panel::getPositionX() const
+{
+    return getRect().getX();
+}
+
+int Panel::getPositionY() const
+{
+    return getRect().getY();
+}
+
+int Panel::getWidth() const
+{
+    return getRect().getWidth();
+}
+
+int Panel::getHeight() const
+{
+    return getRect().getHeight();
+}
+
+Panel * Panel::setPosition(const int newPosX, const int newPosY)
+{
+    const Rectangle oldRect = getRect();
+    const int oldW = oldRect.getWidth();
+    const int oldH = oldRect.getHeight();
+    setRect(makeRect(NTB_SCALED(newPosX),
+                     NTB_SCALED(newPosY),
+                     NTB_SCALED(newPosX) + oldW,
+                     NTB_SCALED(newPosY) + oldH));
+    onAdjustLayout();
+    return this;
+}
+
+Panel * Panel::setSize(const int newWidth, const int newHeight)
+{
+    const Rectangle oldRect = getRect();
+    const int newW = std::max(NTB_SCALED(newWidth),  getMinWindowWidth());
+    const int newH = std::max(NTB_SCALED(newHeight), getMinWindowHeight());
+    setRect(makeRect(oldRect.xMins,
+                     oldRect.yMins,
+                     oldRect.xMins + newW,
+                     oldRect.yMins + newH));
+    onAdjustLayout();
+    return this;
+}
+
 #if NEO_TWEAK_BAR_DEBUG
 void Panel::printHierarchy(std::ostream & out, const SmallStr & indent) const
 {
     out << "\n";
     out << "--------------------------------------\n";
-    out << "Panel " << getName().getCString() << "\n";
+    out << "Panel " << getName() << "\n";
     out << "--------------------------------------\n";
     out << "\n";
     WindowWidget::printHierarchy(out, indent);
@@ -438,6 +480,8 @@ void Panel::printHierarchy(std::ostream & out, const SmallStr & indent) const
 
 GUI::GUI(const char * name)
     : guiName(name)
+    , nextPanelXOffset(10)
+    , nextPanelYOffset(10)
 {
 }
 
@@ -454,8 +498,16 @@ Panel * GUI::createPanel(const char * panelName)
         return NTB_NULL;
     }
 
-    Panel * newPanel = NTB_NEW Panel(this, panelName);
-    panels.pushBack(newPanel);
+    const Rectangle panelRect = makeRect(nextPanelXOffset,
+                                         nextPanelYOffset,
+                                         nextPanelXOffset + NTB_SCALED(DefaultPanelWidth),
+                                         nextPanelYOffset + NTB_SCALED(DefaultPanelHeight));
+
+    nextPanelXOffset += NTB_SCALED(DefaultPanelWidth  * 0.3f);
+    nextPanelYOffset += NTB_SCALED(DefaultPanelHeight * 0.3f);
+
+    Panel * newPanel = NTB_NEW Panel(this, panelName, panelRect);
+    panels.pushFront(newPanel);
     return newPanel;
 }
 
@@ -468,7 +520,7 @@ bool GUI::destroyPanel(Panel * panel)
 
     // We don't take chances. Make sure the Panel actually
     // belongs to this GUI list before attempting to remove it.
-    if (!findPanel(panel->getName().getCString()))
+    if (!findPanel(panel->getName()))
     {
         return false;
     }
@@ -488,7 +540,7 @@ Panel * GUI::findPanel(const char * panelName) const
     Panel * pPanel = panels.getFirst<Panel>();
     for (int count = panels.getSize(); count--; pPanel = pPanel->getNext<Panel>())
     {
-        if (pPanel->getName() == panelName)
+        if (stringsEqual(pPanel->getName(), panelName))
         {
             return pPanel;
         }
@@ -614,6 +666,22 @@ bool GUI::onMouseScroll(const int yScroll)
     return false; // Event not handled. Caller may propagate it.
 }
 
+bool GUI::onKeyPressed(const KeyCode key, const KeyModFlags modifiers)
+{
+    if (key == SpecialKeys::Null)
+    {
+        return false;
+    }
+
+    // Only the top window receives key input.
+    Panel * pTopPanel = panels.getFirst<Panel>();
+    if (pTopPanel != NTB_NULL && pTopPanel->onKeyPressed(key, modifiers))
+    {
+        return true; // Even handled by this element.
+    }
+    return false; // Event not handled. Caller may propagate it.
+}
+
 const ColorScheme * GUI::getNormalColors() const
 {
     //TODO this is a temporary for testing only. User should set this instead.
@@ -682,9 +750,6 @@ const ColorScheme * GUI::getHighlightedColors() const
 //
 // ================================================================================================
 
-namespace detail
-{
-
 // ========================================================
 // class EnumValEx:
 // ========================================================
@@ -734,7 +799,7 @@ Variable * VarHierarchyParent::setMaxStringSize(int)
     return this;
 }
 
-void VarHierarchyParent::onUpdateCachedValue() const
+void VarHierarchyParent::onUpdateDisplayValue() const
 {
 }
 
@@ -746,5 +811,4 @@ void VarHierarchyParent::onLinkedToPanel(Panel &)
 {
 }
 
-} // namespace detail {}
 } // namespace ntb {}

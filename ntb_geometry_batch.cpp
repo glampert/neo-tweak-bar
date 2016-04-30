@@ -8,9 +8,6 @@ namespace ntb
 // Font structures and font glyph bitmap decompression:
 // ========================================================
 
-namespace detail
-{
-
 struct FontChar
 {
     // Position within the glyph bitmap:
@@ -36,8 +33,6 @@ struct FontCharSet
 const UByte * getRawFontBitmapData();
 const FontCharSet & getFontCharSet();
 UByte * decompressFontBitmap();
-
-} // namespace detail {}
 
 // ========================================================
 // class GeometryBatch:
@@ -180,7 +175,7 @@ void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int ve
     }
     baseVertexClipped += vertCount;
 
-    const float z = getNextZ();
+    const Float32 z = getNextZ();
     for (int v = 0; v < vertCount; ++v)
     {
         VertexPTC vert = verts[v];
@@ -206,7 +201,7 @@ void GeometryBatch::draw2DTriangles(const VertexPTC * verts, const int vertCount
     }
     baseVertex2D += vertCount;
 
-    const float z = getNextZ();
+    const Float32 z = getNextZ();
     for (int v = 0; v < vertCount; ++v)
     {
         VertexPTC vert = verts[v];
@@ -220,17 +215,17 @@ void GeometryBatch::drawLine(const int xFrom, const int yFrom,
                              const Color32 colorFrom,
                              const Color32 colorTo)
 {
-    const float z = getNextZ();
+    const Float32 z = getNextZ();
     const VertexPC vertFrom =
     {
-        static_cast<float>(xFrom),
-        static_cast<float>(yFrom),
+        static_cast<Float32>(xFrom),
+        static_cast<Float32>(yFrom),
         z, colorFrom
     };
     const VertexPC vertTo =
     {
-        static_cast<float>(xTo),
-        static_cast<float>(yTo),
+        static_cast<Float32>(xTo),
+        static_cast<Float32>(yTo),
         z, colorTo
     };
     linesBatch.pushBack<VertexPC>(vertFrom);
@@ -249,26 +244,26 @@ void GeometryBatch::drawRectFilled(const Rectangle & rect, const Color32 c0,
 {
     VertexPTC verts[4];
 
-    verts[0].x = static_cast<float>(rect.xMins);
-    verts[0].y = static_cast<float>(rect.yMins);
+    verts[0].x = static_cast<Float32>(rect.xMins);
+    verts[0].y = static_cast<Float32>(rect.yMins);
     verts[0].u = 0.0f;
     verts[0].v = 0.0f;
     verts[0].color = c0;
 
-    verts[1].x = static_cast<float>(rect.xMins);
-    verts[1].y = static_cast<float>(rect.yMaxs);
+    verts[1].x = static_cast<Float32>(rect.xMins);
+    verts[1].y = static_cast<Float32>(rect.yMaxs);
     verts[1].u = 0.0f;
     verts[1].v = 0.0f;
     verts[1].color = c1;
 
-    verts[2].x = static_cast<float>(rect.xMaxs);
-    verts[2].y = static_cast<float>(rect.yMins);
+    verts[2].x = static_cast<Float32>(rect.xMaxs);
+    verts[2].y = static_cast<Float32>(rect.yMins);
     verts[2].u = 0.0f;
     verts[2].v = 0.0f;
     verts[2].color = c2;
 
-    verts[3].x = static_cast<float>(rect.xMaxs);
-    verts[3].y = static_cast<float>(rect.yMaxs);
+    verts[3].x = static_cast<Float32>(rect.xMaxs);
+    verts[3].y = static_cast<Float32>(rect.yMaxs);
     verts[3].u = 0.0f;
     verts[3].v = 0.0f;
     verts[3].color = c3;
@@ -357,21 +352,21 @@ void GeometryBatch::drawArrowFilled(const Rectangle & rect, const Color32 bgColo
 
     if (direction == 1) // up
     {
-        verts[0].x = static_cast<float>(rect.xMins + (rect.getWidth() / 2));
-        verts[0].y = static_cast<float>(rect.yMins);
-        verts[1].x = static_cast<float>(rect.xMins);
-        verts[1].y = static_cast<float>(rect.yMaxs);
-        verts[2].x = static_cast<float>(rect.xMaxs);
-        verts[2].y = static_cast<float>(rect.yMaxs);
+        verts[0].x = static_cast<Float32>(rect.xMins + (rect.getWidth() / 2));
+        verts[0].y = static_cast<Float32>(rect.yMins);
+        verts[1].x = static_cast<Float32>(rect.xMins);
+        verts[1].y = static_cast<Float32>(rect.yMaxs);
+        verts[2].x = static_cast<Float32>(rect.xMaxs);
+        verts[2].y = static_cast<Float32>(rect.yMaxs);
     }
     else // down
     {
-        verts[0].x = static_cast<float>(rect.xMins);
-        verts[0].y = static_cast<float>(rect.yMins);
-        verts[1].x = static_cast<float>(rect.xMins + (rect.getWidth() / 2));
-        verts[1].y = static_cast<float>(rect.yMaxs);
-        verts[2].x = static_cast<float>(rect.xMaxs);
-        verts[2].y = static_cast<float>(rect.yMins);
+        verts[0].x = static_cast<Float32>(rect.xMins);
+        verts[0].y = static_cast<Float32>(rect.yMins);
+        verts[1].x = static_cast<Float32>(rect.xMins + (rect.getWidth() / 2));
+        verts[1].y = static_cast<Float32>(rect.yMaxs);
+        verts[2].x = static_cast<Float32>(rect.xMaxs);
+        verts[2].y = static_cast<Float32>(rect.yMins);
     }
 
     static const UInt16 indexes[3] = { 0, 1, 2 }; // CCW winding
@@ -385,7 +380,7 @@ void GeometryBatch::drawArrowFilled(const Rectangle & rect, const Color32 bgColo
 
 void GeometryBatch::createGlyphTexture()
 {
-    UByte * decompressedBitmap = detail::decompressFontBitmap();
+    UByte * decompressedBitmap = decompressFontBitmap();
     if (decompressedBitmap == NTB_NULL)
     {
         NTB_ERROR("Unable to decompress the built-in font bitmap data!");
@@ -393,16 +388,16 @@ void GeometryBatch::createGlyphTexture()
     }
 
     glyphTex = getRenderInterface()->createTexture(
-                     detail::getFontCharSet().bitmapWidth,
-                     detail::getFontCharSet().bitmapHeight,
+                     getFontCharSet().bitmapWidth,
+                     getFontCharSet().bitmapHeight,
                      1, decompressedBitmap);
 
     // No longer needed.
-    detail::memFree(decompressedBitmap);
+    memFree(decompressedBitmap);
 }
 
 void GeometryBatch::drawTextConstrained(const char * text, const int textLength, Rectangle alignBox,
-                                        const Rectangle & clipBox, const float scaling, const Color32 color,
+                                        const Rectangle & clipBox, const Float32 scaling, const Color32 color,
                                         const TextAlign::Enum align)
 {
     NTB_ASSERT(text != NTB_NULL);
@@ -411,15 +406,15 @@ void GeometryBatch::drawTextConstrained(const char * text, const int textLength,
         return;
     }
 
-    const float fixedWidth   = getCharWidth() * scaling;
-    const float clipBoxWidth = clipBox.getWidth();
+    const Float32 charHeight = getCharWidth() * scaling;
+    const Float32 clipBoxWidth = clipBox.getWidth();
 
-    float textWidth = calcTextWidth(text, textLength, scaling);
+    Float32 textWidth = calcTextWidth(text, textLength, scaling);
     int clippedLength = textLength;
 
     while (textWidth > clipBoxWidth)
     {
-        textWidth -= fixedWidth;
+        textWidth -= charHeight;
         clippedLength--;
     }
 
@@ -433,8 +428,8 @@ void GeometryBatch::drawTextConstrained(const char * text, const int textLength,
         alignBox = clipBox;
     }
 
-    float x = alignBox.xMins;
-    float y = alignBox.yMins;
+    Float32 x = alignBox.xMins;
+    Float32 y = alignBox.yMins;
 
     for (;;)
     {
@@ -459,8 +454,8 @@ void GeometryBatch::drawTextConstrained(const char * text, const int textLength,
     drawTextImpl(text, clippedLength, x, y, scaling, color);
 }
 
-void GeometryBatch::drawTextImpl(const char * text, const int textLength, float x, float y,
-                                 const float scaling, const Color32 color)
+void GeometryBatch::drawTextImpl(const char * text, const int textLength, Float32 x, Float32 y,
+                                 const Float32 scaling, const Color32 color)
 {
     NTB_ASSERT(text != NTB_NULL);
     NTB_ASSERT(textLength > 0);
@@ -468,20 +463,20 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
     static const UInt16 indexes[6] = { 0, 1, 2, 2, 1, 3 };
 
     // Invariants for all characters:
-    const float initialX    = x;
-    const float charsZ      = getNextZ(); // Glyphs in a string never overlap. Share the depth.
-    const float scaleU      = detail::getFontCharSet().bitmapWidth;
-    const float scaleV      = detail::getFontCharSet().bitmapHeight;
-    const float fixedWidth  = getCharWidth();
-    const float fixedHeight = getCharHeight();
-    const float tabW        = fixedWidth  * 4.0f * scaling; // TAB = 4 spaces.
-    const float chrW        = fixedWidth  * scaling;
-    const float chrH        = fixedHeight * scaling;
+    const Float32 initialX    = x;
+    const Float32 charsZ      = getNextZ(); // Assume glyphs in a string never overlap. Share the depth.
+    const Float32 scaleU      = getFontCharSet().bitmapWidth;
+    const Float32 scaleV      = getFontCharSet().bitmapHeight;
+    const Float32 fixedWidth  = getCharWidth();  // Unscaled
+    const Float32 fixedHeight = getCharHeight(); // Unscaled
+    const Float32 tabW        = fixedWidth  * 4.0f * scaling; // TAB = 4 spaces.
+    const Float32 chrW        = fixedWidth  * scaling;
+    const Float32 chrH        = fixedHeight * scaling;
 
     for (int c = 0; c < textLength; ++c)
     {
         const int charValue = text[c];
-        if (charValue >= detail::FontCharSet::MaxChars)
+        if (charValue >= FontCharSet::MaxChars)
         {
             continue;
         }
@@ -502,11 +497,11 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
             continue;
         }
 
-        const detail::FontChar fontChar = detail::getFontCharSet().chars[charValue];
-        const float u0 = (fontChar.x + 0.5f) / scaleU;
-        const float v0 = (fontChar.y + 0.5f) / scaleV;
-        const float u1 = u0 + (fixedWidth  / scaleU);
-        const float v1 = v0 + (fixedHeight / scaleV);
+        const FontChar fontChar = getFontCharSet().chars[charValue];
+        const Float32 u0 = (fontChar.x + 0.5f) / scaleU;
+        const Float32 v0 = (fontChar.y + 0.5f) / scaleV;
+        const Float32 u1 = u0 + (fixedWidth  / scaleU);
+        const Float32 v1 = v0 + (fixedHeight / scaleV);
 
         VertexPTC verts[4];
         verts[0].x = x;
@@ -545,19 +540,19 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, float 
     }
 }
 
-float GeometryBatch::calcTextWidth(const char * text, const int textLength, const float scaling)
+Float32 GeometryBatch::calcTextWidth(const char * text, const int textLength, const Float32 scaling)
 {
     NTB_ASSERT(text != NTB_NULL);
 
-    const float fixedWidth = getCharWidth();
-    const float tabW = fixedWidth * 4.0f * scaling; // TAB = 4 spaces.
-    const float chrW = fixedWidth * scaling;
+    const Float32 fixedWidth = getCharWidth();
+    const Float32 tabW = fixedWidth * 4.0f * scaling; // TAB = 4 spaces.
+    const Float32 chrW = fixedWidth * scaling;
 
-    float x = 0.0f;
+    Float32 x = 0.0f;
     for (int c = 0; c < textLength; ++c)
     {
         const int charValue = text[c];
-        if (charValue >= detail::FontCharSet::MaxChars)
+        if (charValue >= FontCharSet::MaxChars)
         {
             continue;
         }
@@ -576,22 +571,19 @@ float GeometryBatch::calcTextWidth(const char * text, const int textLength, cons
     return x;
 }
 
-float GeometryBatch::getCharWidth()
+Float32 GeometryBatch::getCharWidth()
 {
-    return detail::getFontCharSet().charWidth;
+    return getFontCharSet().charWidth;
 }
 
-float GeometryBatch::getCharHeight()
+Float32 GeometryBatch::getCharHeight()
 {
-    return detail::getFontCharSet().charHeight;
+    return getFontCharSet().charHeight;
 }
 
 // ========================================================
 // LZW decompression helpers for the font glyph bitmap:
 // ========================================================
-
-namespace detail
-{
 
 // These must match the font-tool encoder!
 static const int LzwNil            = -1;
@@ -1362,5 +1354,4 @@ static const FontCharSet g_fontMonoid18CharSet =
 const UByte * getRawFontBitmapData() { return g_fontMonoid18Bitmap;  }
 const FontCharSet & getFontCharSet() { return g_fontMonoid18CharSet; }
 
-} // namespace detail {}
 } // namespace ntb {}

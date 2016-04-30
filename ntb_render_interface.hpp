@@ -39,15 +39,15 @@ struct DrawClippedInfo
 // Vertex with XYZ position, UV texture coords and RGBA(8:8:8:8) color.
 struct VertexPTC
 {
-    float x, y, z;
-    float u, v;
+    Float32 x, y, z;
+    Float32 u, v;
     Color32 color;
 };
 
 // Vertex with XYZ position and RGBA(8:8:8:8) color.
 struct VertexPC
 {
-    float x, y, z;
+    Float32 x, y, z;
     Color32 color;
 };
 

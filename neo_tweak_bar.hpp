@@ -15,7 +15,16 @@
 #include "ntb_geometry_batch.hpp"
 #include "ntb_widgets.hpp"
 
-//TEMP placeholder
+//TODO
+//Actually, let's take a simpler approach.
+//No need to define another interface class for the user to implement.
+//We can simply allow passing a memory block to initialize() and then we
+//use it internally as a stack. If the block isn't provided, then we source
+//memory from allocation callbacks that the ShellInterface can provide.
+//
+// we're looking at:
+// initialize(RenderInterface*, ShellInterface*, void * memHunk = NTB_NULL, int memHunkSizeBytes = 0);
+//
 struct StackAllocator { };
 
 namespace ntb
@@ -31,6 +40,10 @@ class Variable;
 class Panel;
 class GUI;
 
+//FIXME note:
+//Don't expose SmallStr in the front end interface. It should be an internal type/detail. Use char*.
+//Same is valid for other internal helper types, so we can keep this public header as slim as possible.
+
 // ========================================================
 // Miscellaneous helper structures:
 // ========================================================
@@ -38,23 +51,24 @@ class GUI;
 // Constant value + name string pair for Panel::addEnum().
 // The string is not copied, so be sure to use a literal
 // const char* string for 'name'.
-template<class T>
+template<typename T>
 struct EnumConstant
 {
-    const char * name;
-    const T value;
+    const char * const name;
+    const T            value;
 };
 
 // Numerical bases for Variable::setNumberFormatting().
-struct NumFormat
+struct NumberFormat
 {
-    enum Enum
+    enum
     {
         Binary      = 2,
         Octal       = 8,
         Decimal     = 10,
         Hexadecimal = 16
     };
+    typedef Int8 Enum;
 };
 
 // ========================================================
@@ -78,10 +92,11 @@ public:
     enum Access { ReadOnly, ReadWrite };
 
     // Accessors:
-    virtual Access getAccessMode() const = 0;
-    const SmallStr & getName() const;
+    virtual Access getAccessMode() const = 0;//FIXME should be a local member/non-virtual
+    const char * getName() const;
 
     // Styling methods:
+    Variable * setCustomTextColor(const Color32 newColor) { VarDisplayWidget::setCustomTextColor(newColor); return this; }
     virtual Variable * setNumberFormatting(int numericBase) = 0;
     virtual Variable * setMaxStringSize(int maxSizeIncludingNulTerminator) = 0;
 
@@ -96,8 +111,8 @@ protected:
     virtual ~Variable();
 
     // Variable impl methods:
-    virtual void onUpdateCachedValue() const = 0;
-    virtual void onUpdateUserValue()   const = 0;
+    virtual void onUpdateUserValue() const = 0;
+    virtual void onUpdateDisplayValue() const = 0;
     virtual void onLinkedToPanel(Panel & owner) = 0;
 
     // VarDisplayWidget methods:
@@ -133,13 +148,13 @@ public:
     Variable * addBoolRW(const char * name, bool * var);
     Variable * addBoolRW(Variable * parent, const char * name, bool * var);
 
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addBoolRO(const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addBoolRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addBoolRW(const char * name, OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addBoolRW(Variable * parent, const char * name, OT * obj, const CBT & cbs);
 
     // ------------------------------------------
@@ -151,13 +166,13 @@ public:
     Variable * addCharRW(const char * name, char * var);
     Variable * addCharRW(Variable * parent, const char * name, char * var);
 
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addCharRO(const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addCharRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addCharRW(const char * name, OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addCharRW(Variable * parent, const char * name, OT * obj, const CBT & cbs);
 
     // ------------------------------------------
@@ -205,23 +220,23 @@ public:
     Variable * addNumberRW(const char * name, UInt64 * var);
     Variable * addNumberRW(Variable * parent, const char * name, UInt64 * var);
 
-    Variable * addNumberRO(const char * name, const float * var);
-    Variable * addNumberRO(Variable * parent, const char * name, const float * var);
-    Variable * addNumberRW(const char * name, float * var);
-    Variable * addNumberRW(Variable * parent, const char * name, float * var);
+    Variable * addNumberRO(const char * name, const Float32 * var);
+    Variable * addNumberRO(Variable * parent, const char * name, const Float32 * var);
+    Variable * addNumberRW(const char * name, Float32 * var);
+    Variable * addNumberRW(Variable * parent, const char * name, Float32 * var);
 
-    Variable * addNumberRO(const char * name, const double * var);
-    Variable * addNumberRO(Variable * parent, const char * name, const double * var);
-    Variable * addNumberRW(const char * name, double * var);
-    Variable * addNumberRW(Variable * parent, const char * name, double * var);
+    Variable * addNumberRO(const char * name, const Float64 * var);
+    Variable * addNumberRO(Variable * parent, const char * name, const Float64 * var);
+    Variable * addNumberRW(const char * name, Float64 * var);
+    Variable * addNumberRW(Variable * parent, const char * name, Float64 * var);
 
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addNumberRO(const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addNumberRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addNumberRW(const char * name, OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addNumberRW(Variable * parent, const char * name, OT * obj, const CBT & cbs);
 
     // ------------------------------------------
@@ -233,21 +248,21 @@ public:
     // ------------------------------------------
 
     template<int Size>
-    Variable * addFloatVecRO(const char * name, const float * vec);
+    Variable * addFloatVecRO(const char * name, const Float32 * vec);
     template<int Size>
-    Variable * addFloatVecRO(Variable * parent, const char * name, const float * vec);
+    Variable * addFloatVecRO(Variable * parent, const char * name, const Float32 * vec);
     template<int Size>
-    Variable * addFloatVecRW(const char * name, float * vec);
+    Variable * addFloatVecRW(const char * name, Float32 * vec);
     template<int Size>
-    Variable * addFloatVecRW(Variable * parent, const char * name, float * vec);
+    Variable * addFloatVecRW(Variable * parent, const char * name, Float32 * vec);
 
-    template<int Size, class OT, class CBT>
+    template<int Size, typename OT, typename CBT>
     Variable * addFloatVecRO(const char * name, const OT * obj, const CBT & cbs);
-    template<int Size, class OT, class CBT>
+    template<int Size, typename OT, typename CBT>
     Variable * addFloatVecRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs);
-    template<int Size, class OT, class CBT>
+    template<int Size, typename OT, typename CBT>
     Variable * addFloatVecRW(const char * name, OT * obj, const CBT & cbs);
-    template<int Size, class OT, class CBT>
+    template<int Size, typename OT, typename CBT>
     Variable * addFloatVecRW(Variable * parent, const char * name, OT * obj, const CBT & cbs);
 
     // ------------------------------------------
@@ -255,18 +270,18 @@ public:
     //  D={X,Y,Z}
     // ------------------------------------------
 
-    Variable * addDirectionVecRO(const char * name, const float * vec);
-    Variable * addDirectionVecRO(Variable * parent, const char * name, const float * vec);
-    Variable * addDirectionVecRW(const char * name, float * vec);
-    Variable * addDirectionVecRW(Variable * parent, const char * name, float * vec);
+    Variable * addDirectionVecRO(const char * name, const Float32 * vec);
+    Variable * addDirectionVecRO(Variable * parent, const char * name, const Float32 * vec);
+    Variable * addDirectionVecRW(const char * name, Float32 * vec);
+    Variable * addDirectionVecRW(Variable * parent, const char * name, Float32 * vec);
 
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addDirectionVecRO(const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addDirectionVecRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addDirectionVecRW(const char * name, OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addDirectionVecRW(Variable * parent, const char * name, OT * obj, const CBT & cbs);
 
     // ------------------------------------------
@@ -274,24 +289,24 @@ public:
     //  Q={X,Y,Z,W}
     // ------------------------------------------
 
-    Variable * addRotationQuatRO(const char * name, const float * quat);
-    Variable * addRotationQuatRO(Variable * parent, const char * name, const float * quat);
-    Variable * addRotationQuatRW(const char * name, float * quat);
-    Variable * addRotationQuatRW(Variable * parent, const char * name, float * quat);
+    Variable * addRotationQuatRO(const char * name, const Float32 * quat);
+    Variable * addRotationQuatRO(Variable * parent, const char * name, const Float32 * quat);
+    Variable * addRotationQuatRW(const char * name, Float32 * quat);
+    Variable * addRotationQuatRW(Variable * parent, const char * name, Float32 * quat);
 
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addRotationQuatRO(const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addRotationQuatRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addRotationQuatRW(const char * name, OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addRotationQuatRW(Variable * parent, const char * name, OT * obj, const CBT & cbs);
 
     // ------------------------------------------
     // Color values
     // Size  = 3 or 4 components
-    // Range = [0,255] or [0.0,1.0]
+    // Range = [0,255] or [0,1]
     //  C={R,G,B}
     //  C={R,G,B,A}
     // ------------------------------------------
@@ -308,13 +323,13 @@ public:
 
     // Floating-point color components:
     template<int Size>
-    Variable * addColorRO(const char * name, const float * clr);
+    Variable * addColorRO(const char * name, const Float32 * clr);
     template<int Size>
-    Variable * addColorRO(Variable * parent, const char * name, const float * clr);
+    Variable * addColorRO(Variable * parent, const char * name, const Float32 * clr);
     template<int Size>
-    Variable * addColorRW(const char * name, float * clr);
+    Variable * addColorRW(const char * name, Float32 * clr);
     template<int Size>
-    Variable * addColorRW(Variable * parent, const char * name, float * clr);
+    Variable * addColorRW(Variable * parent, const char * name, Float32 * clr);
 
     // NTB Color32 packed 32-bits color:
     Variable * addColorRO(const char * name, const Color32 * clr);
@@ -323,13 +338,13 @@ public:
     Variable * addColorRW(Variable * parent, const char * name, Color32 * clr);
 
     // Colors from callbacks:
-    template<int Size, class OT, class CBT>
+    template<int Size, typename OT, typename CBT>
     Variable * addColorRO(const char * name, const OT * obj, const CBT & cbs);
-    template<int Size, class OT, class CBT>
+    template<int Size, typename OT, typename CBT>
     Variable * addColorRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs);
-    template<int Size, class OT, class CBT>
+    template<int Size, typename OT, typename CBT>
     Variable * addColorRW(const char * name, OT * obj, const CBT & cbs);
-    template<int Size, class OT, class CBT>
+    template<int Size, typename OT, typename CBT>
     Variable * addColorRW(Variable * parent, const char * name, OT * obj, const CBT & cbs);
 
     // ------------------------------------------
@@ -368,13 +383,13 @@ public:
     Variable * addStringRW(Variable * parent, const char * name, SmallStr * str);
 
     // Strings from callbacks:
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addStringRO(const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addStringRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addStringRW(const char * name, OT * obj, const CBT & cbs);
-    template<class OT, class CBT>
+    template<typename OT, typename CBT>
     Variable * addStringRW(Variable * parent, const char * name, OT * obj, const CBT & cbs);
 
     // ------------------------------------------
@@ -391,23 +406,23 @@ public:
     Variable * addPointerRW(Variable * parent, const char * name, void ** ptr);
 
     // Enum var from pointers: (Note: constants are not copied)
-    template<class VT>
+    template<typename VT>
     Variable * addEnumRO(const char * name, const VT * var, const EnumConstant<VT> * constants, int numOfConstants);
-    template<class VT>
+    template<typename VT>
     Variable * addEnumRO(Variable * parent, const char * name, const VT * var, const EnumConstant<VT> * constants, int numOfConstants);
-    template<class VT>
+    template<typename VT>
     Variable * addEnumRW(const char * name, VT * var, const EnumConstant<VT> * constants, int numOfConstants);
-    template<class VT>
+    template<typename VT>
     Variable * addEnumRW(Variable * parent, const char * name, VT * var, const EnumConstant<VT> * constants, int numOfConstants);
 
     // Enum var from callbacks: (Note: constants are not copied)
-    template<class OT, class CBT, class VT>
+    template<typename OT, typename CBT, typename VT>
     Variable * addEnumRO(const char * name, const OT * obj, const CBT & cbs, const EnumConstant<VT> * constants, int numOfConstants);
-    template<class OT, class CBT, class VT>
+    template<typename OT, typename CBT, typename VT>
     Variable * addEnumRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs, const EnumConstant<VT> * constants, int numOfConstants);
-    template<class OT, class CBT, class VT>
+    template<typename OT, typename CBT, typename VT>
     Variable * addEnumRW(const char * name, OT * obj, const CBT & cbs, const EnumConstant<VT> * constants, int numOfConstants);
-    template<class OT, class CBT, class VT>
+    template<typename OT, typename CBT, typename VT>
     Variable * addEnumRW(Variable * parent, const char * name, OT * obj, const CBT & cbs, const EnumConstant<VT> * constants, int numOfConstants);
 
     // User-defined hierarchy parent. Can be used to define structs/objects:
@@ -433,12 +448,12 @@ public:
     void destroyAllVariables();
 
     // Passes every variable attached to the Panel to user Func.
-    template<class Func> void enumerateAllVariables(Func fn);
-    template<class Func> void enumerateAllVariables(Func fn) const;
+    template<typename Func> void enumerateAllVariables(Func fn);
+    template<typename Func> void enumerateAllVariables(Func fn) const;
 
     // Accessors:
     int getVariablesCount() const;
-    const SmallStr & getName() const;
+    const char * getName() const;
 
     // Since we use protected inheritance from WindowWidget,
     // a cast can only be done from within Panel.
@@ -449,6 +464,15 @@ public:
     const GUI * getGUI() const;
     GUI * getGUI();
 
+    // positions relative to the top-left corner of the Panel window
+    // setSize clamps to min window size.
+    int getPositionX() const;
+    int getPositionY() const;
+    int getWidth()  const;
+    int getHeight() const;
+    Panel * setPosition(int newPosX, int newPosY);
+    Panel * setSize(int newWidth, int newHeight);
+
     // Recursive debug printing of the Panel/var hierarchy.
     #if NEO_TWEAK_BAR_DEBUG
     void printHierarchy(std::ostream & out = std::cout, const SmallStr & indent = "") const NTB_OVERRIDE;
@@ -457,7 +481,7 @@ public:
 private:
 
     // Only ntb::GUI can create Panels.
-    Panel(GUI * myGUI, const char * name);
+    Panel(GUI * myGUI, const char * name, const Rectangle & myRect);
     ~Panel();
 
     // This actually links the variable to the list.
@@ -516,8 +540,8 @@ public:
     int getPanelCount() const;
 
     // Passes every Panel attached to the GUI to user Func.
-    template<class Func> void enumerateAllPanels(Func fn);
-    template<class Func> void enumerateAllPanels(Func fn) const;
+    template<typename Func> void enumerateAllPanels(Func fn);
+    template<typename Func> void enumerateAllPanels(Func fn) const;
 
     // ------------------------------------------
     // GUI events / callbacks:
@@ -537,12 +561,14 @@ public:
     // clicks <= 0 for button released.
     // clicks >  0 click count, e.g.: 1 single click, 2 for double click, etc.
     bool onMouseButton(MouseButton::Enum button, int clicks);
-
     bool onMouseMotion(int mx, int my);
 
     // only vertical scroll for scroll bars.
     // +Y=forward, -Y=back
     bool onMouseScroll(int yScroll);
+
+    // call when the key is pressed
+    bool onKeyPressed(KeyCode key, KeyModFlags modifiers);
 
     // ------------------------------------------
     // Miscellaneous:
@@ -553,7 +579,7 @@ public:
     const ColorScheme * getHighlightedColors() const;
 
     // Name of this GUI set on creation.
-    const SmallStr & getName() const;
+    const char * getName() const;
 
 private:
 
@@ -564,6 +590,9 @@ private:
     IntrusiveList  panels;
     GeometryBatch  geoBatch;
     const SmallStr guiName;
+
+    int nextPanelXOffset;
+    int nextPanelYOffset;
 };
 
 // ========================================================
@@ -584,8 +613,9 @@ private:
 // from this global stack, ensuring minimal memory fragmentation.
 // When not provided, we source all allocations from the callbacks
 // provided by the ShellInterface.
-bool initialize(RenderInterface * renderer, ShellInterface * shell,
-                StackAllocator * stackAlloc = NTB_NULL);
+bool initialize(RenderInterface * renderer,
+                ShellInterface  * shell,
+                StackAllocator  * alloc);
 
 // Performs global library shutdown.
 // This will also destroy any remaining GUI instances
@@ -625,80 +655,72 @@ StackAllocator  * getStackAllocator();
 //
 // ================================================================================================
 
-namespace detail
-{
-
-//
-// FIXME?
-//
-// I'm not really super happy with all these templates below.
-// Maybe I'll just switch back to the tagged union after all...
-//
-
-#pragma pack(push, 1)
-
 // TODO
 // We always convert to->from string for displaying,
 // so perhaps store a cached SmallStr of the number?
 // That would trade speed for memory (SmallStr = 48 bytes)
 //
-// for UInt64/Int64 and double
+// for UInt64/Int64 and Float64
 class NumberEx NTB_FINAL_CLASS
 {
 public:
 
-    enum Type
+    struct Type
     {
-        Undefined,
-        SignedInt,
-        UnsignedInt,
-        Double,
-        Pointer
+        enum
+        {
+            Undefined,
+            SignedInt,
+            UnsignedInt,
+            FloatingPoint,
+            Pointer
+        };
+        typedef Int8 Enum;
     };
 
     // Value gets interpreted according to the type tag.
     union
     {
-        Int64  asI64;
-        UInt64 asU64;
-        double asDouble;
-        void * asPointer;
+        Int64   asI64;
+        UInt64  asU64;
+        Float64 asF64;
+        void *  asVPtr;
     };
 
-    UInt8 type;   // NumberEx::Type  (as U8 to have an explicit size)
-    UInt8 format; // NumFormat::Enum (as U8 to have an explicit size)
+    Type::Enum         type;
+    NumberFormat::Enum format;
+    //TODO: should also allow specifying min-max value for int and float numbers,
+    //as well as display precision for floating-point.
 
     NumberEx()
-        : type(Undefined)
-        , format(NumFormat::Decimal)
     {
-        asU64 = 0;
+        asU64  = 0;
+        type   = Type::Undefined;
+        format = NumberFormat::Decimal;
     }
 
     SmallStr toString() const
     {
         SmallStr str;
-
         switch (type)
         {
-        case SignedInt :
+        case Type::SignedInt :
             str = SmallStr::fromNumber(asI64, format);
             break;
-        case UnsignedInt :
+        case Type::UnsignedInt :
             str = SmallStr::fromNumber(asU64, format);
             break;
-        case Double :
-            str = SmallStr::fromNumber(asDouble, format);
+        case Type::FloatingPoint :
+            str = SmallStr::fromNumber(asF64, format);
             break;
-        case Pointer :
-            str = SmallStr::fromPointer(asPointer, format);
+        case Type::Pointer :
+            str = SmallStr::fromPointer(asVPtr, format);
             break;
         default :
             NTB_ERROR("Invalid NumberEx type!");
             str = "???";
             break;
         } // switch (type)
-
         return str;
     }
 };
@@ -708,27 +730,31 @@ class BoolEx NTB_FINAL_CLASS
 {
 public:
 
-    enum Display { CheckMark, String };
+    struct Display
+    {
+        enum { CheckMark, String };
+        typedef Int8 Enum;
+    };
 
     // Default is "true/false", but user can set to whatever (yes/no|on/off...)
-    // Used when displayMode == String. NOTE: These are not copied! Use str literals only.
+    // Used when displayMode == String. NOTE: These are not copied! Use static str literals only!
     const char * trueString;
     const char * falseString;
 
-    // Value and flag stored as bytes to save as much space as possible.
     // Display mode controls how the boolean is drawn in the UI.
     // It can either be shown as a check mark or a text string.
-    UInt8 displayMode;
-    UInt8 value;
+    bool          value;
+    Display::Enum displayMode;
 
     BoolEx()
-        : trueString("true")
-        , falseString("false")
-        , displayMode(CheckMark)
-        , value(false)
-    { }
+    {
+        trueString  = "true";
+        falseString = "false";
+        value       = false;
+        displayMode = Display::CheckMark;
+    }
 
-    bool isSet() const { return static_cast<bool>(value); }
+    bool isSet() const { return value; }
     SmallStr toString() const { return value ? trueString : falseString; }
 };
 
@@ -741,36 +767,39 @@ class Float4Ex NTB_FINAL_CLASS
 {
 public:
 
-    enum Type
+    struct Type
     {
-        Undefined,
-        Vec2,
-        Vec3,
-        Vec4,
-        Dir3,
-        Quat4,
-        Color
+        enum
+        {
+            Undefined,
+            Vec2,
+            Vec3,
+            Vec4,
+            Dir3,
+            Quat4
+        };
+        typedef Int8 Enum;
     };
 
-    float  data[4]; // (X,Y,Z,W)
-    UInt16 type;    // For UI displaying
+    Float32    values[4]; // (X,Y,Z,W)
+    Type::Enum type;      // For UI displaying
 
-    Float4Ex(const Type t = Undefined)
-        : type(t)
+    Float4Ex()
     {
-        data[0] = 0.0f;
-        data[1] = 0.0f;
-        data[2] = 0.0f;
-        data[3] = 0.0f;
+        type = Type::Undefined;
+        values[0] = 0.0f;
+        values[1] = 0.0f;
+        values[2] = 0.0f;
+        values[3] = 0.0f;
     }
 
     void setTypeFromSize(const int size)
     {
         switch (size)
         {
-        case 2  : type = Vec2; break;
-        case 3  : type = Vec3; break;
-        case 4  : type = Vec4; break;
+        case 2  : type = Type::Vec2; break;
+        case 3  : type = Type::Vec3; break;
+        case 4  : type = Type::Vec4; break;
         default : NTB_ERROR("Invalid Float4Ex vector size!");
         } // switch (size)
     }
@@ -779,64 +808,60 @@ public:
     {
         switch (type)
         {
-        case Vec2  : return 2;
-        case Vec3  : return 3;
-        case Vec4  : return 4;
-        case Dir3  : return 3;
-        case Quat4 : return 4;
-        case Color : return 4;
-        default    : return 0;
+        case Type::Vec2  : return 2;
+        case Type::Vec3  : return 3;
+        case Type::Vec4  : return 4;
+        case Type::Dir3  : return 3;
+        case Type::Quat4 : return 4;
+        default :
+            NTB_ERROR("Invalid Float4Ex type!");
+            return 0;
         } // switch (type)
     }
 
-    void getFloats(float * v) const
+    void getFloats(Float32 * v) const
     {
         const int size = getSize();
         for (int i = 0; i < size; ++i)
         {
-            v[i] = data[i];
+            v[i] = values[i];
         }
     }
 
-    void setFloats(const float * v)
+    void setFloats(const Float32 * v)
     {
         const int size = getSize();
         for (int i = 0; i < size; ++i)
         {
-            data[i] = v[i];
+            values[i] = v[i];
         }
     }
 
     SmallStr toString() const
     {
         SmallStr str;
-
         switch (type)
         {
-        case Vec2 :
-            str = SmallStr::fromFloatVec(data, 2, "V=");
+        case Type::Vec2 :
+            str = SmallStr::fromFloatVec(values, 2, "V=");
             break;
-        case Vec3 :
-            str = SmallStr::fromFloatVec(data, 3, "V=");
+        case Type::Vec3 :
+            str = SmallStr::fromFloatVec(values, 3, "V=");
             break;
-        case Vec4 :
-            str = SmallStr::fromFloatVec(data, 4, "V=");
+        case Type::Vec4 :
+            str = SmallStr::fromFloatVec(values, 4, "V=");
             break;
-        case Dir3 :
-            str = SmallStr::fromFloatVec(data, 3, "D=");
+        case Type::Dir3 :
+            str = SmallStr::fromFloatVec(values, 3, "D=");
             break;
-        case Quat4 :
-            str = SmallStr::fromFloatVec(data, 4, "Q=");
-            break;
-        case Color :
-            str = SmallStr::fromFloatVec(data, 4, "C=");
+        case Type::Quat4 :
+            str = SmallStr::fromFloatVec(values, 4, "Q=");
             break;
         default :
             NTB_ERROR("Invalid Float4Ex type!");
             str = "???";
             break;
         } // switch (type)
-
         return str;
     }
 };
@@ -850,103 +875,127 @@ class ColorEx NTB_FINAL_CLASS
 {
 public:
 
+    // RGB = Red Green Blue
     // HLS = Hue Lightness Saturation
-    enum Mode    { RGB,   HLS    };
-    enum Display { CByte, CFloat };
+    struct Mode
+    {
+        enum { RGB, HLS };
+        typedef Int8 Enum;
+    };
 
-    Float4Ex rgbaF4;
-    UInt8 colorMode;      // RGB/HLS
-    UInt8 displayMode;    // Display as [0,255] or [0,1]
-    UInt8 numChannels;    // 3 or 4 channels
-    UByte bR, bG, bB, bA; // rgbaF4 broken into components
+    // CByte  = Clamped UByte [0,255]
+    // CFloat = Clamped Float32 [0,1]
+    struct Display
+    {
+        enum { CByte, CFloat };
+        typedef Int8 Enum;
+    };
+
+    typedef Int8 NChannels;
+
+    Color32       rgba32;      // As a packed Color32 (CByte format)
+    Float32       rgbaF4[4];   // As a CFloat vector
+    UByte         rgbaB4[4];   // As a CByte vector
+    NChannels     numChannels; // 3 or 4 channels
+    Mode::Enum    colorMode;   // RGB or HLS
+    Display::Enum displayMode; // Display as [0,255] or [0,1]
 
     ColorEx()
-        : rgbaF4(Float4Ex::Color)
-        , colorMode(RGB)
-        , displayMode(CByte)
-        , numChannels(4)
     {
-        // Alpha channel = opaque
-        rgbaF4.data[3] = 1.0f;
-        bR = bG = bB = 0;
-        bA = 255;
+        // Alpha channel = opaque.
+        rgba32 = packColor(0, 0, 0, 255);
+        rgbaF4[0] = 0.0f;
+        rgbaF4[1] = 0.0f;
+        rgbaF4[2] = 0.0f;
+        rgbaF4[3] = 1.0f;
+        rgbaB4[0] = 0;
+        rgbaB4[1] = 0;
+        rgbaB4[2] = 0;
+        rgbaB4[3] = 255;
+
+        // RGBA by default.
+        numChannels = 4;
+        colorMode   = Mode::RGB;
+        displayMode = Display::CByte;
+    }
+    void setNumChannels(const int num)
+    {
+        NTB_ASSERT(num == 3 || num == 4);
+        numChannels = static_cast<NChannels>(num);
+    }
+    bool hasTransparency() const
+    {
+        return rgbaB4[3] < 255;
     }
 
-    void getColor32(Color32 & c) const
+    // Color32:
+    void getColor32(Color32 * c) const
     {
-        c = packColor(bR, bG, bB, bA);
+        *c = rgba32;
     }
-
-    void setColor32(const Color32 c)
+    void setColor32(const Color32 * c)
     {
-        unpackColor(c, bR, bG, bB, bA);
-        rgbaF4.data[0] = byteToFloat(bR);
-        rgbaF4.data[1] = byteToFloat(bG);
-        rgbaF4.data[2] = byteToFloat(bB);
-        rgbaF4.data[3] = byteToFloat(bA);
-    }
-
-    void getColorF(float * c) const
-    {
-        for (UInt32 i = 0; i < numChannels; ++i)
+        rgba32 = *c;
+        unpackColor(rgba32, rgbaB4[0], rgbaB4[1], rgbaB4[2], rgbaB4[3]);
+        for (int i = 0; i < numChannels; ++i)
         {
-            c[i] = rgbaF4.data[i];
+            rgbaF4[i] = byteToFloat(rgbaB4[i]);
         }
     }
 
-    void setColorF(const float * c)
+    // Float32:
+    void getColorF(Float32 * c) const
     {
-        for (UInt32 i = 0; i < numChannels; ++i)
+        for (int i = 0; i < numChannels; ++i)
         {
-            rgbaF4.data[i] = c[i];
+            c[i] = rgbaF4[i];
         }
-        bR = floatToByte(rgbaF4.data[0]);
-        bG = floatToByte(rgbaF4.data[1]);
-        bB = floatToByte(rgbaF4.data[2]);
-        bA = floatToByte(rgbaF4.data[3]);
+    }
+    void setColorF(const Float32 * c)
+    {
+        for (int i = 0; i < numChannels; ++i)
+        {
+            rgbaF4[i] = c[i];
+            rgbaB4[i] = floatToByte(c[i]);
+        }
+        rgba32 = packColor(rgbaB4[0], rgbaB4[1], rgbaB4[2], rgbaB4[3]);
     }
 
+    // UByte:
     void getColorB(UByte * c) const
     {
-        c[0] = bR;
-        c[1] = bG;
-        c[2] = bB;
-        if (numChannels == 4) { c[3] = bA; }
+        for (int i = 0; i < numChannels; ++i)
+        {
+            c[i] = rgbaB4[i];
+        }
     }
-
     void setColorB(const UByte * c)
     {
-        for (UInt32 i = 0; i < numChannels; ++i)
+        for (int i = 0; i < numChannels; ++i)
         {
-            rgbaF4.data[i] = byteToFloat(c[i]);
+            rgbaB4[i] = c[i];
+            rgbaF4[i] = byteToFloat(c[i]);
         }
-        bR = c[0];
-        bG = c[1];
-        bB = c[2];
-        if (numChannels == 4) { bA = c[3]; }
+        rgba32 = packColor(rgbaB4[0], rgbaB4[1], rgbaB4[2], rgbaB4[3]);
     }
-
-    bool hasTransparency() const { return bA < 255; }
 };
-
-#pragma pack(pop)
 
 //TODO put in the cpp
-static const EnumConstant<UInt8> colorModeEnum[] =
+static const EnumConstant<ColorEx::Mode::Enum> colorModeEnum[] =
 {
-    { "RGB", ColorEx::RGB },
-    { "HLS", ColorEx::HLS }
+    { "RGB", ColorEx::Mode::RGB },
+    { "HLS", ColorEx::Mode::HLS }
 };
 
-static const EnumConstant<UInt8> colorDisplayEnum[] =
+static const EnumConstant<ColorEx::Display::Enum> colorDisplayEnum[] =
 {
-    { "[0,255]", ColorEx::CByte  },
-    { "[0,1]",   ColorEx::CFloat }
+    { "[0,255]", ColorEx::Display::CByte  },
+    { "[0,1]",   ColorEx::Display::CFloat }
 };
 
-static const char * colorModeChannelNames[] =
+static const char * const colorModeChannelNames[] =
 {
-    "Red", "Green", "Blue", "Alpha",
+    "Red", "Green",     "Blue",       "Alpha",
     "Hue", "Lightness", "Saturation", "Alpha",
     NTB_NULL
 };
@@ -968,7 +1017,7 @@ public:
     virtual ~EnumValEx();
 };
 
-template<class T>
+template<typename T>
 class EnumValExImpl NTB_FINAL_CLASS
     : public EnumValEx
 {
@@ -1017,37 +1066,38 @@ private:
 // struct StripPtrRefConst:
 // ========================================================
 
-template<class T> struct StripPtrRefConst            { typedef T Type; };
-template<class T> struct StripPtrRefConst<T &>       { typedef T Type; };
-template<class T> struct StripPtrRefConst<T *>       { typedef T Type; };
-template<class T> struct StripPtrRefConst<const T &> { typedef T Type; };
-template<class T> struct StripPtrRefConst<const T *> { typedef T Type; };
+template<typename T> struct StripPtrRefConst            { typedef T Type; };
+template<typename T> struct StripPtrRefConst<T &>       { typedef T Type; };
+template<typename T> struct StripPtrRefConst<T *>       { typedef T Type; };
+template<typename T> struct StripPtrRefConst<const T &> { typedef T Type; };
+template<typename T> struct StripPtrRefConst<const T *> { typedef T Type; };
 
 // These are needed for Panel::addPointer(). We must preserve the pointer qualifier
 // for the special case of a var storing the raw pointer value of a void*.
 template<> struct StripPtrRefConst<      void *> { typedef       void * Type; };
 template<> struct StripPtrRefConst<const void *> { typedef const void * Type; };
 
+namespace old_
+{
+
 // ========================================================
 // class VarCallbacksMemFuncByValOrRef:
 // ========================================================
 
-template<class OT, class VT>
+template<typename OT, typename VT>
 class VarCallbacksMemFuncByValOrRef NTB_FINAL_CLASS
 {
 public:
-
     typedef typename StripPtrRefConst<OT>::Type ObjType;
     typedef typename StripPtrRefConst<VT>::Type VarType;
 
-    typedef VT (OT::*GetCBType)() const;
+    typedef VT   (OT::*GetCBType)() const;
     typedef void (OT::*SetCBType)(VT);
 
     VarCallbacksMemFuncByValOrRef(GetCBType getCb, SetCBType setCb)
         : getter(getCb)
         , setter(setCb)
     { }
-
     void callGetter(const ObjType * obj, VarType & valueOut) const
     {
         NTB_ASSERT(obj    != NTB_NULL);
@@ -1060,11 +1110,9 @@ public:
         NTB_ASSERT(setter != NTB_NULL);
         (obj->*setter)(valueIn);
     }
-
     bool hasSetter() const { return setter != NTB_NULL; }
 
 private:
-
     GetCBType getter;
     SetCBType setter;
 };
@@ -1073,11 +1121,10 @@ private:
 // class VarCallbacksMemFuncByPointer:
 // ========================================================
 
-template<class OT, class VT>
+template<typename OT, typename VT>
 class VarCallbacksMemFuncByPointer NTB_FINAL_CLASS
 {
 public:
-
     typedef typename StripPtrRefConst<OT>::Type ObjType;
     typedef typename StripPtrRefConst<VT>::Type VarType;
 
@@ -1088,7 +1135,6 @@ public:
         : getter(getCb)
         , setter(setCb)
     { }
-
     void callGetter(const ObjType * obj, VarType * valueOut) const
     {
         NTB_ASSERT(obj    != NTB_NULL);
@@ -1101,7 +1147,6 @@ public:
         NTB_ASSERT(getter != NTB_NULL);
         (obj->*getter)(&valueOut);
     }
-
     void callSetter(ObjType * obj, const VarType * valueIn) const
     {
         NTB_ASSERT(obj    != NTB_NULL);
@@ -1114,11 +1159,9 @@ public:
         NTB_ASSERT(setter != NTB_NULL);
         (obj->*setter)(&valueIn);
     }
-
     bool hasSetter() const { return setter != NTB_NULL; }
 
 private:
-
     GetCBType getter;
     SetCBType setter;
 };
@@ -1127,11 +1170,10 @@ private:
 // class VarCallbacksCFuncPtr:
 // ========================================================
 
-template<class OT, class VT>
+template<typename OT, typename VT>
 class VarCallbacksCFuncPtr NTB_FINAL_CLASS
 {
 public:
-
     typedef typename StripPtrRefConst<OT>::Type ObjType;
     typedef typename StripPtrRefConst<VT>::Type VarType;
 
@@ -1142,7 +1184,6 @@ public:
         : getter(getCb)
         , setter(setCb)
     { }
-
     void callGetter(const ObjType * obj, VarType * valueOut) const
     {
         NTB_ASSERT(getter != NTB_NULL);
@@ -1153,7 +1194,6 @@ public:
         NTB_ASSERT(getter != NTB_NULL);
         getter(obj, &valueOut);
     }
-
     void callSetter(ObjType * obj, const VarType * valueIn) const
     {
         NTB_ASSERT(setter != NTB_NULL);
@@ -1164,7 +1204,6 @@ public:
         NTB_ASSERT(setter != NTB_NULL);
         setter(obj, &valueIn);
     }
-
     // Used exclusively by Panel::addPointer()
     void callGetter(void ** obj, void ** valueOut) const
     {
@@ -1176,14 +1215,14 @@ public:
         NTB_ASSERT(setter != NTB_NULL);
         setter(obj, valueIn);
     }
-
     bool hasSetter() const { return setter != NTB_NULL; }
 
 private:
-
     GetCBType getter;
     SetCBType setter;
 };
+
+} // namespace old_ {}
 
 // ========================================================
 // convert() overloads:
@@ -1195,8 +1234,8 @@ private:
 //
 // Booleans - bool is the common type. No conversion needed.
 //
-inline void convert(const BoolEx & from, bool & to) { to = static_cast<bool>(from.value);  }
-inline void convert(const bool from, BoolEx & to)   { to.value = static_cast<UInt8>(from); }
+inline void convert(const BoolEx & from, bool & to) { to = static_cast<bool>(from.value); }
+inline void convert(const bool from, BoolEx & to)   { to.value = from; }
 
 inline void convert(const NumberEx & from, Int8  & to) { to = static_cast<Int8>(from.asI64);  }
 inline void convert(const NumberEx & from, Int16 & to) { to = static_cast<Int16>(from.asI64); }
@@ -1208,9 +1247,8 @@ inline void convert(const NumberEx & from, UInt16 & to) { to = static_cast<UInt1
 inline void convert(const NumberEx & from, UInt32 & to) { to = static_cast<UInt32>(from.asU64); }
 inline void convert(const NumberEx & from, UInt64 & to) { to = from.asU64; }
 
-inline void convert(const NumberEx & from, float  & to) { to = static_cast<float>(from.asDouble); }
-inline void convert(const NumberEx & from, double & to) { to = from.asDouble; }
-
+inline void convert(const NumberEx & from, Float32 & to) { to = static_cast<Float32>(from.asF64); }
+inline void convert(const NumberEx & from, Float64 & to) { to = from.asF64; }
 
 inline void convert(const Int8  from, NumberEx & to) { to.asI64 = from; }
 inline void convert(const Int16 from, NumberEx & to) { to.asI64 = from; }
@@ -1222,36 +1260,36 @@ inline void convert(const UInt16 from, NumberEx & to) { to.asU64 = from; }
 inline void convert(const UInt32 from, NumberEx & to) { to.asU64 = from; }
 inline void convert(const UInt64 from, NumberEx & to) { to.asU64 = from; }
 
-inline void convert(const float  from, NumberEx & to) { to.asDouble = from; }
-inline void convert(const double from, NumberEx & to) { to.asDouble = from; }
+inline void convert(const Float32 from, NumberEx & to) { to.asF64 = from; }
+inline void convert(const Float64 from, NumberEx & to) { to.asF64 = from; }
 
 //
 // Void pointers (we care about the actual pointer value).
 //
 inline void convert(void * from, NumberEx & to)
 {
-    to.asPointer = from;
+    to.asVPtr = from;
 }
 inline void convert(const NumberEx & from, void *& to)
 {
-    to = from.asPointer;
+    to = from.asVPtr;
 }
 
 //
 // Colors - ColorEx is the common type.
 //
-inline void convert(const float   * from, ColorEx & to) { to.setColorF(from);  }
-inline void convert(const ColorEx & from, float   * to) { from.getColorF(to);  }
+inline void convert(const Float32 * from, ColorEx & to) { to.setColorF(from);  }
+inline void convert(const ColorEx & from, Float32 * to) { from.getColorF(to);  }
 inline void convert(const UByte   * from, ColorEx & to) { to.setColorB(from);  }
 inline void convert(const ColorEx & from, UByte   * to) { from.getColorB(to);  }
-inline void convert(const Color32 & from, ColorEx & to) { to.setColor32(from); }
-inline void convert(const ColorEx & from, Color32 & to) { from.getColor32(to); }
+inline void convert(const Color32 & from, ColorEx & to) { to.setColor32(&from); }
+inline void convert(const ColorEx & from, Color32 & to) { from.getColor32(&to); }
 
 //
 // Vectors and Quaternion - Float4Ex is the common type.
 //
-inline void convert(const float * from, Float4Ex & to) { to.setFloats(from); }
-inline void convert(const Float4Ex & from, float * to) { from.getFloats(to); }
+inline void convert(const Float32 * from, Float4Ex & to) { to.setFloats(from); }
+inline void convert(const Float4Ex & from, Float32 * to) { from.getFloats(to); }
 
 //
 // Strings (single char also) - SmallStr is the common type.
@@ -1265,7 +1303,7 @@ inline void convert(const SmallStr & from, char * to)
 {
     // If maxSize isn't specified assume the char buffer is just big enough to hold the string...
     const int maxChars = (from.getMaxSize() > 0) ? from.getMaxSize() : (from.getLength() + 1);
-    copyString(to, maxChars, from.getCString());
+    copyString(to, maxChars, from.c_str());
 }
 inline void convert(const char * from, SmallStr & to)
 {
@@ -1282,19 +1320,19 @@ inline void convert(const std::string & from, SmallStr & to)
 }
 inline void convert(const SmallStr & from, std::string & to)
 {
-    to.assign(from.getCString(), from.getLength());
+    to.assign(from.c_str(), from.getLength());
 }
 #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
 
 //
 // C++ enums - EnumValExImpl is the common type.
 //
-template<class EnumType>
+template<typename EnumType>
 inline void convert(const EnumType from, EnumValExImpl<EnumType> & to)
 {
     to.value = from;
 }
-template<class EnumType>
+template<typename EnumType>
 inline void convert(const EnumValExImpl<EnumType> & from, EnumType & to)
 {
     to = from.value;
@@ -1310,7 +1348,7 @@ inline void convert(const EnumValExImpl<EnumType> & from, EnumType & to)
 // VarImpl<NumberEx>  -> All numbers, integer or floating-point
 // VarImpl<BoolEx>    -> Booleans only
 // VarImpl<Float4Ex>  -> All vectors, quaternions and directions
-// VarImpl<ColorEx>   -> All colors (float or byte)
+// VarImpl<ColorEx>   -> All colors (Float32 or UByte)
 // VarImpl<EnumValEx> -> User defined enums
 //
 // NOTE: Pointer vars (void*) will use either UInt32 or UInt64,
@@ -1321,7 +1359,7 @@ inline void convert(const EnumValExImpl<EnumType> & from, EnumType & to)
 // from the internal types to the user types.
 // ========================================================
 
-template<class OT, class VT, class DT, class CBT>
+template<typename OT, typename VT, typename DT, typename CBT>
 class VarImpl NTB_FINAL_CLASS
     : public Variable
 {
@@ -1355,13 +1393,6 @@ public:
         }
     }
 
-    void onUpdateCachedValue() const NTB_OVERRIDE
-    {
-        // A getter must always be provided.
-        callbacks.callGetter(userPtr, cachedValue);
-        convert(cachedValue, displayValue);
-    }
-
     void onUpdateUserValue() const NTB_OVERRIDE
     {
         // Read-Only variables won't have a setter method.
@@ -1370,6 +1401,73 @@ public:
             convert(displayValue, cachedValue);
             callbacks.callSetter(userPtr, cachedValue);
         }
+    }
+
+    void onUpdateDisplayValue() const NTB_OVERRIDE
+    {
+        // A getter must always be provided.
+        callbacks.callGetter(userPtr, cachedValue);
+        convert(cachedValue, displayValue);
+    }
+
+    //TEMP; TESTING
+    template<typename T> bool editf(T&, char, int, EditCommand::Enum) { return false; }
+    bool editf(SmallStr & text, char inputChar, int inputPosition, EditCommand::Enum cmd)
+    {
+        bool editAccepted;
+
+        switch (cmd)
+        {
+        case EditCommand::InsertChar :
+            {
+                if (inputPosition >= text.getLength())
+                {
+                    text.append(inputChar);
+                }
+                else
+                {
+                    text[inputPosition] = inputChar;
+                }
+                editAccepted = true;
+                break;
+            }
+        case EditCommand::PushChar :
+            {
+                if (inputPosition >= text.getLength())
+                {
+                    text.append(inputChar);
+                }
+                else
+                {
+                    text.insert(inputPosition, inputChar);
+                }
+                editAccepted = true;
+                break;
+            }
+        case EditCommand::EraseChar :
+            {
+                text.erase(inputPosition);
+                editAccepted = true;
+                break;
+            }
+        default :
+            {
+                editAccepted = false;
+                break;
+            }
+        } // switch (cmd)
+
+        return editAccepted;
+    }
+
+    bool onKeyEdit(const char inputChar, const int inputPosition, const EditCommand::Enum cmd) NTB_OVERRIDE
+    {
+        const bool editAccepted = editf(displayValue, inputChar, inputPosition, cmd);
+        if (editAccepted)
+        {
+            onUpdateUserValue();
+        }
+        return editAccepted;
     }
 
     void onLinkedToPanel(Panel & owner) NTB_OVERRIDE
@@ -1466,8 +1564,9 @@ public:
     // Unsupported stuff:
     Variable * setNumberFormatting(int numericBase) NTB_OVERRIDE;
     Variable * setMaxStringSize(int maxSizeIncludingNulTerminator) NTB_OVERRIDE;
-    void onUpdateCachedValue() const NTB_OVERRIDE;
+
     void onUpdateUserValue() const NTB_OVERRIDE;
+    void onUpdateDisplayValue() const NTB_OVERRIDE;
     void onLinkedToPanel(Panel & owner) NTB_OVERRIDE;
 };
 
@@ -1475,10 +1574,10 @@ public:
 // Built-in get/set helpers for Panel:
 // ========================================================
 
-template<class T> inline void defaultGetter(const T * src, T * dest) { *dest = *src; }
-template<class T> inline void defaultSetter(T * dest, const T * src) { *dest = *src; }
+template<typename T> inline void defaultGetter(const T * src, T * dest) { *dest = *src; }
+template<typename T> inline void defaultSetter(T * dest, const T * src) { *dest = *src; }
 
-template<class T, int Size>
+template<typename T, int Size>
 inline void defaultGetterArray(const T * src, T * dest)
 {
     for (int i = 0; i < Size; ++i)
@@ -1486,7 +1585,7 @@ inline void defaultGetterArray(const T * src, T * dest)
         dest[i] = src[i];
     }
 }
-template<class T, int Size>
+template<typename T, int Size>
 inline void defaultSetterArray(T * dest, const T * src)
 {
     for (int i = 0; i < Size; ++i)
@@ -1519,30 +1618,30 @@ inline void defaultSetterCZStr(char * dest, const char * src)
 // integer types plus floats to the underlaying common type
 // used by NTB for displaying & storage.
 // All signeds expand to Int64 and all unsigneds
-// expand to UInt64. Float expands to double.
+// expand to UInt64. Floats expands to Float64.
 // ========================================================
 
 // TODO Move this closer to NumberEx?
-template<class T> struct NumTS  { /* unsupported */ };
-template<> struct NumTS<Int8>   { static const NumberEx::Type Tag = NumberEx::SignedInt;   };
-template<> struct NumTS<Int16>  { static const NumberEx::Type Tag = NumberEx::SignedInt;   };
-template<> struct NumTS<Int32>  { static const NumberEx::Type Tag = NumberEx::SignedInt;   };
-template<> struct NumTS<Int64>  { static const NumberEx::Type Tag = NumberEx::SignedInt;   };
-template<> struct NumTS<UInt8>  { static const NumberEx::Type Tag = NumberEx::UnsignedInt; };
-template<> struct NumTS<UInt16> { static const NumberEx::Type Tag = NumberEx::UnsignedInt; };
-template<> struct NumTS<UInt32> { static const NumberEx::Type Tag = NumberEx::UnsignedInt; };
-template<> struct NumTS<UInt64> { static const NumberEx::Type Tag = NumberEx::UnsignedInt; };
-template<> struct NumTS<float>  { static const NumberEx::Type Tag = NumberEx::Double;      };
-template<> struct NumTS<double> { static const NumberEx::Type Tag = NumberEx::Double;      };
+template<typename T> struct NumTS  { /* unsupported */ };
+template<> struct NumTS<Int8>    { static const NumberEx::Type::Enum Tag = NumberEx::Type::SignedInt;     };
+template<> struct NumTS<Int16>   { static const NumberEx::Type::Enum Tag = NumberEx::Type::SignedInt;     };
+template<> struct NumTS<Int32>   { static const NumberEx::Type::Enum Tag = NumberEx::Type::SignedInt;     };
+template<> struct NumTS<Int64>   { static const NumberEx::Type::Enum Tag = NumberEx::Type::SignedInt;     };
+template<> struct NumTS<UInt8>   { static const NumberEx::Type::Enum Tag = NumberEx::Type::UnsignedInt;   };
+template<> struct NumTS<UInt16>  { static const NumberEx::Type::Enum Tag = NumberEx::Type::UnsignedInt;   };
+template<> struct NumTS<UInt32>  { static const NumberEx::Type::Enum Tag = NumberEx::Type::UnsignedInt;   };
+template<> struct NumTS<UInt64>  { static const NumberEx::Type::Enum Tag = NumberEx::Type::UnsignedInt;   };
+template<> struct NumTS<Float32> { static const NumberEx::Type::Enum Tag = NumberEx::Type::FloatingPoint; };
+template<> struct NumTS<Float64> { static const NumberEx::Type::Enum Tag = NumberEx::Type::FloatingPoint; };
 
 // ========================================================
 // Type switches for Panel::addColor().
 // The Color32 overloads store a single
-// object, while the float[] and UByte[]
+// object, while the Float32[] and UByte[]
 // ones must store a small array.
 // ========================================================
 
-template<class T, int Size>
+template<typename T, int Size>
 struct ColorTS
 {
     typedef T Type[Size];
@@ -1558,7 +1657,7 @@ struct ColorTS<Color32, 4>
 // We'll limit the size of C-strings to a fixed constant.
 // ========================================================
 
-template<class T>
+template<typename T>
 struct StrTS
 {
     /* unsupported */
@@ -1581,8 +1680,6 @@ struct StrTS<std::string>
 };
 #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
 
-} // namespace detail {}
-
 // ================================================================================================
 //
 //                                 NTB callbacks() helpers
@@ -1599,8 +1696,8 @@ struct StrTS<std::string>
 // VT can be a reference, const reference or value.
 // ========================================================
 
-template<class OT, class VT>
-inline detail::VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(VT (OT::*getCb)() const)
+template<typename OT, typename VT>
+inline old_::VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(VT (OT::*getCb)() const)
 {
     // The member function by val or ref callbacks
     // won't accept a pointer type, but the error
@@ -1616,11 +1713,11 @@ inline detail::VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(VT (OT::*getCb)()
     static_assert(!std::is_pointer<VT>::value, "Var cannot be a pointer for this type of callback!");
     #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
-    return detail::VarCallbacksMemFuncByValOrRef<OT, VT>(getCb, NTB_NULL);
+    return old_::VarCallbacksMemFuncByValOrRef<OT, VT>(getCb, NTB_NULL);
 }
 
-template<class OT, class VT>
-inline detail::VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(VT (OT::*getCb)() const, void (OT::*setCb)(VT))
+template<typename OT, typename VT>
+inline old_::VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(VT (OT::*getCb)() const, void (OT::*setCb)(VT))
 {
     // No pointers allowed here!
     // See the comment above in the other function.
@@ -1628,7 +1725,7 @@ inline detail::VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(VT (OT::*getCb)()
     static_assert(!std::is_pointer<VT>::value, "Var cannot be a pointer for this type of callbacks!");
     #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
-    return detail::VarCallbacksMemFuncByValOrRef<OT, VT>(getCb, setCb);
+    return old_::VarCallbacksMemFuncByValOrRef<OT, VT>(getCb, setCb);
 }
 
 // ========================================================
@@ -1639,16 +1736,16 @@ inline detail::VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(VT (OT::*getCb)()
 //
 // ========================================================
 
-template<class OT, class VT>
-inline detail::VarCallbacksMemFuncByPointer<OT, VT> callbacks(void (OT::*getCb)(VT *) const)
+template<typename OT, typename VT>
+inline old_::VarCallbacksMemFuncByPointer<OT, VT> callbacks(void (OT::*getCb)(VT *) const)
 {
-    return detail::VarCallbacksMemFuncByPointer<OT, VT>(getCb, NTB_NULL);
+    return old_::VarCallbacksMemFuncByPointer<OT, VT>(getCb, NTB_NULL);
 }
 
-template<class OT, class VT>
-inline detail::VarCallbacksMemFuncByPointer<OT, VT> callbacks(void (OT::*getCb)(VT *) const, void (OT::*setCb)(const VT *))
+template<typename OT, typename VT>
+inline old_::VarCallbacksMemFuncByPointer<OT, VT> callbacks(void (OT::*getCb)(VT *) const, void (OT::*setCb)(const VT *))
 {
-    return detail::VarCallbacksMemFuncByPointer<OT, VT>(getCb, setCb);
+    return old_::VarCallbacksMemFuncByPointer<OT, VT>(getCb, setCb);
 }
 
 // ========================================================
@@ -1659,16 +1756,16 @@ inline detail::VarCallbacksMemFuncByPointer<OT, VT> callbacks(void (OT::*getCb)(
 //
 // ========================================================
 
-template<class OT, class VT>
-inline detail::VarCallbacksCFuncPtr<OT, VT> callbacks(void (*getCb)(const OT *, VT *))
+template<typename OT, typename VT>
+inline old_::VarCallbacksCFuncPtr<OT, VT> callbacks(void (*getCb)(const OT *, VT *))
 {
-    return detail::VarCallbacksCFuncPtr<OT, VT>(getCb, NTB_NULL);
+    return old_::VarCallbacksCFuncPtr<OT, VT>(getCb, NTB_NULL);
 }
 
-template<class OT, class VT>
-inline detail::VarCallbacksCFuncPtr<OT, VT> callbacks(void (*getCb)(const OT *, VT *), void (*setCb)(OT *, const VT *))
+template<typename OT, typename VT>
+inline old_::VarCallbacksCFuncPtr<OT, VT> callbacks(void (*getCb)(const OT *, VT *), void (*setCb)(OT *, const VT *))
 {
-    return detail::VarCallbacksCFuncPtr<OT, VT>(getCb, setCb);
+    return old_::VarCallbacksCFuncPtr<OT, VT>(getCb, setCb);
 }
 
 // ================================================================================================
@@ -1688,7 +1785,7 @@ inline Variable * Panel::addBoolRO(const char * name, const bool * var)
 }
 inline Variable * Panel::addBoolRO(Variable * parent, const char * name, const bool * var)
 {
-    return addBoolRO(parent, name, var, callbacks(detail::defaultGetter<bool>));
+    return addBoolRO(parent, name, var, callbacks(defaultGetter<bool>));
 }
 inline Variable * Panel::addBoolRW(const char * name, bool * var)
 {
@@ -1696,29 +1793,29 @@ inline Variable * Panel::addBoolRW(const char * name, bool * var)
 }
 inline Variable * Panel::addBoolRW(Variable * parent, const char * name, bool * var)
 {
-    return addBoolRW(parent, name, var, callbacks(detail::defaultGetter<bool>, detail::defaultSetter<bool>));
+    return addBoolRW(parent, name, var, callbacks(defaultGetter<bool>, defaultSetter<bool>));
 }
 
 // Callbacks:
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addBoolRO(const char * name, const OT * obj, const CBT & cbs)
 {
     return addBoolRO(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addBoolRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs)
 {
-    return addVarImpl(NTB_NEW detail::VarImpl<OT, typename CBT::VarType, detail::BoolEx, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly));
+    return addVarImpl(NTB_NEW VarImpl<OT, typename CBT::VarType, BoolEx, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly));
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addBoolRW(const char * name, OT * obj, const CBT & cbs)
 {
     return addBoolRW(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addBoolRW(Variable * parent, const char * name, OT * obj, const CBT & cbs)
 {
-    return addVarImpl(NTB_NEW detail::VarImpl<OT, typename CBT::VarType, detail::BoolEx, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite));
+    return addVarImpl(NTB_NEW VarImpl<OT, typename CBT::VarType, BoolEx, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite));
 }
 
 // ========================================================
@@ -1732,7 +1829,7 @@ inline Variable * Panel::addCharRO(const char * name, const char * var)
 }
 inline Variable * Panel::addCharRO(Variable * parent, const char * name, const char * var)
 {
-    return addCharRO(parent, name, var, callbacks(detail::defaultGetter<char>));
+    return addCharRO(parent, name, var, callbacks(defaultGetter<char>));
 }
 inline Variable * Panel::addCharRW(const char * name, char * var)
 {
@@ -1740,35 +1837,35 @@ inline Variable * Panel::addCharRW(const char * name, char * var)
 }
 inline Variable * Panel::addCharRW(Variable * parent, const char * name, char * var)
 {
-    return addCharRW(parent, name, var, callbacks(detail::defaultGetter<char>, detail::defaultSetter<char>));
+    return addCharRW(parent, name, var, callbacks(defaultGetter<char>, defaultSetter<char>));
 }
 
 // Callbacks:
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addCharRO(const char * name, const OT * obj, const CBT & cbs)
 {
     return addCharRO(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addCharRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs)
 {
-    detail::VarImpl<OT, typename CBT::VarType, SmallStr, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, typename CBT::VarType, SmallStr, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
+    VarImpl<OT, typename CBT::VarType, SmallStr, CBT> * var =
+        NTB_NEW VarImpl<OT, typename CBT::VarType, SmallStr, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
 
     var->getDisplayValue().setMaxSize(2);      // 1 for the char + a NUL terminator to make it a valid C-string.
     var->getDisplayValue().setCString("?", 1); // Set length to 1 char.
     return addVarImpl(var);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addCharRW(const char * name, OT * obj, const CBT & cbs)
 {
     return addCharRW(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addCharRW(Variable * parent, const char * name, OT * obj, const CBT & cbs)
 {
-    detail::VarImpl<OT, typename CBT::VarType, SmallStr, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, typename CBT::VarType, SmallStr, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
+    VarImpl<OT, typename CBT::VarType, SmallStr, CBT> * var =
+        NTB_NEW VarImpl<OT, typename CBT::VarType, SmallStr, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
 
     var->getDisplayValue().setMaxSize(2);      // 1 for the char + a NUL terminator to make it a valid C-string.
     var->getDisplayValue().setCString("?", 1); // Set length to 1 char.
@@ -1786,7 +1883,7 @@ inline Variable * Panel::addNumberRO(const char * name, const Int8 * var)
 }
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const Int8 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<Int8>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<Int8>));
 }
 inline Variable * Panel::addNumberRW(const char * name, Int8 * var)
 {
@@ -1794,7 +1891,7 @@ inline Variable * Panel::addNumberRW(const char * name, Int8 * var)
 }
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, Int8 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<Int8>, detail::defaultSetter<Int8>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<Int8>, defaultSetter<Int8>));
 }
 
 // UInt8:
@@ -1804,7 +1901,7 @@ inline Variable * Panel::addNumberRO(const char * name, const UInt8 * var)
 }
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const UInt8 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<UInt8>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<UInt8>));
 }
 inline Variable * Panel::addNumberRW(const char * name, UInt8 * var)
 {
@@ -1812,7 +1909,7 @@ inline Variable * Panel::addNumberRW(const char * name, UInt8 * var)
 }
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, UInt8 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<UInt8>, detail::defaultSetter<UInt8>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<UInt8>, defaultSetter<UInt8>));
 }
 
 // Int16:
@@ -1822,7 +1919,7 @@ inline Variable * Panel::addNumberRO(const char * name, const Int16 * var)
 }
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const Int16 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<Int16>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<Int16>));
 }
 inline Variable * Panel::addNumberRW(const char * name, Int16 * var)
 {
@@ -1830,7 +1927,7 @@ inline Variable * Panel::addNumberRW(const char * name, Int16 * var)
 }
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, Int16 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<Int16>, detail::defaultSetter<Int16>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<Int16>, defaultSetter<Int16>));
 }
 
 // UInt16:
@@ -1840,7 +1937,7 @@ inline Variable * Panel::addNumberRO(const char * name, const UInt16 * var)
 }
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const UInt16 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<UInt16>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<UInt16>));
 }
 inline Variable * Panel::addNumberRW(const char * name, UInt16 * var)
 {
@@ -1848,7 +1945,7 @@ inline Variable * Panel::addNumberRW(const char * name, UInt16 * var)
 }
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, UInt16 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<UInt16>, detail::defaultSetter<UInt16>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<UInt16>, defaultSetter<UInt16>));
 }
 
 // Int32:
@@ -1858,7 +1955,7 @@ inline Variable * Panel::addNumberRO(const char * name, const Int32 * var)
 }
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const Int32 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<Int32>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<Int32>));
 }
 inline Variable * Panel::addNumberRW(const char * name, Int32 * var)
 {
@@ -1866,7 +1963,7 @@ inline Variable * Panel::addNumberRW(const char * name, Int32 * var)
 }
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, Int32 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<Int32>, detail::defaultSetter<Int32>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<Int32>, defaultSetter<Int32>));
 }
 
 // UInt32:
@@ -1876,7 +1973,7 @@ inline Variable * Panel::addNumberRO(const char * name, const UInt32 * var)
 }
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const UInt32 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<UInt32>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<UInt32>));
 }
 inline Variable * Panel::addNumberRW(const char * name, UInt32 * var)
 {
@@ -1884,7 +1981,7 @@ inline Variable * Panel::addNumberRW(const char * name, UInt32 * var)
 }
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, UInt32 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<UInt32>, detail::defaultSetter<UInt32>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<UInt32>, defaultSetter<UInt32>));
 }
 
 // Int64:
@@ -1894,7 +1991,7 @@ inline Variable * Panel::addNumberRO(const char * name, const Int64 * var)
 }
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const Int64 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<Int64>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<Int64>));
 }
 inline Variable * Panel::addNumberRW(const char * name, Int64 * var)
 {
@@ -1902,7 +1999,7 @@ inline Variable * Panel::addNumberRW(const char * name, Int64 * var)
 }
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, Int64 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<Int64>, detail::defaultSetter<Int64>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<Int64>, defaultSetter<Int64>));
 }
 
 // UInt64:
@@ -1912,7 +2009,7 @@ inline Variable * Panel::addNumberRO(const char * name, const UInt64 * var)
 }
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const UInt64 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<UInt64>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<UInt64>));
 }
 inline Variable * Panel::addNumberRW(const char * name, UInt64 * var)
 {
@@ -1920,76 +2017,76 @@ inline Variable * Panel::addNumberRW(const char * name, UInt64 * var)
 }
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, UInt64 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<UInt64>, detail::defaultSetter<UInt64>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<UInt64>, defaultSetter<UInt64>));
 }
 
-// float:
-inline Variable * Panel::addNumberRO(const char * name, const float * var)
+// Float32:
+inline Variable * Panel::addNumberRO(const char * name, const Float32 * var)
 {
     return addNumberRO(NTB_NULL, name, var);
 }
-inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const float * var)
+inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const Float32 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<float>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<Float32>));
 }
-inline Variable * Panel::addNumberRW(const char * name, float * var)
+inline Variable * Panel::addNumberRW(const char * name, Float32 * var)
 {
     return addNumberRW(NTB_NULL, name, var);
 }
-inline Variable * Panel::addNumberRW(Variable * parent, const char * name, float * var)
+inline Variable * Panel::addNumberRW(Variable * parent, const char * name, Float32 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<float>, detail::defaultSetter<float>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<Float32>, defaultSetter<Float32>));
 }
 
-// double:
-inline Variable * Panel::addNumberRO(const char * name, const double * var)
+// Float64:
+inline Variable * Panel::addNumberRO(const char * name, const Float64 * var)
 {
     return addNumberRO(NTB_NULL, name, var);
 }
-inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const double * var)
+inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const Float64 * var)
 {
-    return addNumberRO(parent, name, var, callbacks(detail::defaultGetter<double>));
+    return addNumberRO(parent, name, var, callbacks(defaultGetter<Float64>));
 }
-inline Variable * Panel::addNumberRW(const char * name, double * var)
+inline Variable * Panel::addNumberRW(const char * name, Float64 * var)
 {
     return addNumberRW(NTB_NULL, name, var);
 }
-inline Variable * Panel::addNumberRW(Variable * parent, const char * name, double * var)
+inline Variable * Panel::addNumberRW(Variable * parent, const char * name, Float64 * var)
 {
-    return addNumberRW(parent, name, var, callbacks(detail::defaultGetter<double>, detail::defaultSetter<double>));
+    return addNumberRW(parent, name, var, callbacks(defaultGetter<Float64>, defaultSetter<Float64>));
 }
 
 // Number var callbacks:
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addNumberRO(const char * name, const OT * obj, const CBT & cbs)
 {
     return addNumberRO(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addNumberRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs)
 {
     typedef typename CBT::VarType VarType;
-    typedef detail::NumTS<VarType> NumType;
+    typedef NumTS<VarType> NumType;
 
-    detail::VarImpl<OT, VarType, detail::NumberEx, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, VarType, detail::NumberEx, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
+    VarImpl<OT, VarType, NumberEx, CBT> * var =
+        NTB_NEW VarImpl<OT, VarType, NumberEx, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
 
     var->getDisplayValue().type = NumType::Tag;
     return addVarImpl(var);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addNumberRW(const char * name, OT * obj, const CBT & cbs)
 {
     return addNumberRW(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addNumberRW(Variable * parent, const char * name, OT * obj, const CBT & cbs)
 {
     typedef typename CBT::VarType VarType;
-    typedef detail::NumTS<VarType> NumType;
+    typedef NumTS<VarType> NumType;
 
-    detail::VarImpl<OT, VarType, detail::NumberEx, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, VarType, detail::NumberEx, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
+    VarImpl<OT, VarType, NumberEx, CBT> * var =
+        NTB_NEW VarImpl<OT, VarType, NumberEx, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
 
     var->getDisplayValue().type = NumType::Tag;
     return addVarImpl(var);
@@ -2001,65 +2098,65 @@ inline Variable * Panel::addNumberRW(Variable * parent, const char * name, OT * 
 
 // Pointers:
 template<int Size>
-inline Variable * Panel::addFloatVecRO(const char * name, const float * vec)
+inline Variable * Panel::addFloatVecRO(const char * name, const Float32 * vec)
 {
-    return addFloatVecRO<Size>(NTB_NULL, name, vec, callbacks(detail::defaultGetterArray<float, Size>));
+    return addFloatVecRO<Size>(NTB_NULL, name, vec, callbacks(defaultGetterArray<Float32, Size>));
 }
 template<int Size>
-inline Variable * Panel::addFloatVecRO(Variable * parent, const char * name, const float * vec)
+inline Variable * Panel::addFloatVecRO(Variable * parent, const char * name, const Float32 * vec)
 {
-    return addFloatVecRO<Size>(parent, name, vec, callbacks(detail::defaultGetterArray<float, Size>));
+    return addFloatVecRO<Size>(parent, name, vec, callbacks(defaultGetterArray<Float32, Size>));
 }
 template<int Size>
-inline Variable * Panel::addFloatVecRW(const char * name, float * vec)
+inline Variable * Panel::addFloatVecRW(const char * name, Float32 * vec)
 {
     return addFloatVecRW<Size>(NTB_NULL, name, vec,
-            callbacks(detail::defaultGetterArray<float, Size>, detail::defaultSetterArray<float, Size>));
+            callbacks(defaultGetterArray<Float32, Size>, defaultSetterArray<Float32, Size>));
 }
 template<int Size>
-inline Variable * Panel::addFloatVecRW(Variable * parent, const char * name, float * vec)
+inline Variable * Panel::addFloatVecRW(Variable * parent, const char * name, Float32 * vec)
 {
     return addFloatVecRW<Size>(parent, name, vec,
-            callbacks(detail::defaultGetterArray<float, Size>, detail::defaultSetterArray<float, Size>));
+            callbacks(defaultGetterArray<Float32, Size>, defaultSetterArray<Float32, Size>));
 }
 
 // Callbacks:
-template<int Size, class OT, class CBT>
+template<int Size, typename OT, typename CBT>
 inline Variable * Panel::addFloatVecRO(const char * name, const OT * obj, const CBT & cbs)
 {
     return addFloatVecRO<Size>(NTB_NULL, name, obj, cbs);
 }
-template<int Size, class OT, class CBT>
+template<int Size, typename OT, typename CBT>
 inline Variable * Panel::addFloatVecRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs)
 {
     #if NEO_TWEAK_BAR_CXX11_SUPPORTED
     static_assert(Size == 2 || Size == 3 || Size == 4, "Vectors must have 2, 3 or 4 components!");
     #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
-    typedef float FVecType[Size];
+    typedef Float32 FVecType[Size];
 
-    detail::VarImpl<OT, FVecType, detail::Float4Ex, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, FVecType, detail::Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
+    VarImpl<OT, FVecType, Float4Ex, CBT> * var =
+        NTB_NEW VarImpl<OT, FVecType, Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
 
     var->getDisplayValue().setTypeFromSize(Size);
     return addVarImpl(var);
 }
-template<int Size, class OT, class CBT>
+template<int Size, typename OT, typename CBT>
 inline Variable * Panel::addFloatVecRW(const char * name, OT * obj, const CBT & cbs)
 {
     return addFloatVecRW<Size>(NTB_NULL, name, obj, cbs);
 }
-template<int Size, class OT, class CBT>
+template<int Size, typename OT, typename CBT>
 inline Variable * Panel::addFloatVecRW(Variable * parent, const char * name, OT * obj, const CBT & cbs)
 {
     #if NEO_TWEAK_BAR_CXX11_SUPPORTED
     static_assert(Size == 2 || Size == 3 || Size == 4, "Vectors must have 2, 3 or 4 components!");
     #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
-    typedef float FVecType[Size];
+    typedef Float32 FVecType[Size];
 
-    detail::VarImpl<OT, FVecType, detail::Float4Ex, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, FVecType, detail::Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
+    VarImpl<OT, FVecType, Float4Ex, CBT> * var =
+        NTB_NEW VarImpl<OT, FVecType, Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
 
     var->getDisplayValue().setTypeFromSize(Size);
     return addVarImpl(var);
@@ -2070,55 +2167,55 @@ inline Variable * Panel::addFloatVecRW(Variable * parent, const char * name, OT 
 // ========================================================
 
 // Pointers:
-inline Variable * Panel::addDirectionVecRO(const char * name, const float * vec)
+inline Variable * Panel::addDirectionVecRO(const char * name, const Float32 * vec)
 {
     return addDirectionVecRO(NTB_NULL, name, vec);
 }
-inline Variable * Panel::addDirectionVecRO(Variable * parent, const char * name, const float * vec)
+inline Variable * Panel::addDirectionVecRO(Variable * parent, const char * name, const Float32 * vec)
 {
-    return addDirectionVecRO(parent, name, vec, callbacks(detail::defaultGetterArray<float, 3>));
+    return addDirectionVecRO(parent, name, vec, callbacks(defaultGetterArray<Float32, 3>));
 }
-inline Variable * Panel::addDirectionVecRW(const char * name, float * vec)
+inline Variable * Panel::addDirectionVecRW(const char * name, Float32 * vec)
 {
     return addDirectionVecRW(NTB_NULL, name, vec);
 }
-inline Variable * Panel::addDirectionVecRW(Variable * parent, const char * name, float * vec)
+inline Variable * Panel::addDirectionVecRW(Variable * parent, const char * name, Float32 * vec)
 {
     return addDirectionVecRW(parent, name, vec,
-            callbacks(detail::defaultGetterArray<float, 3>, detail::defaultSetterArray<float, 3>));
+            callbacks(defaultGetterArray<Float32, 3>, defaultSetterArray<Float32, 3>));
 }
 
 // Callbacks:
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addDirectionVecRO(const char * name, const OT * obj, const CBT & cbs)
 {
     return addDirectionVecRO(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addDirectionVecRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs)
 {
-    typedef float DirVecType[3];
+    typedef Float32 DirVecType[3];
 
-    detail::VarImpl<OT, DirVecType, detail::Float4Ex, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, DirVecType, detail::Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
+    VarImpl<OT, DirVecType, Float4Ex, CBT> * var =
+        NTB_NEW VarImpl<OT, DirVecType, Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
 
-    var->getDisplayValue().type = detail::Float4Ex::Dir3;
+    var->getDisplayValue().type = Float4Ex::Type::Dir3;
     return addVarImpl(var);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addDirectionVecRW(const char * name, OT * obj, const CBT & cbs)
 {
     return addDirectionVecRW(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addDirectionVecRW(Variable * parent, const char * name, OT * obj, const CBT & cbs)
 {
-    typedef float DirVecType[3];
+    typedef Float32 DirVecType[3];
 
-    detail::VarImpl<OT, DirVecType, detail::Float4Ex, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, DirVecType, detail::Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
+    VarImpl<OT, DirVecType, Float4Ex, CBT> * var =
+        NTB_NEW VarImpl<OT, DirVecType, Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
 
-    var->getDisplayValue().type = detail::Float4Ex::Dir3;
+    var->getDisplayValue().type = Float4Ex::Type::Dir3;
     return addVarImpl(var);
 }
 
@@ -2127,55 +2224,55 @@ inline Variable * Panel::addDirectionVecRW(Variable * parent, const char * name,
 // ========================================================
 
 // Pointers:
-inline Variable * Panel::addRotationQuatRO(const char * name, const float * quat)
+inline Variable * Panel::addRotationQuatRO(const char * name, const Float32 * quat)
 {
     return addRotationQuatRO(NTB_NULL, name, quat);
 }
-inline Variable * Panel::addRotationQuatRO(Variable * parent, const char * name, const float * quat)
+inline Variable * Panel::addRotationQuatRO(Variable * parent, const char * name, const Float32 * quat)
 {
-    return addRotationQuatRO(parent, name, quat, callbacks(detail::defaultGetterArray<float, 4>));
+    return addRotationQuatRO(parent, name, quat, callbacks(defaultGetterArray<Float32, 4>));
 }
-inline Variable * Panel::addRotationQuatRW(const char * name, float * quat)
+inline Variable * Panel::addRotationQuatRW(const char * name, Float32 * quat)
 {
     return addRotationQuatRW(NTB_NULL, name, quat);
 }
-inline Variable * Panel::addRotationQuatRW(Variable * parent, const char * name, float * quat)
+inline Variable * Panel::addRotationQuatRW(Variable * parent, const char * name, Float32 * quat)
 {
     return addRotationQuatRW(parent, name, quat,
-            callbacks(detail::defaultGetterArray<float, 4>, detail::defaultSetterArray<float, 4>));
+            callbacks(defaultGetterArray<Float32, 4>, defaultSetterArray<Float32, 4>));
 }
 
 // Callbacks:
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addRotationQuatRO(const char * name, const OT * obj, const CBT & cbs)
 {
     return addRotationQuatRO(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addRotationQuatRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs)
 {
-    typedef float QuatType[4];
+    typedef Float32 QuatType[4];
 
-    detail::VarImpl<OT, QuatType, detail::Float4Ex, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, QuatType, detail::Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
+    VarImpl<OT, QuatType, Float4Ex, CBT> * var =
+        NTB_NEW VarImpl<OT, QuatType, Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
 
-    var->getDisplayValue().type = detail::Float4Ex::Quat4;
+    var->getDisplayValue().type = Float4Ex::Type::Quat4;
     return addVarImpl(var);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addRotationQuatRW(const char * name, OT * obj, const CBT & cbs)
 {
     return addRotationQuatRW(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addRotationQuatRW(Variable * parent, const char * name, OT * obj, const CBT & cbs)
 {
-    typedef float QuatType[4];
+    typedef Float32 QuatType[4];
 
-    detail::VarImpl<OT, QuatType, detail::Float4Ex, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, QuatType, detail::Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
+    VarImpl<OT, QuatType, Float4Ex, CBT> * var =
+        NTB_NEW VarImpl<OT, QuatType, Float4Ex, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
 
-    var->getDisplayValue().type = detail::Float4Ex::Quat4;
+    var->getDisplayValue().type = Float4Ex::Type::Quat4;
     return addVarImpl(var);
 }
 
@@ -2187,48 +2284,48 @@ inline Variable * Panel::addRotationQuatRW(Variable * parent, const char * name,
 template<int Size>
 inline Variable * Panel::addColorRO(const char * name, const UByte * clr)
 {
-    return addColorRO<Size>(NTB_NULL, name, clr, callbacks(detail::defaultGetterArray<UByte, Size>));
+    return addColorRO<Size>(NTB_NULL, name, clr, callbacks(defaultGetterArray<UByte, Size>));
 }
 template<int Size>
 inline Variable * Panel::addColorRO(Variable * parent, const char * name, const UByte * clr)
 {
-    return addColorRO<Size>(parent, name, clr, callbacks(detail::defaultGetterArray<UByte, Size>));
+    return addColorRO<Size>(parent, name, clr, callbacks(defaultGetterArray<UByte, Size>));
 }
 template<int Size>
 inline Variable * Panel::addColorRW(const char * name, UByte * clr)
 {
     return addColorRW<Size>(NTB_NULL, name, clr,
-            callbacks(detail::defaultGetterArray<UByte, Size>, detail::defaultSetterArray<UByte, Size>));
+            callbacks(defaultGetterArray<UByte, Size>, defaultSetterArray<UByte, Size>));
 }
 template<int Size>
 inline Variable * Panel::addColorRW(Variable * parent, const char * name, UByte * clr)
 {
     return addColorRW<Size>(parent, name, clr,
-            callbacks(detail::defaultGetterArray<UByte, Size>, detail::defaultSetterArray<UByte, Size>));
+            callbacks(defaultGetterArray<UByte, Size>, defaultSetterArray<UByte, Size>));
 }
 
-// Pointers to float color vector:
+// Pointers to Float32 color vector:
 template<int Size>
-inline Variable * Panel::addColorRO(const char * name, const float * clr)
+inline Variable * Panel::addColorRO(const char * name, const Float32 * clr)
 {
-    return addColorRO<Size>(NTB_NULL, name, clr, callbacks(detail::defaultGetterArray<float, Size>));
+    return addColorRO<Size>(NTB_NULL, name, clr, callbacks(defaultGetterArray<Float32, Size>));
 }
 template<int Size>
-inline Variable * Panel::addColorRO(Variable * parent, const char * name, const float * clr)
+inline Variable * Panel::addColorRO(Variable * parent, const char * name, const Float32 * clr)
 {
-    return addColorRO<Size>(parent, name, clr, callbacks(detail::defaultGetterArray<float, Size>));
+    return addColorRO<Size>(parent, name, clr, callbacks(defaultGetterArray<Float32, Size>));
 }
 template<int Size>
-inline Variable * Panel::addColorRW(const char * name, float * clr)
+inline Variable * Panel::addColorRW(const char * name, Float32 * clr)
 {
     return addColorRW<Size>(NTB_NULL, name, clr,
-            callbacks(detail::defaultGetterArray<float, Size>, detail::defaultSetterArray<float, Size>));
+            callbacks(defaultGetterArray<Float32, Size>, defaultSetterArray<Float32, Size>));
 }
 template<int Size>
-inline Variable * Panel::addColorRW(Variable * parent, const char * name, float * clr)
+inline Variable * Panel::addColorRW(Variable * parent, const char * name, Float32 * clr)
 {
     return addColorRW<Size>(parent, name, clr,
-            callbacks(detail::defaultGetterArray<float, Size>, detail::defaultSetterArray<float, Size>));
+            callbacks(defaultGetterArray<Float32, Size>, defaultSetterArray<Float32, Size>));
 }
 
 // Pointers to Color32:
@@ -2238,7 +2335,7 @@ inline Variable * Panel::addColorRO(const char * name, const Color32 * clr)
 }
 inline Variable * Panel::addColorRO(Variable * parent, const char * name, const Color32 * clr)
 {
-    return addColorRO<4>(parent, name, clr, callbacks(detail::defaultGetter<Color32>));
+    return addColorRO<4>(parent, name, clr, callbacks(defaultGetter<Color32>));
 }
 inline Variable * Panel::addColorRW(const char * name, Color32 * clr)
 {
@@ -2247,16 +2344,16 @@ inline Variable * Panel::addColorRW(const char * name, Color32 * clr)
 inline Variable * Panel::addColorRW(Variable * parent, const char * name, Color32 * clr)
 {
     return addColorRW<4>(parent, name, clr,
-            callbacks(detail::defaultGetter<Color32>, detail::defaultSetter<Color32>));
+            callbacks(defaultGetter<Color32>, defaultSetter<Color32>));
 }
 
 // Color var callbacks:
-template<int Size, class OT, class CBT>
+template<int Size, typename OT, typename CBT>
 inline Variable * Panel::addColorRO(const char * name, const OT * obj, const CBT & cbs)
 {
     return addColorRO<Size>(NTB_NULL, name, obj, cbs);
 }
-template<int Size, class OT, class CBT>
+template<int Size, typename OT, typename CBT>
 inline Variable * Panel::addColorRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs)
 {
     #if NEO_TWEAK_BAR_CXX11_SUPPORTED
@@ -2264,20 +2361,20 @@ inline Variable * Panel::addColorRO(Variable * parent, const char * name, const 
     #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
     typedef typename CBT::VarType VarType;
-    typedef typename detail::ColorTS<VarType, Size>::Type ColorType;
+    typedef typename ColorTS<VarType, Size>::Type ColorType;
 
-    detail::VarImpl<OT, ColorType, detail::ColorEx, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, ColorType, detail::ColorEx, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
+    VarImpl<OT, ColorType, ColorEx, CBT> * var =
+        NTB_NEW VarImpl<OT, ColorType, ColorEx, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
 
-    var->getDisplayValue().numChannels = Size;
+    var->getDisplayValue().setNumChannels(Size);
     return addVarImpl(var);
 }
-template<int Size, class OT, class CBT>
+template<int Size, typename OT, typename CBT>
 inline Variable * Panel::addColorRW(const char * name, OT * obj, const CBT & cbs)
 {
     return addColorRW<Size>(NTB_NULL, name, obj, cbs);
 }
-template<int Size, class OT, class CBT>
+template<int Size, typename OT, typename CBT>
 inline Variable * Panel::addColorRW(Variable * parent, const char * name, OT * obj, const CBT & cbs)
 {
     #if NEO_TWEAK_BAR_CXX11_SUPPORTED
@@ -2285,12 +2382,12 @@ inline Variable * Panel::addColorRW(Variable * parent, const char * name, OT * o
     #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
     typedef typename CBT::VarType VarType;
-    typedef typename detail::ColorTS<VarType, Size>::Type ColorType;
+    typedef typename ColorTS<VarType, Size>::Type ColorType;
 
-    detail::VarImpl<OT, ColorType, detail::ColorEx, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, ColorType, detail::ColorEx, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
+    VarImpl<OT, ColorType, ColorEx, CBT> * var =
+        NTB_NEW VarImpl<OT, ColorType, ColorEx, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
 
-    var->getDisplayValue().numChannels = Size;
+    var->getDisplayValue().setNumChannels(Size);
     return addVarImpl(var);
 }
 
@@ -2305,20 +2402,20 @@ inline Variable * Panel::addStringRO(const char * name, const char * str)
 }
 inline Variable * Panel::addStringRO(Variable * parent, const char * name, const char * str)
 {
-    return addStringRO(parent, name, str, callbacks(detail::defaultGetterCZStr<Panel::CStringMaxSize>));
+    return addStringRO(parent, name, str, callbacks(defaultGetterCZStr<Panel::CStringMaxSize>));
 }
 template<int Size>
 inline Variable * Panel::addStringRW(const char * name, char * str)
 {
     Variable * var = addStringRW(NTB_NULL, name, str,
-            callbacks(detail::defaultGetterCZStr<Size>, detail::defaultSetterCZStr<Size>));
+            callbacks(defaultGetterCZStr<Size>, defaultSetterCZStr<Size>));
     return var->setMaxStringSize(Size);
 }
 template<int Size>
 inline Variable * Panel::addStringRW(Variable * parent, const char * name, char * str)
 {
     Variable * var = addStringRW(parent, name, str,
-            callbacks(detail::defaultGetterCZStr<Size>, detail::defaultSetterCZStr<Size>));
+            callbacks(defaultGetterCZStr<Size>, defaultSetterCZStr<Size>));
     return var->setMaxStringSize(Size);
 }
 
@@ -2330,7 +2427,7 @@ inline Variable * Panel::addStringRO(const char * name, const std::string * str)
 }
 inline Variable * Panel::addStringRO(Variable * parent, const char * name, const std::string * str)
 {
-    return addStringRO(parent, name, str, callbacks(detail::defaultGetter<std::string>));
+    return addStringRO(parent, name, str, callbacks(defaultGetter<std::string>));
 }
 inline Variable * Panel::addStringRW(const char * name, std::string * str)
 {
@@ -2339,7 +2436,7 @@ inline Variable * Panel::addStringRW(const char * name, std::string * str)
 inline Variable * Panel::addStringRW(Variable * parent, const char * name, std::string * str)
 {
     return addStringRW(parent, name, str,
-            callbacks(detail::defaultGetter<std::string>, detail::defaultSetter<std::string>));
+            callbacks(defaultGetter<std::string>, defaultSetter<std::string>));
 }
 #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
 
@@ -2350,7 +2447,7 @@ inline Variable * Panel::addStringRO(const char * name, const SmallStr * str)
 }
 inline Variable * Panel::addStringRO(Variable * parent, const char * name, const SmallStr * str)
 {
-    return addStringRO(parent, name, str, callbacks(detail::defaultGetter<SmallStr>));
+    return addStringRO(parent, name, str, callbacks(defaultGetter<SmallStr>));
 }
 inline Variable * Panel::addStringRW(const char * name, SmallStr * str)
 {
@@ -2359,33 +2456,33 @@ inline Variable * Panel::addStringRW(const char * name, SmallStr * str)
 inline Variable * Panel::addStringRW(Variable * parent, const char * name, SmallStr * str)
 {
     return addStringRW(parent, name, str,
-            callbacks(detail::defaultGetter<SmallStr>, detail::defaultSetter<SmallStr>));
+            callbacks(defaultGetter<SmallStr>, defaultSetter<SmallStr>));
 }
 
 // String var callbacks:
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addStringRO(const char * name, const OT * obj, const CBT & cbs)
 {
     return addStringRO(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addStringRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs)
 {
     typedef typename CBT::VarType VarType;
-    typedef typename detail::StrTS<VarType>::Type StrType;
-    return addVarImpl(NTB_NEW detail::VarImpl<OT, StrType, SmallStr, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly));
+    typedef typename StrTS<VarType>::Type StrType;
+    return addVarImpl(NTB_NEW VarImpl<OT, StrType, SmallStr, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly));
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addStringRW(const char * name, OT * obj, const CBT & cbs)
 {
     return addStringRW(NTB_NULL, name, obj, cbs);
 }
-template<class OT, class CBT>
+template<typename OT, typename CBT>
 inline Variable * Panel::addStringRW(Variable * parent, const char * name, OT * obj, const CBT & cbs)
 {
     typedef typename CBT::VarType VarType;
-    typedef typename detail::StrTS<VarType>::Type StrType;
-    return addVarImpl(NTB_NEW detail::VarImpl<OT, StrType, SmallStr, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite));
+    typedef typename StrTS<VarType>::Type StrType;
+    return addVarImpl(NTB_NEW VarImpl<OT, StrType, SmallStr, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite));
 }
 
 // ========================================================
@@ -2398,14 +2495,14 @@ inline Variable * Panel::addPointerRO(const char * name, void * const * ptr)
 }
 inline Variable * Panel::addPointerRO(Variable * parent, const char * name, void * const * ptr)
 {
-    typedef detail::VarCallbacksCFuncPtr<void *, void *> CBT;
-    const CBT cbs = callbacks(detail::defaultGetter<void *>);
+    typedef old_::VarCallbacksCFuncPtr<void *, void *> CBT;
+    const CBT cbs = callbacks(defaultGetter<void *>);
 
-    detail::VarImpl<void *, void *, detail::NumberEx, CBT> * var =
-        NTB_NEW detail::VarImpl<void *, void *, detail::NumberEx, CBT>(this, parent, name, ptr, cbs, Variable::ReadOnly);
+    VarImpl<void *, void *, NumberEx, CBT> * var =
+        NTB_NEW VarImpl<void *, void *, NumberEx, CBT>(this, parent, name, ptr, cbs, Variable::ReadOnly);
 
-    var->getDisplayValue().type = detail::NumberEx::Pointer;
-    var->getDisplayValue().format = NumFormat::Hexadecimal;
+    var->getDisplayValue().type = NumberEx::Type::Pointer;
+    var->getDisplayValue().format = NumberFormat::Hexadecimal;
     return addVarImpl(var);
 }
 inline Variable * Panel::addPointerRW(const char * name, void ** ptr)
@@ -2414,14 +2511,14 @@ inline Variable * Panel::addPointerRW(const char * name, void ** ptr)
 }
 inline Variable * Panel::addPointerRW(Variable * parent, const char * name, void ** ptr)
 {
-    typedef detail::VarCallbacksCFuncPtr<void *, void *> CBT;
-    const CBT cbs = callbacks(detail::defaultGetter<void *>);
+    typedef old_::VarCallbacksCFuncPtr<void *, void *> CBT;
+    const CBT cbs = callbacks(defaultGetter<void *>);
 
-    detail::VarImpl<void *, void *, detail::NumberEx, CBT> * var =
-        NTB_NEW detail::VarImpl<void *, void *, detail::NumberEx, CBT>(this, parent, name, ptr, cbs, Variable::ReadWrite);
+    VarImpl<void *, void *, NumberEx, CBT> * var =
+        NTB_NEW VarImpl<void *, void *, NumberEx, CBT>(this, parent, name, ptr, cbs, Variable::ReadWrite);
 
-    var->getDisplayValue().type = detail::NumberEx::Pointer;
-    var->getDisplayValue().format = NumFormat::Hexadecimal;
+    var->getDisplayValue().type = NumberEx::Type::Pointer;
+    var->getDisplayValue().format = NumberFormat::Hexadecimal;
     return addVarImpl(var);
 }
 
@@ -2430,52 +2527,52 @@ inline Variable * Panel::addPointerRW(Variable * parent, const char * name, void
 // ========================================================
 
 // Pointers:
-template<class VT>
+template<typename VT>
 inline Variable * Panel::addEnumRO(const char * name, const VT * var, const EnumConstant<VT> * constants, const int numOfConstants)
 {
-    return addEnumRO(NTB_NULL, name, var, callbacks(detail::defaultGetter<VT>), constants, numOfConstants);
+    return addEnumRO(NTB_NULL, name, var, callbacks(defaultGetter<VT>), constants, numOfConstants);
 }
-template<class VT>
+template<typename VT>
 inline Variable * Panel::addEnumRO(Variable * parent, const char * name, const VT * var, const EnumConstant<VT> * constants, const int numOfConstants)
 {
-    return addEnumRO(parent, name, var, callbacks(detail::defaultGetter<VT>), constants, numOfConstants);
+    return addEnumRO(parent, name, var, callbacks(defaultGetter<VT>), constants, numOfConstants);
 }
-template<class VT>
+template<typename VT>
 inline Variable * Panel::addEnumRW(const char * name, VT * var, const EnumConstant<VT> * constants, const int numOfConstants)
 {
-    return addEnumRW(NTB_NULL, name, var, callbacks(detail::defaultGetter<VT>, detail::defaultSetter<VT>), constants, numOfConstants);
+    return addEnumRW(NTB_NULL, name, var, callbacks(defaultGetter<VT>, defaultSetter<VT>), constants, numOfConstants);
 }
-template<class VT>
+template<typename VT>
 inline Variable * Panel::addEnumRW(Variable * parent, const char * name, VT * var, const EnumConstant<VT> * constants, const int numOfConstants)
 {
-    return addEnumRW(parent, name, var, callbacks(detail::defaultGetter<VT>, detail::defaultSetter<VT>), constants, numOfConstants);
+    return addEnumRW(parent, name, var, callbacks(defaultGetter<VT>, defaultSetter<VT>), constants, numOfConstants);
 }
 
 // Callbacks:
-template<class OT, class CBT, class VT>
+template<typename OT, typename CBT, typename VT>
 inline Variable * Panel::addEnumRO(const char * name, const OT * obj, const CBT & cbs, const EnumConstant<VT> * constants, const int numOfConstants)
 {
     return addEnumRO(NTB_NULL, name, obj, cbs, constants, numOfConstants);
 }
-template<class OT, class CBT, class VT>
+template<typename OT, typename CBT, typename VT>
 inline Variable * Panel::addEnumRO(Variable * parent, const char * name, const OT * obj, const CBT & cbs, const EnumConstant<VT> * constants, const int numOfConstants)
 {
-    detail::VarImpl<OT, VT, detail::EnumValExImpl<VT>, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, VT, detail::EnumValExImpl<VT>, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
+    VarImpl<OT, VT, EnumValExImpl<VT>, CBT> * var =
+        NTB_NEW VarImpl<OT, VT, EnumValExImpl<VT>, CBT>(this, parent, name, obj, cbs, Variable::ReadOnly);
 
     var->getDisplayValue().setConsts(constants, numOfConstants);
     return addVarImpl(var);
 }
-template<class OT, class CBT, class VT>
+template<typename OT, typename CBT, typename VT>
 inline Variable * Panel::addEnumRW(const char * name, OT * obj, const CBT & cbs, const EnumConstant<VT> * constants, const int numOfConstants)
 {
     return addEnumRW(NTB_NULL, name, obj, cbs, constants, numOfConstants);
 }
-template<class OT, class CBT, class VT>
+template<typename OT, typename CBT, typename VT>
 inline Variable * Panel::addEnumRW(Variable * parent, const char * name, OT * obj, const CBT & cbs, const EnumConstant<VT> * constants, const int numOfConstants)
 {
-    detail::VarImpl<OT, VT, detail::EnumValExImpl<VT>, CBT> * var =
-        NTB_NEW detail::VarImpl<OT, VT, detail::EnumValExImpl<VT>, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
+    VarImpl<OT, VT, EnumValExImpl<VT>, CBT> * var =
+        NTB_NEW VarImpl<OT, VT, EnumValExImpl<VT>, CBT>(this, parent, name, obj, cbs, Variable::ReadWrite);
 
     var->getDisplayValue().setConsts(constants, numOfConstants);
     return addVarImpl(var);
@@ -2487,18 +2584,18 @@ inline Variable * Panel::addEnumRW(Variable * parent, const char * name, OT * ob
 
 inline Variable * Panel::addHierarchyParent(const char * name)
 {
-    return addVarImpl(NTB_NEW detail::VarHierarchyParent(this, NTB_NULL, name));
+    return addVarImpl(NTB_NEW VarHierarchyParent(this, NTB_NULL, name));
 }
 inline Variable * Panel::addHierarchyParent(Variable * parent, const char * name)
 {
-    return addVarImpl(NTB_NEW detail::VarHierarchyParent(this, parent, name));
+    return addVarImpl(NTB_NEW VarHierarchyParent(this, parent, name));
 }
 
 // ========================================================
 // Panel management helpers:
 // ========================================================
 
-template<class Func>
+template<typename Func>
 inline void Panel::enumerateAllVariables(Func fn)
 {
     Variable * pVar = variables.getFirst<Variable>();
@@ -2507,7 +2604,7 @@ inline void Panel::enumerateAllVariables(Func fn)
         fn(*pVar);
     }
 }
-template<class Func>
+template<typename Func>
 inline void Panel::enumerateAllVariables(Func fn) const
 {
     const Variable * pVar = variables.getFirst<Variable>();
@@ -2520,9 +2617,9 @@ inline int Panel::getVariablesCount() const
 {
     return variables.getSize();
 }
-inline const SmallStr & Panel::getName() const
+inline const char * Panel::getName() const
 {
-    return panelName;
+    return panelName.c_str();
 }
 
 // ================================================================================================
@@ -2531,7 +2628,7 @@ inline const SmallStr & Panel::getName() const
 //
 // ================================================================================================
 
-template<class Func>
+template<typename Func>
 inline void GUI::enumerateAllPanels(Func fn)
 {
     Panel * pPanel = panels.getFirst<Panel>();
@@ -2540,7 +2637,7 @@ inline void GUI::enumerateAllPanels(Func fn)
         fn(*pPanel);
     }
 }
-template<class Func>
+template<typename Func>
 inline void GUI::enumerateAllPanels(Func fn) const
 {
     const Panel * pPanel = panels.getFirst<Panel>();
@@ -2553,9 +2650,9 @@ inline int GUI::getPanelCount() const
 {
     return panels.getSize();
 }
-inline const SmallStr & GUI::getName() const
+inline const char * GUI::getName() const
 {
-    return guiName;
+    return guiName.c_str();
 }
 
 } // namespace ntb {}

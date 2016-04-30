@@ -35,23 +35,91 @@ class Variable;
 class Panel;
 class GUI;
 
-namespace detail
-{
 class NumberEx;
 class BoolEx;
 class Float4Ex;
 class ColorEx;
 class EnumValEx;
-} // namespace detail {}
 
 struct MouseButton
 {
-    enum Enum
+    enum
     {
         Left,
         Right,
         Middle
     };
+    typedef Int8 Enum;
+    static SmallStr toString(MouseButton::Enum button);
+};
+
+//TODO need a global flag to define if we are using Mac-style CMD+C/CMD+V/CMD+etc
+//or Windows style CTRL+C/CTRL+V/CTRL+etc
+
+// KeyModifiers can be ORed together.
+typedef UInt32 KeyModFlags;
+
+struct KeyModifiers
+{
+    enum
+    {
+        Shift = 1 << 0,
+        Ctrl  = 1 << 1,
+        Cmd   = 1 << 2,
+    };
+    static SmallStr toString(KeyModFlags modifiers);
+};
+
+// KEYBOARD
+//
+// - Lowercase ASCII keys + 0-9 and chars
+// - Special keys as the following enum
+//
+
+// Either an ASCII key or one of the SpecialKeys enum.
+typedef UInt32 KeyCode;
+
+struct SpecialKeys
+{
+    enum
+    {
+        // Zero is reserved as a flag for "no key pressed".
+        Null = 0,
+
+        // First 0-255 keys are reserved for the ASCII characters.
+        Return = 256,
+        Escape,
+        Backspace,
+        Delete,
+        Tab,
+        Home,
+        End,
+        PageUp,
+        PageDown,
+        UpArrow,
+        DownArrow,
+        RightArrow,
+        LeftArrow,
+        Insert,
+
+        // These are not used and free for user-defined bindings.
+        F1,
+        F2,
+        F3,
+        F4,
+        F5,
+        F6,
+        F7,
+        F8,
+        F9,
+        F10,
+        F11,
+        F12,
+
+        // Sentinel value; Used internally.
+        LastKey
+    };
+    static SmallStr toString(KeyCode keyCode);
 };
 
 // ========================================================
@@ -114,13 +182,14 @@ class Widget
 
 public:
 
-    enum MiscFlags
+    enum Flags
     {
         FlagVisible           = 1 << 0,
         FlagMinimized         = 1 << 1,
         FlagScrolledOutOfView = 1 << 2,
         FlagMouseIntersecting = 1 << 3,
-        FlagMouseDragEnabled  = 1 << 4
+        FlagMouseDragEnabled  = 1 << 4,
+        FlagNoRectShadow      = 1 << 5
     };
 
     enum Corner
@@ -142,6 +211,7 @@ public:
     virtual bool onMouseButton(MouseButton::Enum button, int clicks);
     virtual bool onMouseMotion(int mx, int my);
     virtual bool onMouseScroll(int yScroll);
+    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers);
     virtual void onResize(int displacementX, int displacementY, Corner corner);
     virtual void onMove(int displacementX, int displacementY);
     virtual void onScrollContentUp();
@@ -183,13 +253,14 @@ public:
     const Widget * getChild(const int index) const { return children.get<const Widget *>(index); }
     Widget * getChild(const int index) { return children.get<Widget *>(index); }
 
+    bool isChild(const Widget * widget) const;
     void addChild(Widget * newChild);
     int getChildCount() const { return children.getSize(); }
 
-    float getTextScaling() const;
-    float getScaling() const;
+    Float32 getTextScaling() const;
+    Float32 getScaling() const;
     int uiScaled(int val) const;
-    int uiScaleBy(int val, float scale) const;
+    int uiScaleBy(int val, Float32 scale) const;
 
     bool testFlag(const UInt32 mask) const
     {
@@ -272,8 +343,8 @@ public:
                  Icon myIcon, ButtonEventListener * listener = NTB_NULL);
 
     //TODO should make this construct/init interface uniform with all widgets...
-    void construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
-                   Icon myIcon, ButtonEventListener * listener = NTB_NULL);
+    void reset(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
+               Icon myIcon, ButtonEventListener * listener = NTB_NULL);
 
     void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE;
     bool onMouseButton(MouseButton::Enum button, int clicks) NTB_OVERRIDE;
@@ -315,9 +386,9 @@ public:
                    const char * title, bool minimizeButton, bool maximizeButton,
                    int buttonOffsX, int buttonOffsY);
 
-    void construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
-                   const char * title, bool minimizeButton, bool maximizeButton,
-                   int buttonOffsX, int buttonOffsY);
+    void reset(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
+               const char * title, bool minimizeButton, bool maximizeButton,
+               int buttonOffsX, int buttonOffsY);
 
     // Widget methods:
     void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE;
@@ -329,7 +400,7 @@ public:
     bool onButtonDown(ButtonWidget & button) NTB_OVERRIDE;
 
     void setTitle(const char * newTitle) { titleText = newTitle; }
-    const SmallStr & getTitle() const { return titleText; }
+    const char * getTitle() const { return titleText.c_str(); }
 
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const NTB_OVERRIDE { return "TitleBarWidget"; }
@@ -355,15 +426,15 @@ class InfoBarWidget NTB_FINAL_CLASS
 {
 public:
 
-    InfoBarWidget() { }
+    InfoBarWidget();
     InfoBarWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect, const char * myText);
-    void construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect, const char * myText);
+    void reset(GUI * myGUI, Widget * myParent, const Rectangle & myRect, const char * myText);
 
     void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE;
     void onResize(int displacementX, int displacementY, Corner corner) NTB_OVERRIDE;
 
     void setText(const char * newText) { infoText = newText; }
-    const SmallStr & getText() const { return infoText; }
+    const char * getText() const { return infoText.c_str(); }
 
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const NTB_OVERRIDE { return "InfoBarWidget"; }
@@ -385,7 +456,7 @@ public:
 
     ScrollBarWidget();
     ScrollBarWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect);
-    void construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect);
+    void reset(GUI * myGUI, Widget * myParent, const Rectangle & myRect);
 
     void onDraw(GeometryBatch & geoBatch) const NTB_OVERRIDE;
 
@@ -439,7 +510,7 @@ private:
     int linesOutOfView;
     int linesScrolledOut;
 
-    //TODO note: might combine these into the Widget::MiscFlags in the future...
+    //TODO note: might combine these into the Widget::Flags in the future...
     bool holdingScrollSlider;
     bool invertMouseScroll;
 };
@@ -477,7 +548,7 @@ private:
     enum { BtnMinus, BtnPlus, BtnCount };
     ButtonWidget buttons[BtnCount];
 
-    // probably also a min/max value as a normalized 0,1 float.
+    // probably also a min/max value as a normalized 0,1 Float32.
 };
 
 // ========================================================
@@ -540,10 +611,10 @@ private:
 struct ProjectionParameters
 {
     Rectangle viewport;
-    float fovYRadians;
-    float aspectRatio;
-    float zNear;
-    float zFar;
+    Float32 fovYRadians;
+    Float32 aspectRatio;
+    Float32 zNear;
+    Float32 zFar;
     bool autoAdjustAspect;
     Mat4x4 viewProjMatrix;
 };
@@ -569,8 +640,8 @@ public:
     void setInvertMouseY(const bool invert) { invertMouseY = invert; }
     bool isMouseYInverted() const { return invertMouseY; }
 
-    void  setMouseSensitivity(const float sensitivity) { mouseSensitivity = sensitivity; }
-    float getMouseSensitivity() const { return mouseSensitivity; }
+    void  setMouseSensitivity(const Float32 sensitivity) { mouseSensitivity = sensitivity; }
+    Float32 getMouseSensitivity() const { return mouseSensitivity; }
 
     void setMaxMouseDelta(const int max) { maxMouseDelta = max; }
     int  getMaxMouseDelta() const { return maxMouseDelta; }
@@ -587,20 +658,21 @@ public:
 
 private:
 
+    //TODO vertex caches should be preallocated on construction!
     enum ArrowDir { ArrowDirX, ArrowDirY, ArrowDirZ };
     void clearScreenVertexCaches() const;
     void submitScreenVertexCaches(GeometryBatch & geoBatch) const;
-    void addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, float scaleXYZ) const;
-    void addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, float scaleXYZ, Color32 color, ArrowDir dir) const;
-    void addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, float w, float h, float d, Color32 color) const;
+    void addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, Float32 scaleXYZ) const;
+    void addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, Float32 scaleXYZ, Color32 color, ArrowDir dir) const;
+    void addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, Float32 w, Float32 h, Float32 d, Color32 color) const;
     void refreshProjectionViewport();
 
     // Local mouse states:
-    Point mouseDelta;                     // XY deltas to compute the mouse rotations.
-    float mouseSensitivity;               // [0,1] range: 0=very low; 1=very high.
-    int   maxMouseDelta;                  // Any range; default is 20.
-    bool  invertMouseY;                   // Inverts mouse rotation of the object in the Y-axis.
-    bool  leftMouseButtonDown;
+    Point   mouseDelta;                   // XY deltas to compute the mouse rotations.
+    Float32 mouseSensitivity;             // [0,1] range: 0=very low; 1=very high.
+    int     maxMouseDelta;                // Any range; default is 20.
+    bool    invertMouseY;                 // Inverts mouse rotation of the object in the Y-axis.
+    bool    leftMouseButtonDown;
 
     // Misc switches:
     bool interactiveControls;             // Allow mouse input and the reset button. Defaults to true.
@@ -688,59 +760,103 @@ private:
 };
 
 // ========================================================
-// class EditField:
+// class EditField and EditCommands enum:
 // ========================================================
 
+struct EditCommand
+{
+    enum
+    {
+        None,
+        DoneEditing,
+        InsertChar,
+        PushChar,
+        EraseChar,
+        JumpNextField,
+        ScrollWindowUp,
+        ScrollWindowDown
+    };
+    typedef Int8 Enum;
+};
+
+//
+// EditField stores some state related to editing a string of
+// text with a cursor/caret via keyboard or mouse input. It also
+// stores some state about a selected range inside the text.
+//
+// EditField is capable of drawing the text string, selected
+// region and the cursor/caret, but it does not keep a pointer
+// to the text. Instead, the text and its containing rectangle
+// must always be passed as parameters.
+//
+// The total length of the text string is saved by drawSelf(),
+// so they should always be kept in synch. When a char is removed
+// by a key command the cursor position and text length are
+// updated so you should update the string to match.
+//
+// handleSpecialKey() will reposition the cursor accordingly
+// and will return an EditCommand for keys that are not handled
+// directly here, like TAB and PAGE-UP/DOWN. ENTER/RETURN and
+// ESCAPE will return the DoneEditing command.
+//
+// Each VarDisplayWidget has an EditField and they are also added
+// to a linked list in the WindowWidget for ease of access.
+//
 class EditField NTB_FINAL_CLASS
     : public ListNode
 {
 public:
 
-    EditField();
-
-    void drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const SmallStr & text);
-
-    void updateCursorPos(const Rectangle & displayBox, const Point & pos);
-    void updateSelection(const Rectangle & displayBox, const Point & pos);
-
-    bool hasTextSelection() const { return std::abs(selectionEnd - selectionStart) > 0; }
-    bool isActive() const { return active; }
-
-    void setActive(const bool trueIfActive)
-    {
-        active = trueIfActive;
-        if (!active) { reset(); }
-    }
-
-    void reset()
-    {
-        cursorBlinkTimeMs = 0;
-        textLength = 0;
-        lastSelectionX = 0;
-        selectionStart = 0;
-        selectionEnd = 0;
-        cursorPos = 0;
-        active = false;
-        cursorBlinkPingPong = false;
-        cursorRect.setZero();
-        selectionRect.setZero();
-    }
-
-private:
-
     // Cursor bar draw once every this many milliseconds.
-    static const Int64 cursorBlinkIntervalMs = 500;
-    Int64 cursorBlinkTimeMs;
+    static const Int64 CursorBlinkIntervalMs = 500;
 
-    Rectangle cursorRect; // Updated by updateCursorPos()
-    Rectangle selectionRect;
-    int textLength; // Updated by drawSelf()
-    int lastSelectionX; // to guess the selection direction
-    int selectionStart; // Char where a text selection starts (zero-based).
-    int selectionEnd;  //
-    int cursorPos;      // Position within the line for input.
-    bool active;        // When active, the cursor gets drawn.
-    bool cursorBlinkPingPong;
+    //
+    // Most fields use a very short integer range, so we ca use Int16s to save some space.
+    // Each UI Variable has an EditField, so to scale, we can have a nice gain there.
+    //
+    Int64     cursorBlinkTimeMs;  // Keeps track of time to switch the cursor draw on and off each frame
+    Rectangle cursorRect;         // Rect of the cursor indicator. Updated by updateCursorPos()
+    Rectangle prevCursorRect;     // Text selection requires one level of cursor history
+    Rectangle selectionRect;      // Rect to draw the current text selection (if any)
+    Int16     textLength;         // Updated by drawSelf()
+    Int16     selectionStart;     // Char where a text selection starts (zero-based)
+    Int16     selectionEnd;       // Where it ends
+    Int16     prevSelectionStart; // Used to estimate the selection direction when selecting via mouse
+    Int16     prevSelectionEnd;   // Ditto
+    Int16     cursorPos;          // Position within the line for input
+    Int16     prevCursorPos;      // Used during text selection navigation
+    UInt16    selectionDir;       // Set to LeftArrow or RightArrow to indicate selection direction
+    bool      isActive;           // When active the cursor and selection are drawn
+    bool      isInInsertMode;     // User hit the [INSERT] key (cursor draws as a full char overlay)
+    bool      shouldDrawCursor;   // "Ping Pong" flag to switch cursor draw between frames
+    bool      endKeySel;          // Set when [SHIFT]+[END]  is hit to select all the way to the end
+    bool      homeKeySel;         // Set when [SHIFT]+[HOME] is hit to select all the way to the beginning
+//TODO could probably shave another 4 bytes by replacing the bools with bitflags
+
+    EditField();
+    void reset();
+
+    bool hasTextSelection() const;
+    void clearSelection();
+
+    void setActive(bool trueIfActive);
+    void setDrawCursor(bool trueIfShouldDraw);
+
+    void drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const SmallStr & text, Color32 textColor);
+    EditCommand::Enum handleSpecialKey(const Rectangle & displayBox, KeyCode key, KeyModFlags modifiers);
+
+    void updateCursorPos(const Rectangle & displayBox, Point pos);
+    void updateSelection(const Rectangle & displayBox, Point pos);
+    void charInserted(const Rectangle & displayBox);
+
+    void saveCursorPos();
+    void restoreCursorPos();
+
+    void moveCursorRight(const Rectangle & displayBox);
+    void moveCursorLeft(const Rectangle & displayBox);
+    void moveCursorHome(const Rectangle & displayBox);
+    void moveCursorEnd(const Rectangle & displayBox);
+    Rectangle moveCursor(const Rectangle & displayBox, Float32 newPos);
 };
 
 // ========================================================
@@ -767,6 +883,7 @@ public:
     virtual bool onMouseButton(MouseButton::Enum button, int clicks) NTB_OVERRIDE;
     virtual bool onMouseMotion(int mx, int my) NTB_OVERRIDE;
     virtual bool onMouseScroll(int yScroll) NTB_OVERRIDE;
+    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers) NTB_OVERRIDE;
 
     // ButtonEventListener methods:
     virtual bool onButtonDown(ButtonWidget & button) NTB_OVERRIDE;
@@ -774,13 +891,16 @@ public:
     bool hasExpandCollapseButton() const { return expandCollapseButton.getIcon() != ButtonWidget::None; }
     void addExpandCollapseButton();
 
+    void setCustomTextColor(const Color32 newColor) { customTextColor = newColor; }
+    Color32 getCustomTextColor() const { return customTextColor; }
+
     const Rectangle & getDataDisplayRect() const { return dataDisplayRect; }
     void setDataDisplayRect(const Rectangle & newRect) { dataDisplayRect = newRect; }
 
     const WindowWidget * getParentWindow() const { return &parentWindow; }
     WindowWidget * getParentWindow() { return &parentWindow; }
 
-    const SmallStr & getVarName() const { return varName; }
+    const char * getVarName() const { return varName.c_str(); }
 
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const NTB_OVERRIDE;
@@ -799,20 +919,21 @@ protected:
     void enableValueEditButtons(bool enable);
     void drawValueEditButtons(GeometryBatch & geoBatch) const;
 
-    void setUpVarValueDisplay(Panel & owner, SmallStr          & value);
-    void setUpVarValueDisplay(Panel & owner, detail::NumberEx  & value);
-    void setUpVarValueDisplay(Panel & owner, detail::BoolEx    & value);
-    void setUpVarValueDisplay(Panel & owner, detail::ColorEx   & value);
-    void setUpVarValueDisplay(Panel & owner, detail::Float4Ex  & value);
-    void setUpVarValueDisplay(Panel & owner, detail::EnumValEx & value);
+    void setUpVarValueDisplay(Panel & owner, SmallStr  & value);
+    void setUpVarValueDisplay(Panel & owner, NumberEx  & value);
+    void setUpVarValueDisplay(Panel & owner, BoolEx    & value);
+    void setUpVarValueDisplay(Panel & owner, ColorEx   & value);
+    void setUpVarValueDisplay(Panel & owner, Float4Ex  & value);
+    void setUpVarValueDisplay(Panel & owner, EnumValEx & value);
 
-    void drawVarValue(GeometryBatch & geoBatch, const SmallStr          & value) const;
-    void drawVarValue(GeometryBatch & geoBatch, const detail::NumberEx  & value) const;
-    void drawVarValue(GeometryBatch & geoBatch, const detail::BoolEx    & value) const;
-    void drawVarValue(GeometryBatch & geoBatch, const detail::ColorEx   & value) const;
-    void drawVarValue(GeometryBatch & geoBatch, const detail::Float4Ex  & value) const;
-    void drawVarValue(GeometryBatch & geoBatch, const detail::EnumValEx & value) const;
+    void drawVarValue(GeometryBatch & geoBatch, const SmallStr  & value) const;
+    void drawVarValue(GeometryBatch & geoBatch, const NumberEx  & value) const;
+    void drawVarValue(GeometryBatch & geoBatch, const BoolEx    & value) const;
+    void drawVarValue(GeometryBatch & geoBatch, const ColorEx   & value) const;
+    void drawVarValue(GeometryBatch & geoBatch, const Float4Ex  & value) const;
+    void drawVarValue(GeometryBatch & geoBatch, const EnumValEx & value) const;
 
+    virtual bool onKeyEdit(char inputChar, int inputPosition, EditCommand::Enum cmd); // returns true if the edit is valid
     virtual void onValueIncremented();
     virtual void onValueDecremented();
     virtual void onOpenValueEditPopup();
@@ -847,7 +968,9 @@ private:
     // Mutable because EditField::drawSelf() updates some internal state.
     mutable EditField editField;
 
-    //TODO note: might combine these into the Widget::MiscFlags in the future...
+    Color32 customTextColor;
+
+    //TODO note: might combine these into the Widget::Flags in the future...
     bool withValueEditBtns;
     bool valueEditBtnsEnabled;
     bool valueClickAndHold;
@@ -877,6 +1000,7 @@ public:
     virtual bool onMouseButton(MouseButton::Enum button, int clicks) NTB_OVERRIDE;
     virtual bool onMouseMotion(int mx, int my) NTB_OVERRIDE;
     virtual bool onMouseScroll(int yScroll) NTB_OVERRIDE;
+    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers) NTB_OVERRIDE;
     virtual void setMouseIntersecting(bool intersect) NTB_OVERRIDE;
 
     // deactivates current active one (if any!)
@@ -888,6 +1012,10 @@ public:
     ScrollBarWidget & getScrollBar() { return scrollBar; }
     IntrusiveList & getEditFieldList() { return editFields; }
 
+    // these ARE scaled!
+    int getMinWindowWidth() const;
+    int getMinWindowHeight() const;
+
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const NTB_OVERRIDE { return "WindowWidget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
@@ -896,12 +1024,13 @@ private:
 
     void drawResizeHandles(GeometryBatch & geoBatch) const;
     void resizeWithMin(Corner corner, int & x, int & y, int offsetX, int offsetY);
+    void refreshBarRects(const char * newTitle, const char * newInfoString);
     void refreshUsableRect();
 
-    Rectangle     usableRect;     // Discounts the top/side bars.
-    Corner        resizingCorner; // Which corner being resized by user input.
-    Widget *      popupWidget;    // Each window can have one open popup at a time. Popups are always window children.
-    IntrusiveList editFields;     // Global list of EditFields attached to this window for easy access.
+    Rectangle       usableRect;     // Size discounts the top/side bars.
+    Corner          resizingCorner; // Which corner being resized by user input.
+    Widget *        popupWidget;    // Each window can have one open popup at a time. Popups are always window children.
+    IntrusiveList   editFields;     // Global list of EditFields attached to this window for easy access.
 
     // These are always present in a window, so we
     // can avoid a malloc and declare them inline.

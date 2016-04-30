@@ -11,26 +11,95 @@ namespace ntb
 {
 
 //TODO temporary! This is a GUI parameter.
-static const float g_uiScale = 1.3f;
-static const float g_textScaling = 0.6f;
+static const Float32 g_uiScale = 1.3f;
+static const Float32 g_textScaling = 0.6f;
 
-#define NTB_SCALED_BY(val, scale) static_cast<int>(static_cast<float>(val) * (scale))
+#define NTB_SCALED_BY(val, scale) static_cast<int>(static_cast<Float32>(val) * (scale))
 #define NTB_SCALED(val) NTB_SCALED_BY(val, g_uiScale)
 
 // ========================================================
 
+SmallStr MouseButton::toString(const MouseButton::Enum button)
+{
+    SmallStr str;
+    switch (button)
+    {
+    case MouseButton::Left   : str = "Left";    break;
+    case MouseButton::Right  : str = "Right";   break;
+    case MouseButton::Middle : str = "Middle";  break;
+    default                  : str = "Unknown"; break;
+    } // switch (button)
+    return str;
+}
+
+SmallStr SpecialKeys::toString(const KeyCode keyCode)
+{
+    SmallStr str;
+    if (keyCode > 0 && keyCode < 256) // ASCII keys
+    {
+        const char charStr[] = { static_cast<char>(keyCode), '\0' };
+        str.setCString(charStr, 1);
+    }
+    else
+    {
+        switch (keyCode)
+        {
+        case SpecialKeys::Null       : str = "No key";     break;
+        case SpecialKeys::Return     : str = "Return";     break;
+        case SpecialKeys::Escape     : str = "Escape";     break;
+        case SpecialKeys::Backspace  : str = "Backspace";  break;
+        case SpecialKeys::Delete     : str = "Delete";     break;
+        case SpecialKeys::Tab        : str = "Tab";        break;
+        case SpecialKeys::Home       : str = "Home";       break;
+        case SpecialKeys::End        : str = "End";        break;
+        case SpecialKeys::PageUp     : str = "PageUp";     break;
+        case SpecialKeys::PageDown   : str = "PageDown";   break;
+        case SpecialKeys::UpArrow    : str = "UpArrow";    break;
+        case SpecialKeys::DownArrow  : str = "DownArrow";  break;
+        case SpecialKeys::RightArrow : str = "RightArrow"; break;
+        case SpecialKeys::LeftArrow  : str = "LeftArrow";  break;
+        case SpecialKeys::Insert     : str = "Insert";     break;
+        case SpecialKeys::F1         : str = "F1";         break;
+        case SpecialKeys::F2         : str = "F2";         break;
+        case SpecialKeys::F3         : str = "F3";         break;
+        case SpecialKeys::F4         : str = "F4";         break;
+        case SpecialKeys::F5         : str = "F5";         break;
+        case SpecialKeys::F6         : str = "F6";         break;
+        case SpecialKeys::F7         : str = "F7";         break;
+        case SpecialKeys::F8         : str = "F8";         break;
+        case SpecialKeys::F9         : str = "F9";         break;
+        case SpecialKeys::F10        : str = "F10";        break;
+        case SpecialKeys::F11        : str = "F11";        break;
+        case SpecialKeys::F12        : str = "F12";        break;
+        default                      : str = "Unknown";    break;
+        } // switch (keyCode)
+    }
+    return str;
+}
+
+SmallStr KeyModifiers::toString(const KeyModFlags modifiers)
+{
+    SmallStr str;
+    if (modifiers & KeyModifiers::Shift) { str += "Shift "; }
+    if (modifiers & KeyModifiers::Ctrl)  { str += "Ctrl ";  }
+    if (modifiers & KeyModifiers::Cmd)   { str += "Cmd ";   }
+    return str;
+}
+
+// ========================================================
+
 static void drawCheckerboard(GeometryBatch & geoBatch, const Rectangle & rect,
-                             const detail::ColorEx & bgColor, const Color32 outlineColor,
+                             const ColorEx & bgColor, const Color32 outlineColor,
                              const int checkerSize)
 {
-    static const float black[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    static const float white[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    static const Float32 black[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    static const Float32 white[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-    const float alpha = bgColor.rgbaF4.data[3];
+    const Float32 alpha = bgColor.rgbaF4[3];
     const Color32 colors[] =
     {
-        blendColors(black, bgColor.rgbaF4.data, alpha),
-        blendColors(white, bgColor.rgbaF4.data, alpha)
+        blendColors(black, bgColor.rgbaF4, alpha),
+        blendColors(white, bgColor.rgbaF4, alpha)
     };
 
     int c = 0;
@@ -316,7 +385,7 @@ void Widget::drawSelf(GeometryBatch & geoBatch) const
     const ColorScheme & myColors = getColors();
 
     // Optional drop shadow effect under the element.
-    if (myColors.shadow.dark != 0 && myColors.shadow.offset != 0)
+    if (myColors.shadow.dark != 0 && myColors.shadow.offset != 0 && !testFlag(FlagNoRectShadow))
     {
         geoBatch.drawRectShadow(rect, myColors.shadow.dark,
                                 myColors.shadow.light, myColors.shadow.offset);
@@ -409,6 +478,12 @@ bool Widget::onMouseScroll(int)
     return false;
 }
 
+bool Widget::onKeyPressed(KeyCode, KeyModFlags)
+{
+    // No key event handling by default. Each Widget defines its own.
+    return false;
+}
+
 void Widget::onResize(int, int, Corner)
 {
     // Widget is NOT resizeable by default.
@@ -456,6 +531,20 @@ void Widget::setMouseDragEnabled(const bool enable)
     }
 }
 
+bool Widget::isChild(const Widget * widget) const
+{
+    if (widget == NTB_NULL) { return false; }
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        if (getChild(c) == widget)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Widget::addChild(Widget * newChild)
 {
     NTB_ASSERT(newChild != NTB_NULL);
@@ -472,12 +561,12 @@ void Widget::setHighlightedColors()
     colors = getGUI()->getHighlightedColors();
 }
 
-float Widget::getTextScaling() const
+Float32 Widget::getTextScaling() const
 {
     return g_textScaling;
 }
 
-float Widget::getScaling() const
+Float32 Widget::getScaling() const
 {
     return g_uiScale;
 }
@@ -487,15 +576,15 @@ int Widget::uiScaled(const int val) const
     return uiScaleBy(val, g_uiScale);
 }
 
-int Widget::uiScaleBy(const int val, const float scale) const
+int Widget::uiScaleBy(const int val, const Float32 scale) const
 {
-    return static_cast<int>(static_cast<float>(val) * scale);
+    return static_cast<int>(static_cast<Float32>(val) * scale);
 }
 
 #if NEO_TWEAK_BAR_DEBUG
 void Widget::printHierarchy(std::ostream & out, const SmallStr & indent) const
 {
-    out << indent.getCString() << getTypeString().getCString() << "\n";
+    out << indent.c_str() << getTypeString().c_str() << "\n";
     out << "|";
 
     const int childCount = getChildCount();
@@ -543,8 +632,8 @@ ButtonWidget::ButtonWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
 {
 }
 
-void ButtonWidget::construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
-                             const Icon myIcon, ButtonEventListener * listener)
+void ButtonWidget::reset(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
+                         const Icon myIcon, ButtonEventListener * listener)
 {
     setGUI(myGUI);
     setRect(myRect);
@@ -613,8 +702,9 @@ void ButtonWidget::onDraw(GeometryBatch & geoBatch) const
     } // switch (icon)
 
     // Shaded wedges in the outer-right side of the button box:
-    geoBatch.drawLine(xMaxs + 1, yMins, xMaxs + 1, yMaxs + 1, shadeColor);
-    geoBatch.drawLine(xMins, yMaxs + 1, xMaxs + 1, yMaxs + 1, shadeColor);
+// probably unnecessary...
+//    geoBatch.drawLine(xMaxs + 1, yMins, xMaxs + 1, yMaxs + 1, shadeColor);
+//    geoBatch.drawLine(xMins, yMaxs + 1, xMaxs + 1, yMaxs + 1, shadeColor);
 }
 
 bool ButtonWidget::onMouseButton(const MouseButton::Enum button, const int clicks)
@@ -652,15 +742,19 @@ TitleBarWidget::TitleBarWidget(GUI * myGUI, Widget * myParent, const Rectangle &
     buttonSetup(minimizeButton, maximizeButton, buttonOffsX, buttonOffsY);
 }
 
-void TitleBarWidget::construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
-                               const char * title, const bool minimizeButton, const bool maximizeButton,
-                               const int buttonOffsX, const int buttonOffsY)
+void TitleBarWidget::reset(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
+                           const char * title, const bool minimizeButton, const bool maximizeButton,
+                           const int buttonOffsX, const int buttonOffsY)
 {
+    if (title != NTB_NULL)
+    {
+        titleText.setCString(title);
+    }
+
     setGUI(myGUI);
     setRect(myRect);
     setParent(myParent);
     setNormalColors();
-    titleText.setCString(title);
     buttonSetup(minimizeButton, maximizeButton, buttonOffsX, buttonOffsY);
 }
 
@@ -677,15 +771,21 @@ void TitleBarWidget::buttonSetup(const bool minimizeButton, const bool maximizeB
 
     if (minimizeButton)
     {
-        buttons[BtnMinimize].construct(getGUI(), this, btnRect, ButtonWidget::Minus, this);
-        addChild(&buttons[BtnMinimize]);
+        buttons[BtnMinimize].reset(getGUI(), this, btnRect, ButtonWidget::Minus, this);
+        if (!isChild(&buttons[BtnMinimize])) // Can be called from reset()
+        {
+            addChild(&buttons[BtnMinimize]);
+        }
     }
     if (maximizeButton)
     {
         btnRect.xMins += buttonSize + NTB_SCALED(8);
         btnRect.xMaxs += buttonSize + NTB_SCALED(8);
-        buttons[BtnMaximize].construct(getGUI(), this, btnRect, ButtonWidget::UpArrow, this);
-        addChild(&buttons[BtnMaximize]);
+        buttons[BtnMaximize].reset(getGUI(), this, btnRect, ButtonWidget::UpArrow, this);
+        if (!isChild(&buttons[BtnMaximize])) // Can be called from reset()
+        {
+            addChild(&buttons[BtnMaximize]);
+        }
     }
 }
 
@@ -712,7 +812,7 @@ void TitleBarWidget::onDraw(GeometryBatch & geoBatch) const
     }
 
     // Clipped text string:
-    geoBatch.drawTextConstrained(titleText.getCString(), titleText.getLength(), textBox, clipBox,
+    geoBatch.drawTextConstrained(titleText.c_str(), titleText.getLength(), textBox, clipBox,
                                  g_textScaling, getColors().text.normal, TextAlign::Center);
 }
 
@@ -818,19 +918,31 @@ bool TitleBarWidget::onButtonDown(ButtonWidget & button)
 
 static const int InfoBarHeight = NTB_SCALED(18);
 
+InfoBarWidget::InfoBarWidget()
+{
+    // Should not cast a shadow because the parent WindowWidget already does so.
+    setFlag(FlagNoRectShadow, true);
+}
+
 InfoBarWidget::InfoBarWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect, const char * myText)
     : Widget(myGUI, myParent, myRect)
     , infoText(myText)
 {
+    setFlag(FlagNoRectShadow, true);
 }
 
-void InfoBarWidget::construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect, const char * myText)
+void InfoBarWidget::reset(GUI * myGUI, Widget * myParent, const Rectangle & myRect, const char * myText)
 {
+    if (myText != NTB_NULL)
+    {
+        infoText.setCString(myText);
+    }
+
     setGUI(myGUI);
     setRect(myRect);
     setParent(myParent);
     setNormalColors();
-    infoText.setCString(myText);
+    setFlag(FlagNoRectShadow, true);
 }
 
 void InfoBarWidget::onDraw(GeometryBatch & geoBatch) const
@@ -845,7 +957,7 @@ void InfoBarWidget::onDraw(GeometryBatch & geoBatch) const
     Rectangle textBox = rect.shrunk(NTB_SCALED(2), 0); // Slightly offset the text so that it doesn't touch the borders.
     textBox.moveBy(0, NTB_SCALED(3));                  // Prevent from touching the upper border.
 
-    geoBatch.drawTextConstrained(infoText.getCString(), infoText.getLength(), textBox, textBox,
+    geoBatch.drawTextConstrained(infoText.c_str(), infoText.getLength(), textBox, textBox,
                                  g_textScaling, getColors().text.informational, TextAlign::Left);
 }
 
@@ -891,6 +1003,7 @@ void InfoBarWidget::onResize(const int displacementX, const int displacementY, c
 static const int ScrollBarWidth = NTB_SCALED(18);
 static const int ScrollBarButtonSize = NTB_SCALED(10);
 
+//FIXME too much repetition in these constructors!
 ScrollBarWidget::ScrollBarWidget()
     : scrollBarOffsetY(0)
     , scrollBarDisplacement(0)
@@ -909,6 +1022,9 @@ ScrollBarWidget::ScrollBarWidget()
     downBtnRect.setZero();
     barSliderRect.setZero();
     sliderClickInitialPos.setZero();
+
+    // Should not cast a shadow because the parent WindowWidget already does so.
+    setFlag(FlagNoRectShadow, true);
 }
 
 ScrollBarWidget::ScrollBarWidget(GUI * myGUI, Widget * myParent, const Rectangle & myRect)
@@ -925,15 +1041,19 @@ ScrollBarWidget::ScrollBarWidget(GUI * myGUI, Widget * myParent, const Rectangle
     barSliderRect.setZero();
     sliderClickInitialPos.setZero();
     onAdjustLayout();
+
+    setFlag(FlagNoRectShadow, true);
 }
 
-void ScrollBarWidget::construct(GUI * myGUI, Widget * myParent, const Rectangle & myRect)
+void ScrollBarWidget::reset(GUI * myGUI, Widget * myParent, const Rectangle & myRect)
 {
     setGUI(myGUI);
     setRect(myRect);
     setParent(myParent);
     setNormalColors();
     onAdjustLayout();
+
+    setFlag(FlagNoRectShadow, true);
 }
 
 void ScrollBarWidget::onDraw(GeometryBatch & geoBatch) const
@@ -1194,7 +1314,7 @@ void ScrollBarWidget::onAdjustLayout()
 
 void ScrollBarWidget::updateLineScrollState(const int lineCount, const int linesOut)
 {
-    totalLines = lineCount;
+    totalLines     = lineCount;
     linesOutOfView = linesOut;
     onAdjustLayout();
 }
@@ -1298,8 +1418,8 @@ ValueSliderWidget::ValueSliderWidget(GUI * myGUI, Widget * myParent, const Recta
     sliderRect.xMaxs = sliderRect.xMins  + NTB_SCALED(6);
     sliderRect.yMaxs = buttonRect0.yMaxs + NTB_SCALED(4);
 
-    buttons[BtnMinus].construct(myGUI, this, buttonRect0, ButtonWidget::Minus, this); // Left button
-    buttons[BtnPlus ].construct(myGUI, this, buttonRect1, ButtonWidget::Plus,  this); // Right button
+    buttons[BtnMinus].reset(myGUI, this, buttonRect0, ButtonWidget::Minus, this); // Left button
+    buttons[BtnPlus ].reset(myGUI, this, buttonRect1, ButtonWidget::Plus,  this); // Right button
     addChild(&buttons[BtnMinus]);
     addChild(&buttons[BtnPlus]);
 }
@@ -1553,14 +1673,14 @@ ColorPickerWidget::ColorPickerWidget(GUI * myGUI, Widget * myParent, const int x
     barRect.yMins = rect.yMins + TitleBarHeight + 1;
     barRect.xMaxs = rect.xMaxs;
     barRect.yMaxs = rect.yMaxs;
-    scrollBar.construct(myGUI, this, barRect);
+    scrollBar.reset(myGUI, this, barRect);
 
     // Title bar:
     barRect.xMins = rect.xMins;
     barRect.yMins = rect.yMins;
     barRect.xMaxs = rect.xMaxs;
     barRect.yMaxs = rect.yMins + TitleBarHeight;
-    titleBar.construct(myGUI, this, barRect, "Color Picker", true, false, NTB_SCALED(4), NTB_SCALED(4));
+    titleBar.reset(myGUI, this, barRect, "Color Picker", true, false, NTB_SCALED(4), NTB_SCALED(4));
 
     addChild(&scrollBar);
     addChild(&titleBar);
@@ -1588,8 +1708,8 @@ ColorPickerWidget::ColorPickerWidget(GUI * myGUI, Widget * myParent, const int x
             unpackColor(a.value, aR, aG, aB, alpha);
             unpackColor(b.value, bR, bG, bB, alpha);
 
-            float aH, aL, aS;
-            float bH, bL, bS;
+            Float32 aH, aL, aS;
+            Float32 bH, bL, bS;
             RGBToHLS(byteToFloat(aR), byteToFloat(aG), byteToFloat(aB), aH, aL, aS);
             RGBToHLS(byteToFloat(bR), byteToFloat(bG), byteToFloat(bB), bH, bL, bS);
 
@@ -1826,7 +1946,7 @@ struct BoxVert
 {
     Vec3 position;
     Vec3 normal;
-    float u, v;
+    Float32 u, v;
     Color32 color;
 };
 
@@ -1836,7 +1956,7 @@ struct BoxVert
 
 // Box geometry with proper UVs and normals
 static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const Color32 faceColors[6],
-                            const float width, const float height, const float depth)
+                            const Float32 width, const Float32 height, const Float32 depth)
 {
     //
     // -0.5,+0.5 indexed box:
@@ -1850,7 +1970,7 @@ static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const C
         { 1, 2, 6, 5 },
         { 0, 4, 7, 3 }
     };
-    static const float boxPositions[][3] =
+    static const Float32 boxPositions[][3] =
     {
         { -0.5f, -0.5f, -0.5f },
         { -0.5f, -0.5f,  0.5f },
@@ -1861,7 +1981,7 @@ static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const C
         {  0.5f,  0.5f,  0.5f },
         {  0.5f,  0.5f, -0.5f },
     };
-    static const float boxNormalVectors[][3] =
+    static const Float32 boxNormalVectors[][3] =
     {
         { -1.0f,  0.0f,  0.0f },
         {  0.0f,  1.0f,  0.0f },
@@ -1870,7 +1990,7 @@ static void makeTexturedBox(BoxVert vertsOut[24], UInt16 indexesOut[36], const C
         {  0.0f,  0.0f,  1.0f },
         {  0.0f,  0.0f, -1.0f }
     };
-    static const float boxTexCoords[][2] =
+    static const Float32 boxTexCoords[][2] =
     {
         { 0.0f, 1.0f },
         { 1.0f, 1.0f },
@@ -1914,20 +2034,20 @@ static void screenProjectionXY(VertexPTC & vOut, const VertexPTC & vIn, const Ma
 {
     // Project the vertex (we don't care about z/depth here):
     const Mat4x4::Vec4Ptr * M = viewProjMatrix.getRows();
-    const float vx = (M[0][0] * vIn.x) + (M[1][0] * vIn.y) + (M[2][0] * vIn.z) + M[3][0];
-    const float vy = (M[0][1] * vIn.x) + (M[1][1] * vIn.y) + (M[2][1] * vIn.z) + M[3][1];
-    const float vw = (M[0][3] * vIn.x) + (M[1][3] * vIn.y) + (M[2][3] * vIn.z) + M[3][3];
+    const Float32 vx = (M[0][0] * vIn.x) + (M[1][0] * vIn.y) + (M[2][0] * vIn.z) + M[3][0];
+    const Float32 vy = (M[0][1] * vIn.x) + (M[1][1] * vIn.y) + (M[2][1] * vIn.z) + M[3][1];
+    const Float32 vw = (M[0][3] * vIn.x) + (M[1][3] * vIn.y) + (M[2][3] * vIn.z) + M[3][3];
 
     // Perspective divide:
-    const float ndcX = vx / vw;
-    const float ndcY = vy / vw;
+    const Float32 ndcX = vx / vw;
+    const Float32 ndcY = vy / vw;
 
     // Map to window coordinates:
     vOut.x = (((ndcX * 0.5f) + 0.5f) * viewport.getWidth())  + viewport.getX();
     vOut.y = (((ndcY * 0.5f) + 0.5f) * viewport.getHeight()) + viewport.getY();
 }
 
-static float normalizeAngle360(float degrees)
+static Float32 normalizeAngle360(Float32 degrees)
 {
     if (degrees >= 360.0f || degrees < 0.0f)
     {
@@ -1936,7 +2056,7 @@ static float normalizeAngle360(float degrees)
     return degrees;
 }
 
-static float normalizeAngle180(float degrees)
+static Float32 normalizeAngle180(Float32 degrees)
 {
     degrees = normalizeAngle360(degrees);
     if (degrees > 180.0f)
@@ -1946,12 +2066,12 @@ static float normalizeAngle180(float degrees)
     return degrees;
 }
 
-static bool angleNearZero(const float num)
+static bool angleNearZero(const Float32 num)
 {
     return std::fabs(num) <= 0.01f;
 }
 
-static float lerpAngles(float a, float b, const float t)
+static Float32 lerpAngles(Float32 a, Float32 b, const Float32 t)
 {
     // Ensure we wrap around the shortest way.
     a = normalizeAngle180(a);
@@ -1987,11 +2107,11 @@ View3DWidget::View3DWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
     if (title != NTB_NULL)
     {
         const Rectangle barRect = makeRect(rect.xMins, rect.yMins, rect.xMaxs, rect.yMins + TitleBarHeight);
-        titleBar.construct(myGUI, this, barRect, title, true, false, NTB_SCALED(4), NTB_SCALED(4));
+        titleBar.reset(myGUI, this, barRect, title, true, false, NTB_SCALED(4), NTB_SCALED(4));
     }
     else
     {
-        titleBar.construct(myGUI, this, makeRect(0, 0, 0, 0), "", false, false, 0, 0);
+        titleBar.reset(myGUI, this, makeRect(0, 0, 0, 0), "", false, false, 0, 0);
         titleBar.setVisible(false);
     }
 
@@ -1999,8 +2119,8 @@ View3DWidget::View3DWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
     refreshProjectionViewport();
 
     // Need to be cached for the click tests.
-    const float chrW = GeometryBatch::getCharWidth()  * g_textScaling;
-    const float chrH = GeometryBatch::getCharHeight() * g_textScaling;
+    const Float32 chrW = GeometryBatch::getCharWidth()  * g_textScaling;
+    const Float32 chrH = GeometryBatch::getCharHeight() * g_textScaling;
     resetAnglesBtnRect.xMins = projParams.viewport.xMins + NTB_SCALED(3);
     resetAnglesBtnRect.yMins = projParams.viewport.yMaxs - NTB_SCALED(2) - chrH;
     resetAnglesBtnRect.xMaxs = resetAnglesBtnRect.xMins + chrW + NTB_SCALED(3);
@@ -2015,8 +2135,8 @@ void View3DWidget::onDraw(GeometryBatch & geoBatch) const
 
     if (resettingAngles)
     {
-        const float resetSpeed = 2.0f;
-        const float deltaTimeSeconds = deltaTimeMs * 0.001;
+        const Float32 resetSpeed = 2.0f;
+        const Float32 deltaTimeSeconds = deltaTimeMs * 0.001;
 
         rotationDegrees.x = lerpAngles(rotationDegrees.x, 0.0f, resetSpeed * deltaTimeSeconds);
         rotationDegrees.y = lerpAngles(rotationDegrees.y, 0.0f, resetSpeed * deltaTimeSeconds);
@@ -2055,8 +2175,8 @@ void View3DWidget::onDraw(GeometryBatch & geoBatch) const
 
     if (showXyzLabels)
     {
-        const float chrW = GeometryBatch::getCharWidth()  * g_textScaling;
-        const float chrH = GeometryBatch::getCharHeight() * g_textScaling;
+        const Float32 chrW = GeometryBatch::getCharWidth()  * g_textScaling;
+        const Float32 chrH = GeometryBatch::getCharHeight() * g_textScaling;
 
         Rectangle textBox;
         textBox.xMins = projParams.viewport.xMaxs - chrW - NTB_SCALED(2);
@@ -2113,7 +2233,7 @@ void View3DWidget::submitScreenVertexCaches(GeometryBatch & geoBatch) const
             projParams.viewport, projParams.viewport);
 }
 
-void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, const float scaleXYZ) const
+void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, const Float32 scaleXYZ) const
 {
     RenderInterface * renderer  = getRenderInterface();
     const Rectangle scrViewport = renderer->getViewport();
@@ -2138,7 +2258,7 @@ void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, c
     }
 }
 
-void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, const float scaleXYZ,
+void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, const Float32 scaleXYZ,
                                            const Color32 color, const ArrowDir dir) const
 {
     RenderInterface * renderer  = getRenderInterface();
@@ -2182,8 +2302,8 @@ void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, co
     }
 }
 
-void View3DWidget::addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, const float w,
-                                         const float h, const float d, const Color32 color) const
+void View3DWidget::addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, const Float32 w,
+                                         const Float32 h, const Float32 d, const Color32 color) const
 {
     BoxVert tempBoxVerts[24];
     UInt16  tempBoxIndexes[36];
@@ -2287,7 +2407,7 @@ bool View3DWidget::onMouseMotion(const int mx, const int my)
     if (interactiveControls && leftMouseButtonDown &&
         isMouseIntersecting() && projParams.viewport.containsPoint(mx, my))
     {
-        const float dirY = invertMouseY ? -1.0f : 1.0f;
+        const Float32 dirY = invertMouseY ? -1.0f : 1.0f;
         rotationDegrees.x -= mouseDelta.y * mouseSensitivity * dirY;
         rotationDegrees.y += mouseDelta.x * mouseSensitivity;
         rotationDegrees.x = normalizeAngle360(rotationDegrees.x);
@@ -2331,7 +2451,7 @@ void View3DWidget::setMouseIntersecting(const bool intersect)
 void View3DWidget::refreshProjectionViewport()
 {
     const int vpOffset = NTB_SCALED(4);
-    const float oldAspectRatio = projParams.viewport.getAspect();
+    const Float32 oldAspectRatio = projParams.viewport.getAspect();
 
     // Update the viewport rect:
     projParams.viewport = rect;
@@ -2393,7 +2513,7 @@ void ListWidget::onDraw(GeometryBatch & geoBatch) const
         Rectangle textBox = entry.rect;
         textBox.moveBy(0, uiScaled(3)); // Prevent from touching the upper border.
 
-        const char * pEntryText = strings.getCString() + entry.firstChar;
+        const char * pEntryText = strings.c_str() + entry.firstChar;
         geoBatch.drawTextConstrained(pEntryText, entry.lengthInChars, textBox, textBox,
                                      g_textScaling, myColors.text.alternate, TextAlign::Center);
     }
@@ -2492,7 +2612,7 @@ void ListWidget::addEntryText(const int index, const char * value)
 SmallStr ListWidget::getEntryText(const int index) const
 {
     const Entry & entry = entries.get<Entry>(index);
-    return SmallStr(strings.getCString() + entry.firstChar, entry.lengthInChars);
+    return SmallStr(strings.c_str() + entry.firstChar, entry.lengthInChars);
 }
 
 int ListWidget::getSelectedEntry() const
@@ -2553,6 +2673,13 @@ void ListWidget::addEntryRect(const int entryIndex, const int entryLengthInChars
 // class EditField:
 // ========================================================
 
+//TEMP
+namespace utils
+{
+inline Int16 min(const Int16 a, const Int16 b) { return (a < b) ? a : b; }
+inline Int16 max(const Int16 a, const Int16 b) { return (a > b) ? a : b; }
+} // namespace utils {}
+
 //
 //FIXME: Text selection won't scroll with the window contents!!!
 //
@@ -2562,84 +2689,371 @@ EditField::EditField()
     reset();
 }
 
-void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const SmallStr & text)
+void EditField::reset()
 {
-    //TEMP debugging
+    cursorBlinkTimeMs  = 0;
+    textLength         = 0;
+    selectionStart     = 0;
+    selectionEnd       = 0;
+    prevSelectionStart = 0;
+    prevSelectionEnd   = 0;
+    cursorPos          = 0;
+    prevCursorPos      = 0;
+    selectionDir       = 0;
+    isActive           = false;
+    isInInsertMode     = false;
+    shouldDrawCursor   = false;
+    endKeySel          = false;
+    homeKeySel         = false;
+
+    cursorRect.setZero();
+    prevCursorRect.setZero();
+    selectionRect.setZero();
+}
+
+bool EditField::hasTextSelection() const
+{
+    return selectionStart != selectionEnd;
+}
+
+void EditField::clearSelection()
+{
+    selectionRect      = cursorRect;
+    selectionStart     = cursorPos;
+    selectionEnd       = cursorPos;
+    prevSelectionStart = cursorPos;
+    prevSelectionEnd   = cursorPos;
+    setDrawCursor(true);
+}
+
+void EditField::setActive(const bool trueIfActive)
+{
+    isActive = trueIfActive;
+    if (!isActive)
+    {
+        reset();
+    }
+}
+
+void EditField::setDrawCursor(const bool trueIfShouldDraw)
+{
+    shouldDrawCursor  = trueIfShouldDraw;
+    cursorBlinkTimeMs = getShellInterface()->getTimeMilliseconds() + CursorBlinkIntervalMs;
+}
+
+void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const SmallStr & text, const Color32 textColor)
+{
+    //TEMP debugging: draws a box under each character
     /*
     {
         const int x0 = displayBox.xMins + NTB_SCALED(2);
         const int length = text.getLength();
 
-        const float fixedWidth = GeometryBatch::getCharWidth() * g_textScaling;
-        float xMins = x0;
-        float xMaxs = x0;
+        const Float32 charWidth = GeometryBatch::getCharWidth() * g_textScaling;
+        Float32 xMins = x0;
+        Float32 xMaxs = x0;
 
         for (int i = 0; i < length; ++i)
         {
-            xMaxs += fixedWidth;
+            xMaxs += charWidth;
             geoBatch.drawRectFilled(makeRect(xMins, displayBox.yMins, xMaxs, displayBox.yMaxs),
                     (i & 1) ? packColor(255, 255, 255, 100) : packColor(0, 0, 255, 100));
-            xMins += fixedWidth;
+            xMins += charWidth;
         }
     }
     //*/
 
+    // Saved for other operations. Text is expected to remain unchanged until next update at least.
     textLength = text.getLength();
 
-    // Border box:
+    // Background text-box:
     displayBox = displayBox.shrunk(NTB_SCALED(1), NTB_SCALED(1));
-    geoBatch.drawRectFilled(displayBox, isActive() ? packColor(100, 100, 100) : packColor(80, 80, 80));
+    geoBatch.drawRectFilled(displayBox, isActive ? packColor(100, 100, 100) : packColor(80, 80, 80));
 
-    // Selected range of characters:
-    if (isActive() && hasTextSelection())
+    // Active means mouse click on the EditField.
+    if (isActive)
     {
-        const Color32 selectionColor = packColor(0, 0, 255, 100); //TODO customizable color
-        geoBatch.drawRectFilled(selectionRect.shrunk(NTB_SCALED(1), NTB_SCALED(1)), selectionColor);
-
-        /* //DEBUG
-        SmallStr selText;
-        selText.setCString(text.getCString() + selectionStart, std::min(selectionEnd - selectionStart, text.getLength() - selectionStart));
-        Rectangle r = displayBox;
-        r.xMins -= 100;
-        r.xMaxs -= 100;
-        geoBatch.drawTextConstrained(selText.getCString(), selText.getLength(), r, r,
-                                     g_textScaling, packColor(255, 255, 255), TextAlign::Left);
-        */
-    }
-
-    // Further offset the text so that it doesn't touch the borders.
-    displayBox = displayBox.shrunk(NTB_SCALED(1), NTB_SCALED(2));
-    geoBatch.drawTextConstrained(text.getCString(), text.getLength(), displayBox, displayBox,
-                                 g_textScaling, packColor(255, 255, 255), TextAlign::Left);
-
-    // Cursor when active:
-    if (isActive())
-    {
-        // Draw anyways when selecting text. Otherwise when the blink cool-down allows.
-        if (hasTextSelection() || cursorBlinkPingPong)
+        // Selected range of characters:
+        if (hasTextSelection())
         {
-            geoBatch.drawRectFilled(cursorRect.shrunk(NTB_SCALED(1), NTB_SCALED(1)), packColor(0, 255, 0)); //TODO customizable color? same for selection?
+            const Color32 selectionColor = packColor(0, 0, 255, 100); //TODO customizable color
+            geoBatch.drawRectFilled(selectionRect.shrunk(0, NTB_SCALED(1)), selectionColor);
+
+            //* //DEBUG visualize the selected text:
+            SmallStr selText;
+            selText.setCString(text.c_str() + selectionStart, utils::min(selectionEnd - selectionStart, text.getLength() - selectionStart));
+            Rectangle r = displayBox;
+            r.xMins -= 200;
+            r.xMaxs -= 200;
+            geoBatch.drawTextConstrained(selText.c_str(), selText.getLength(), r, r, g_textScaling, packColor(255, 255, 255), TextAlign::Left);
+            //*/
         }
 
+        // Cursor when active:
+        if (shouldDrawCursor)
+        {
+            const UByte alpha = (isInInsertMode ? 128 : 255);
+            geoBatch.drawRectFilled(cursorRect.shrunk(0, NTB_SCALED(1)), packColor(0, 255, 0, alpha)); //TODO customizable color? same for selection?
+        }
+
+        // Update cursor blinking times:
         ShellInterface * shell = getShellInterface();
         if (shell->getTimeMilliseconds() >= cursorBlinkTimeMs)
         {
-            cursorBlinkTimeMs   = shell->getTimeMilliseconds() + cursorBlinkIntervalMs;
-            cursorBlinkPingPong = !cursorBlinkPingPong;
+            cursorBlinkTimeMs = shell->getTimeMilliseconds() + CursorBlinkIntervalMs;
+            shouldDrawCursor  = !shouldDrawCursor;
         }
     }
+
+    // The text string itself:
+    // (further offset so that it doesn't touch the borders)
+    displayBox = displayBox.shrunk(NTB_SCALED(1), NTB_SCALED(2));
+    geoBatch.drawTextConstrained(text.c_str(), text.getLength(), displayBox, displayBox,
+                                 g_textScaling, textColor, TextAlign::Left);
 }
 
-void EditField::updateCursorPos(const Rectangle & displayBox, const Point & pos)
+//TODO
+//- delete selected range with Backspace/Delete
+//- insert replacing selected range
+//- copy-paste commands: Ctl+C/Cmd+C, Ctl+V/Cmd+V
+//- single backup undo operation (Ctl+Z/Ctl+Y win or Cmd+Z/Cmd+Shift+Z on mac)
+//- text scrolling when the edit box is full
+//- double-click selects text up till the first whitespace
+//- more tests and bugfixes (probably)
+
+EditCommand::Enum EditField::handleSpecialKey(const Rectangle & displayBox, const KeyCode key, const KeyModFlags modifiers)
+{
+    EditCommand::Enum cmd = EditCommand::None;
+
+    if (!(modifiers & KeyModifiers::Shift) && hasTextSelection())
+    {
+        clearSelection();
+        homeKeySel = endKeySel = false;
+
+        // When [SHIFT] is released during selection the cursor will not
+        // jump to the next character if navigating with the arrows.
+        if (key == SpecialKeys::LeftArrow || key == SpecialKeys::RightArrow)
+        {
+            // If you hit the opposing key after releasing [SHIFT],
+            // the cursor resets to its previous position.
+            if (selectionDir != key)
+            {
+                restoreCursorPos();
+            }
+            selectionDir = 0;
+            return cmd;
+        }
+
+        selectionDir = 0;
+    }
+
+    switch (key)
+    {
+    case SpecialKeys::Return :
+    case SpecialKeys::Escape :
+        {
+            // [RETURN|ESCAPE] finish editing and clear edit field focus.
+            cmd = EditCommand::DoneEditing;
+            break;
+        }
+    case SpecialKeys::Backspace :
+        {
+            if (textLength > 0 && cursorPos > 0)
+            {
+                --textLength;
+                moveCursorLeft(displayBox);
+                cmd = EditCommand::EraseChar;
+            }
+            break;
+        }
+    case SpecialKeys::Delete :
+        {
+            if (textLength > 0 && cursorPos < textLength)
+            {
+                --textLength;
+                cmd = EditCommand::EraseChar;
+                setDrawCursor(true);
+            }
+            break;
+        }
+    case SpecialKeys::Tab :
+        {
+            // [TAB] moves focus to the next edit field in the parent window.
+            cmd = EditCommand::JumpNextField;
+            break;
+        }
+    case SpecialKeys::UpArrow :
+    case SpecialKeys::Home :
+        {
+            // [UP|HOME] both move the cursor to the beginning of the
+            // text carrying the selection with it if there's one.
+            if (endKeySel)
+            {
+                endKeySel = false;
+                restoreCursorPos();
+                clearSelection();
+            }
+            else
+            {
+                if (modifiers & KeyModifiers::Shift)
+                {
+                    if (!hasTextSelection())
+                    {
+                        saveCursorPos();
+                        clearSelection();
+                        selectionDir = SpecialKeys::LeftArrow;
+                    }
+                    else if (selectionDir != SpecialKeys::LeftArrow)
+                    {
+                        restoreCursorPos();
+                        clearSelection();
+                        selectionDir = 0;
+                        return cmd; // Same as canceling the selection.
+                    }
+                    homeKeySel = true;
+                }
+
+                moveCursorHome(displayBox);
+
+                if (modifiers & KeyModifiers::Shift)
+                {
+                    selectionRect.xMins = cursorRect.xMins;
+                    selectionRect.xMaxs = prevCursorRect.xMaxs;
+                    selectionStart = 0;
+                }
+            }
+            break;
+        }
+    case SpecialKeys::DownArrow :
+    case SpecialKeys::End :
+        {
+            // [DOWN|END] both move the cursor to the end of the text
+            // carrying the selection with it if there's one.
+            if (homeKeySel)
+            {
+                homeKeySel = false;
+                restoreCursorPos();
+                clearSelection();
+            }
+            else
+            {
+                if (modifiers & KeyModifiers::Shift)
+                {
+                    if (!hasTextSelection())
+                    {
+                        saveCursorPos();
+                        clearSelection();
+                        selectionDir = SpecialKeys::RightArrow;
+                    }
+                    else if (selectionDir != SpecialKeys::RightArrow)
+                    {
+                        restoreCursorPos();
+                        clearSelection();
+                        selectionDir = 0;
+                        return cmd; // Same as canceling the selection.
+                    }
+                    endKeySel = true;
+                }
+
+                moveCursorEnd(displayBox);
+
+                if (modifiers & KeyModifiers::Shift)
+                {
+                    selectionRect.xMaxs = cursorRect.xMaxs;
+                    selectionEnd = textLength;
+                }
+            }
+            break;
+        }
+    case SpecialKeys::PageUp :
+        {
+            // [PAGE_UP] should scroll up the window if there's any scroll available.
+            cmd = EditCommand::ScrollWindowUp;
+            break;
+        }
+    case SpecialKeys::PageDown :
+        {
+            // [PAGE_DOWN] should scroll down the window if there's any scroll available.
+            cmd = EditCommand::ScrollWindowDown;
+            break;
+        }
+    case SpecialKeys::RightArrow :
+        {
+            if ((modifiers & KeyModifiers::Shift) && !hasTextSelection())
+            {
+                saveCursorPos();
+                clearSelection();
+                selectionDir = SpecialKeys::RightArrow;
+            }
+
+            moveCursorRight(displayBox);
+
+            if (modifiers & KeyModifiers::Shift)
+            {
+                if (selectionDir == SpecialKeys::RightArrow)
+                {
+                    selectionEnd = utils::min(textLength, selectionEnd + 1);
+                    selectionRect.xMaxs = cursorRect.xMaxs;
+                }
+                else
+                {
+                    selectionStart = utils::min(textLength, selectionStart + 1);
+                    selectionRect.xMins = cursorRect.xMins;
+                }
+                homeKeySel = endKeySel = false;
+            }
+            break;
+        }
+    case SpecialKeys::LeftArrow :
+        {
+            if ((modifiers & KeyModifiers::Shift) && !hasTextSelection())
+            {
+                saveCursorPos();
+                clearSelection();
+                selectionDir = SpecialKeys::LeftArrow;
+            }
+
+            moveCursorLeft(displayBox);
+
+            if (modifiers & KeyModifiers::Shift)
+            {
+                if (selectionDir == SpecialKeys::LeftArrow)
+                {
+                    selectionStart = utils::max(0, selectionStart - 1);
+                    selectionRect.xMins = cursorRect.xMins;
+                }
+                else
+                {
+                    selectionEnd = utils::max(0, selectionEnd - 1);
+                    selectionRect.xMaxs = cursorRect.xMaxs;
+                }
+                homeKeySel = endKeySel = false;
+            }
+            break;
+        }
+    case SpecialKeys::Insert :
+        {
+            isInInsertMode = !isInInsertMode;
+            setDrawCursor(true);
+            break;
+        }
+    default :
+        break;
+    } // switch (key)
+
+    return cmd;
+}
+
+void EditField::updateCursorPos(const Rectangle & displayBox, const Point pos)
 {
     const int yMins = displayBox.yMins;
     const int yMaxs = displayBox.yMaxs;
-    const float xStart = displayBox.xMins + NTB_SCALED(2);
-    const float fixedWidth = GeometryBatch::getCharWidth() * g_textScaling;
+    const Float32 xStart = displayBox.xMins + NTB_SCALED(1);
+    const Float32 charWidth = GeometryBatch::getCharWidth() * g_textScaling;
 
-    bool  hit   = false;
-    float xMins = xStart;
-    float xMaxs = xStart;
+    bool hit = false;
+    Float32 xMins = xStart;
+    Float32 xMaxs = xStart;
 
     // NOTE: We must use floating point here because integers would
     // round incorrectly and the glyph rects would be mispositioned.
@@ -2647,7 +3061,7 @@ void EditField::updateCursorPos(const Rectangle & displayBox, const Point & pos)
     // as well store the generated cursor rectangle for later drawing.
     for (int i = 0; i < textLength; ++i)
     {
-        xMaxs += fixedWidth;
+        xMaxs += charWidth;
         const Rectangle rect = makeRect(xMins, yMins, xMaxs, yMaxs);
         if (rect.containsPoint(pos))
         {
@@ -2656,68 +3070,194 @@ void EditField::updateCursorPos(const Rectangle & displayBox, const Point & pos)
             hit        = true;
             break;
         }
-        xMins += fixedWidth;
+        xMins += charWidth;
     }
 
-    // Not clicking on the text, position the cursor at the end of the current string.
     if (!hit)
     {
+        // Not clicking on the text, position the cursor at the end of the current string.
         cursorPos = textLength;
-        cursorRect.set(xMins, yMins, xMaxs, yMaxs);
+        if (!isInInsertMode)
+        {
+            cursorRect.set(xMins, yMins, xMins + NTB_SCALED(1), yMaxs); // Cursor width is one point
+        }
+        else
+        {
+            if (cursorPos > 0)
+            {
+                cursorPos--;
+                xMins -= charWidth;
+            }
+            cursorRect.set(xMins, yMins, xMins + charWidth, yMaxs); // Width of a char
+        }
+    }
+    else
+    {
+        if (!isInInsertMode)
+        {
+            cursorRect.xMaxs = cursorRect.xMins + NTB_SCALED(1); // Cursor width is one point
+        }
+        else
+        {
+            cursorRect.xMaxs = cursorRect.xMins + charWidth; // Width of a char
+        }
     }
 
-    // Cursor thickness is just one point. Adjust it.
-    cursorRect.xMaxs = cursorRect.xMins + NTB_SCALED(1);
-
-    // Selection gets reset to the cursor position.
-    selectionRect  = cursorRect;
-    selectionStart = cursorPos;
-    selectionEnd   = cursorPos;
+    saveCursorPos();
+    clearSelection();
 }
 
-void EditField::updateSelection(const Rectangle & displayBox, const Point & pos)
+void EditField::updateSelection(const Rectangle & displayBox, const Point pos)
 {
     const int yMins = displayBox.yMins;
     const int yMaxs = displayBox.yMaxs;
-    const float xStart = displayBox.xMins + NTB_SCALED(2);
-    const float fixedWidth = GeometryBatch::getCharWidth() * g_textScaling;
+    const Float32 xStart = displayBox.xMins + NTB_SCALED(1);
+    const Float32 charWidth = GeometryBatch::getCharWidth() * g_textScaling;
 
     // Same of what is done above with the cursorRect:
-    float xMins = xStart;
-    float xMaxs = xStart;
+    Float32 xMins = xStart;
+    Float32 xMaxs = xStart;
     for (int i = 0; i < textLength; ++i)
     {
-        xMaxs += fixedWidth;
+        xMaxs += charWidth;
         const Rectangle rect = makeRect(xMins, yMins, xMaxs, yMaxs);
         if (rect.containsPoint(pos))
         {
             selectionRect.expandWidth(rect);
-            selectionStart = std::min(selectionStart, i);
-            selectionEnd   = std::max(selectionEnd, i + 1);
+            selectionStart = utils::min(selectionStart, i);
+            selectionEnd   = utils::max(selectionEnd, i + 1);
             break;
         }
-        xMins += fixedWidth;
+        xMins += charWidth;
     }
 
-    // no cursor while selecting???
-    cursorRect.setZero();
-
-//with cursor while selecting:
-/*
-    // Put the cursor at the end of the selection:
-    cursorRect = selectionRect;
-
-    // Selecting from let to right
-    if (pos.x > lastSelectionX)
+    if (!hasTextSelection())
     {
-        cursorRect.xMins = cursorRect.xMaxs - NTB_SCALED(1);
+        saveCursorPos();
+        clearSelection();
     }
-    else // Right to left
+
+    // Put the cursor at one of the ends of the selection:
+    if (selectionStart < prevSelectionStart)
+    {
+        cursorRect       = selectionRect;
+        cursorRect.xMaxs = cursorRect.xMins + (isInInsertMode ? charWidth : NTB_SCALED(1));
+        cursorPos        = selectionStart;
+        selectionDir     = SpecialKeys::LeftArrow;
+    }
+    else if (selectionEnd > prevSelectionEnd)
+    {
+        cursorRect       = selectionRect;
+        cursorRect.xMins = cursorRect.xMaxs - (isInInsertMode ? charWidth : NTB_SCALED(1));
+        cursorPos        = selectionEnd;
+        selectionDir     = SpecialKeys::RightArrow;
+
+        // This is necessary to compensate the selection rect when expanding it
+        // with [HOME] key. The user might have added more chars to the right that
+        // where not under the initial cursorPos we saved in prevCursorPos when
+        // this selection started.
+        prevCursorRect.xMaxs = std::max(prevCursorRect.xMaxs, cursorRect.xMaxs);
+    }
+
+    prevSelectionStart = selectionStart;
+    prevSelectionEnd   = selectionEnd;
+    setDrawCursor(true);
+}
+
+void EditField::charInserted(const Rectangle & displayBox)
+{
+    textLength++;
+    moveCursorRight(displayBox);
+}
+
+void EditField::saveCursorPos()
+{
+    prevCursorPos  = cursorPos;
+    prevCursorRect = cursorRect;
+}
+
+void EditField::restoreCursorPos()
+{
+    cursorPos  = prevCursorPos;
+    cursorRect = prevCursorRect;
+
+    // Ensure the cursor width is clamped:
+    if (!isInInsertMode)
     {
         cursorRect.xMaxs = cursorRect.xMins + NTB_SCALED(1);
     }
-    lastSelectionX = pos.x;
-//*/
+    else
+    {
+        const Float32 charWidth = GeometryBatch::getCharWidth() * g_textScaling;
+        cursorRect.xMaxs = cursorRect.xMins + charWidth;
+    }
+}
+
+void EditField::moveCursorRight(const Rectangle & displayBox)
+{
+    if (cursorPos >= textLength)
+    {
+        return;
+    }
+
+    const Rectangle newCursRect = moveCursor(displayBox, cursorPos + 1);
+    if (newCursRect.xMaxs >= displayBox.xMaxs)
+    {
+        return; // Would move out of the edit box.
+    }
+
+    ++cursorPos;
+    cursorRect = newCursRect;
+}
+
+void EditField::moveCursorLeft(const Rectangle & displayBox)
+{
+    if (cursorPos == 0)
+    {
+        return;
+    }
+
+    cursorRect = moveCursor(displayBox, --cursorPos);
+}
+
+void EditField::moveCursorHome(const Rectangle & displayBox)
+{
+    if (cursorPos == 0)
+    {
+        return;
+    }
+
+    cursorPos  = 0;
+    cursorRect = moveCursor(displayBox, 0);
+}
+
+void EditField::moveCursorEnd(const Rectangle & displayBox)
+{
+    const Int16 posMax = textLength - (isInInsertMode ? 1 : 0);
+    if (cursorPos >= posMax)
+    {
+        return;
+    }
+
+    cursorPos  = posMax;
+    cursorRect = moveCursor(displayBox, cursorPos);
+}
+
+Rectangle EditField::moveCursor(const Rectangle & displayBox, const Float32 newPos)
+{
+    // Keep the cursor from blinking when moving & receiving input.
+    setDrawCursor(true);
+
+    // Full width of a char when in insertion mode, 1 unit otherwise.
+    const Float32 charWidth = GeometryBatch::getCharWidth() * g_textScaling;
+    const Float32 cursWidth = (isInInsertMode ? charWidth : NTB_SCALED(1));
+
+    // Need to go the long route to ensure we don't loose precision with int<=>float conversions.
+    const Float32 xStart = displayBox.xMins + NTB_SCALED(1);
+    const Float32 xMins  = xStart + (newPos * charWidth);
+    const Float32 xMaxs  = xStart + (newPos * charWidth) + cursWidth;
+
+    return makeRect(xMins, cursorRect.yMins, xMaxs, cursorRect.yMaxs);
 }
 
 // ========================================================
@@ -2768,6 +3308,7 @@ static Rectangle makeVarRect(WindowWidget * window, Widget * parent)
 VarDisplayWidget::VarDisplayWidget(GUI * myGUI, WindowWidget * myWindow, VarDisplayWidget * myParent, const char * name)
     : Widget(myGUI, fixVarParent(myWindow, myParent), makeVarRect(myWindow, myParent))
     , parentWindow(*myWindow)
+    , customTextColor(0)
     , withValueEditBtns(false)
     , valueEditBtnsEnabled(false)
     , valueClickAndHold(false)
@@ -2804,7 +3345,7 @@ void VarDisplayWidget::addExpandCollapseButton()
 
     // Hierarchy initially open:
     const Rectangle btnRect = makeExpandCollapseButtonRect();
-    expandCollapseButton.construct(getGUI(), this, btnRect, ButtonWidget::Minus, this);
+    expandCollapseButton.reset(getGUI(), this, btnRect, ButtonWidget::Minus, this);
     expandCollapseButton.setState(true);
 
     // NOTE: Button is a child of the parent widget (WindowWidget), so that we
@@ -2875,7 +3416,7 @@ void VarDisplayWidget::drawVarName(GeometryBatch & geoBatch) const
     Rectangle textBox = rect.shrunk(uiScaled(2), 0); // Slightly offset the text so that it doesn't touch the borders.
     textBox.moveBy(0, uiScaled(2));                  // Prevent from touching the upper border.
 
-    geoBatch.drawTextConstrained(varName.getCString(), varName.getLength(), textBox, textBox,
+    geoBatch.drawTextConstrained(varName.c_str(), varName.getLength(), textBox, textBox,
                                  g_textScaling, colors->text.informational, TextAlign::Left);
 }
 
@@ -2884,63 +3425,54 @@ void VarDisplayWidget::setUpVarValueDisplay(Panel &, SmallStr &)
     // No extra setup required.
 }
 
-void VarDisplayWidget::setUpVarValueDisplay(Panel &, detail::NumberEx &)
+void VarDisplayWidget::setUpVarValueDisplay(Panel &, NumberEx &)
 {
     enableValueEditButtons(true);
 }
 
-void VarDisplayWidget::setUpVarValueDisplay(Panel &, detail::BoolEx &)
+void VarDisplayWidget::setUpVarValueDisplay(Panel &, BoolEx &)
 {
     // boolean toggles with a click on the value
 //    enableValueEditButtons(true);
 }
 
 //
-//TODO figure out how to handle the switch between float/byte color display formats!
+//TODO figure out how to handle the switch between Float32/byte color display formats!
 //probably add both vars, but one is always hidden...
 //
-void VarDisplayWidget::setUpVarValueDisplay(Panel & owner, detail::ColorEx & value)
+void VarDisplayWidget::setUpVarValueDisplay(Panel & owner, ColorEx & value)
 {
     // Need to force the cast because of the protected inheritance in Variable...
-    Variable * parentVar = reinterpret_cast<Variable *>(this);
+    Variable * parentVar = (Variable *)this;
 
     // 4 strings each color mode in colorModeChannelNames[]
     const int colorMode = value.colorMode * 4;
 
     if (parentVar->getAccessMode() == Variable::ReadWrite)
     {
-        owner.addNumberRW(parentVar, detail::colorModeChannelNames[colorMode + 0], &value.bR);
-        owner.addNumberRW(parentVar, detail::colorModeChannelNames[colorMode + 1], &value.bG);
-        owner.addNumberRW(parentVar, detail::colorModeChannelNames[colorMode + 2], &value.bB);
-        if (value.numChannels == 4)
+        for (int i = 0; i < value.numChannels; ++i)
         {
-            owner.addNumberRW(parentVar, detail::colorModeChannelNames[colorMode + 3], &value.bA);
+            owner.addNumberRW(parentVar, colorModeChannelNames[colorMode + i], &value.rgbaB4[i]);
         }
     }
     else
     {
-        owner.addNumberRO(parentVar, detail::colorModeChannelNames[colorMode + 0], &value.bR);
-        owner.addNumberRO(parentVar, detail::colorModeChannelNames[colorMode + 1], &value.bG);
-        owner.addNumberRO(parentVar, detail::colorModeChannelNames[colorMode + 2], &value.bB);
-        if (value.numChannels == 4)
+        for (int i = 0; i < value.numChannels; ++i)
         {
-            owner.addNumberRO(parentVar, detail::colorModeChannelNames[colorMode + 3], &value.bA);
+            owner.addNumberRO(parentVar, colorModeChannelNames[colorMode + i], &value.rgbaB4[i]);
         }
     }
 
-    owner.addEnumRW(parentVar, "Mode", &value.colorMode,
-                    detail::colorModeEnum, lengthOf(detail::colorModeEnum));
-
-    owner.addEnumRW(parentVar, "Range", &value.displayMode,
-                    detail::colorDisplayEnum, lengthOf(detail::colorDisplayEnum));
+    owner.addEnumRW(parentVar, "Mode",  &value.colorMode,   colorModeEnum,    lengthOf(colorModeEnum));
+    owner.addEnumRW(parentVar, "Range", &value.displayMode, colorDisplayEnum, lengthOf(colorDisplayEnum));
 }
 
-void VarDisplayWidget::setUpVarValueDisplay(Panel & owner, detail::Float4Ex & value)
+void VarDisplayWidget::setUpVarValueDisplay(Panel & owner, Float4Ex & value)
 {
     //TODO
 }
 
-void VarDisplayWidget::setUpVarValueDisplay(Panel & owner, detail::EnumValEx & value)
+void VarDisplayWidget::setUpVarValueDisplay(Panel & owner, EnumValEx & value)
 {
     //TODO
 }
@@ -2951,6 +3483,7 @@ void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const SmallStr & v
 
     if (hasValueEditButtons())
     {
+        // dataDisplayRect discounts the edit buttons by default.
         Rectangle fullRect = dataDisplayRect;
         fullRect.xMaxs = rect.xMaxs;
         geoBatch.drawRectFilled(fullRect, dataBoxColor);
@@ -2960,24 +3493,22 @@ void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const SmallStr & v
         geoBatch.drawRectFilled(dataDisplayRect, dataBoxColor);
     }
 
-    if (!value.isEmpty())
-    {
-        editField.drawSelf(geoBatch, dataDisplayRect, value);
-    }
+    // TODO source default text color from ColorScheme!
+    editField.drawSelf(geoBatch, dataDisplayRect, value, (customTextColor != 0) ? customTextColor : packColor(255,255,255));
 }
 
-void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const detail::NumberEx & value) const
+void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const NumberEx & value) const
 {
     // Numbers always display as strings.
     drawVarValue(geoBatch, value.toString());
 }
 
-void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const detail::BoolEx & value) const
+void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const BoolEx & value) const
 {
     const Color32 dataBoxColor = packColor(180, 180, 180); //TODO configurable!
     geoBatch.drawRectFilled(dataDisplayRect, dataBoxColor);
 
-    if (value.displayMode == detail::BoolEx::String)
+    if (value.displayMode == BoolEx::Display::String)
     {
         drawVarValue(geoBatch, value.toString());
     }
@@ -3002,7 +3533,7 @@ void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const detail::Bool
     }
 }
 
-void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const detail::ColorEx & value) const
+void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const ColorEx & value) const
 {
     const Color32 outlineColor = packColor(0, 0, 0);//TODO configurable outline color???
     const int checkerSize = NTB_SCALED(8);
@@ -3014,19 +3545,19 @@ void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const detail::Colo
     else
     {
         Color32 color;
-        value.getColor32(color);
+        value.getColor32(&color);
         geoBatch.drawRectFilled(dataDisplayRect, color);
         geoBatch.drawRectOutline(dataDisplayRect, outlineColor);
     }
 }
 
-void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const detail::Float4Ex & value) const
+void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const Float4Ex & value) const
 {
     //TODO temp
     drawVarValue(geoBatch, value.toString());
 }
 
-void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const detail::EnumValEx & value) const
+void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch, const EnumValEx & value) const
 {
     SmallStr displayValue;
     const int enumValue  = value.getEnumValue();
@@ -3201,7 +3732,6 @@ bool VarDisplayWidget::onMouseMotion(const int mx, const int my)
     }*/
 
     bool eventHandled = Widget::onMouseMotion(mx, my);
-
     if (valueClickAndHold)
     {
         if (dataDisplayRect.containsPoint(mx, my))
@@ -3210,7 +3740,6 @@ bool VarDisplayWidget::onMouseMotion(const int mx, const int my)
             eventHandled = true;
         }
     }
-
     return eventHandled;
 }
 
@@ -3233,6 +3762,44 @@ bool VarDisplayWidget::onMouseScroll(const int yScroll)
     return false;
 }
 
+bool VarDisplayWidget::onKeyPressed(const KeyCode key, const KeyModFlags modifiers)
+{
+    if (!isVisible() || !editField.isActive)
+    {
+        return false;
+    }
+
+    EditCommand::Enum cmd;
+    if (key > 0 && key <= 255) // Raw ASCII input:
+    {
+        cmd = (editField.isInInsertMode ? EditCommand::InsertChar : EditCommand::PushChar);
+        if (onKeyEdit(static_cast<char>(key), editField.cursorPos, cmd))
+        {
+            // Pushed or inserted a new character.
+            editField.charInserted(dataDisplayRect);
+        }
+    }
+    else // Move/update the cursor position:
+    {
+        cmd = editField.handleSpecialKey(dataDisplayRect, key, modifiers);
+        if (cmd != EditCommand::None)
+        {
+            // String edit command:
+            if (cmd == EditCommand::EraseChar)
+            {
+                onKeyEdit('\0', editField.cursorPos, cmd);
+            }
+            else // Window command:
+            {
+                //TODO
+            }
+        }
+    }
+
+    // Regardless of accepting the input or not, eat the character.
+    return true;
+}
+
 bool VarDisplayWidget::onButtonDown(ButtonWidget & button)
 {
     if (hasExpandCollapseButton() && (&expandCollapseButton == &button))
@@ -3242,6 +3809,11 @@ bool VarDisplayWidget::onButtonDown(ButtonWidget & button)
         return true;
     }
 
+    return false;
+}
+
+bool VarDisplayWidget::onKeyEdit(char, int, EditCommand::Enum)
+{
     return false;
 }
 
@@ -3394,7 +3966,7 @@ SmallStr VarDisplayWidget::getTypeString() const
 {
     SmallStr varStr = "VarDisplayWidget ";
     varStr += "(";
-    varStr += getVarName();
+    varStr += varName;
     varStr += ")";
     return varStr;
 }
@@ -3409,36 +3981,14 @@ WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
     , resizingCorner(CornerNone)
     , popupWidget(NTB_NULL)
 {
-    Rectangle barRect;
-
-    // Vertical scroll bar (right side):
-    barRect.xMins = rect.xMaxs - ScrollBarWidth;
-    barRect.yMins = rect.yMins + TitleBarHeight + 1;
-    barRect.xMaxs = rect.xMaxs;
-    barRect.yMaxs = rect.yMaxs;
-    scrollBar.construct(myGUI, this, barRect);
-
-    // Title bar:
-    barRect.xMins = rect.xMins;
-    barRect.yMins = rect.yMins;
-    barRect.xMaxs = rect.xMaxs;
-    barRect.yMaxs = rect.yMins + TitleBarHeight;
-    titleBar.construct(myGUI, this, barRect, title, true, true, NTB_SCALED(20), NTB_SCALED(4));
-
-    // Info bar at the bottom:
-    barRect.xMins = rect.xMins + ScrollBarWidth;
-    barRect.yMins = rect.yMaxs - InfoBarHeight;
-    barRect.xMaxs = rect.xMaxs - ScrollBarWidth - 1;
-    barRect.yMaxs = rect.yMaxs;
-    infoBar.construct(myGUI, this, barRect, "test string");
-
+    refreshBarRects(title, "");
     addChild(&scrollBar);
     addChild(&titleBar);
     addChild(&infoBar);
-
     refreshUsableRect();
 
     //TODO TESTS; remove
+    /*
     auto lw = new ListWidget(myGUI, this, makeRect(rect.xMaxs + NTB_SCALED(10), rect.yMins, rect.xMaxs + NTB_SCALED(60), rect.yMins + NTB_SCALED(50)));
     lw->allocEntries(5);
     lw->addEntryText(0, "Hello");
@@ -3453,6 +4003,7 @@ WindowWidget::WindowWidget(GUI * myGUI, Widget * myParent, const Rectangle & myR
     assert(lw->getEntryText(4) == "Testing 4");
     addChild(lw);
     popupWidget = lw;
+    */
     /*
     auto cp = new ColorPickerWidget(myGUI, this, rect.xMaxs + NTB_SCALED(10), rect.yMins);
     addChild(cp);
@@ -3554,7 +4105,7 @@ void WindowWidget::onDraw(GeometryBatch & geoBatch) const
     // Has to be on top of everything...
     drawResizeHandles(geoBatch);
 
-    // But the popup still has to be above the resize handles.
+    // The popup still has to be above the resize handles.
     if (popupWidget != NTB_NULL)
     {
         popupWidget->onDraw(geoBatch);
@@ -3799,6 +4350,25 @@ bool WindowWidget::onMouseScroll(const int yScroll)
     return false;
 }
 
+//TODO PG-up/down/home/end for scroll bar?
+bool WindowWidget::onKeyPressed(const KeyCode key, const KeyModFlags modifiers)
+{
+    if (!isVisible())
+    {
+        return false;
+    }
+
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        if (getChild(c)->onKeyPressed(key, modifiers))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void WindowWidget::setMouseIntersecting(const bool intersect)
 {
     Widget::setMouseIntersecting(intersect);
@@ -3815,22 +4385,30 @@ void WindowWidget::setMouseIntersecting(const bool intersect)
 void WindowWidget::onMove(const int displacementX, const int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
-
-    // Keep the effective usable area up-to-date.
-    refreshUsableRect();
+    refreshUsableRect(); // Keep the effective usable area up-to-date.
 }
 
 void WindowWidget::onAdjustLayout()
 {
-    // Keep the effective usable area up-to-date.
+    // Keep the sub-rects up-to-date.
+    refreshBarRects(NTB_NULL, NTB_NULL);
     refreshUsableRect();
+}
+
+int WindowWidget::getMinWindowWidth() const
+{
+    return NTB_SCALED(145);
+}
+
+int WindowWidget::getMinWindowHeight() const
+{
+    return NTB_SCALED(115);
 }
 
 void WindowWidget::resizeWithMin(const Corner corner, int & x, int & y, int offsetX, int offsetY)
 {
-    const int minWindowWidth  = NTB_SCALED(145);
-    const int minWindowHeight = NTB_SCALED(115);
-
+    const int minWindowWidth  = getMinWindowWidth();
+    const int minWindowHeight = getMinWindowHeight();
     const Rectangle old = rect;
 
     // x/y are refs to 'this->rect'.
@@ -3867,6 +4445,35 @@ void WindowWidget::resizeWithMin(const Corner corner, int & x, int & y, int offs
         }
         onAdjustLayout();
     }
+}
+
+void WindowWidget::refreshBarRects(const char * newTitle, const char * newInfoString)
+{
+    // Title bar stuff:
+    const int btnOffsX = NTB_SCALED(20);
+    const int btnOffsY = NTB_SCALED(4);
+    const bool minimizeBtn = true;
+    const bool maximizeBtn = true;
+
+    // Vertical scroll bar (right-hand side):
+    const Rectangle scrollBarRect = makeRect(rect.xMaxs - ScrollBarWidth,
+                                             rect.yMins + TitleBarHeight + NTB_SCALED(1),
+                                             rect.xMaxs,
+                                             rect.yMaxs);
+    // Title bar (top):
+    const Rectangle titleBarRect = makeRect(rect.xMins,
+                                            rect.yMins,
+                                            rect.xMaxs,
+                                            rect.yMins + TitleBarHeight);
+    // Info bar at the bottom:
+    const Rectangle infoBarRect = makeRect(rect.xMins + ScrollBarWidth,
+                                           rect.yMaxs - InfoBarHeight,
+                                           rect.xMaxs - ScrollBarWidth - NTB_SCALED(1),
+                                           rect.yMaxs);
+
+    scrollBar.reset(gui, this, scrollBarRect);
+    titleBar.reset(gui, this, titleBarRect, newTitle, minimizeBtn, maximizeBtn, btnOffsX, btnOffsY);
+    infoBar.reset(gui, this, infoBarRect, newInfoString);
 }
 
 void WindowWidget::refreshUsableRect()

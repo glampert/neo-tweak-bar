@@ -61,7 +61,7 @@
 #if NEO_TWEAK_BAR_CXX11_SUPPORTED
     #define NTB_ALIGNED(expr, alignment) alignas(alignment) expr
 #else // !C++11
-    #if defined(__GNUC__) // Clang & GCC
+    #if defined(__GNUC__) || defined(__clang__) // Clang & GCC
         #define NTB_ALIGNED(expr, alignment) expr __attribute__((aligned(alignment)))
     #elif defined(_MSC_VER) // Visual Studio
         #define NTB_ALIGNED(expr, alignment) __declspec(align(alignment)) expr
@@ -82,13 +82,12 @@
 #include <cstdint>
 #include <cstdlib>
 
-// Probably put some of the stuff into namespace detail...
 namespace ntb
 {
-typedef std::uint8_t UByte;
 
-typedef std::int8_t  Int8;
-typedef std::uint8_t UInt8;
+typedef std::uint8_t  UByte;
+typedef std::int8_t   Int8;
+typedef std::uint8_t  UInt8;
 
 typedef std::int16_t  Int16;
 typedef std::uint16_t UInt16;
@@ -99,15 +98,29 @@ typedef std::uint32_t UInt32;
 typedef std::int64_t  Int64;
 typedef std::uint64_t UInt64;
 
-namespace detail
-{
+typedef float         Float32;
+typedef double        Float64;
+
+#if NEO_TWEAK_BAR_CXX11_SUPPORTED
+    static_assert(sizeof(UByte)   == 1, "Expected 8-bits  integer!");
+    static_assert(sizeof(Int8)    == 1, "Expected 8-bits  integer!");
+    static_assert(sizeof(UInt8)   == 1, "Expected 8-bits  integer!");
+    static_assert(sizeof(Int16)   == 2, "Expected 16-bits integer!");
+    static_assert(sizeof(UInt16)  == 2, "Expected 16-bits integer!");
+    static_assert(sizeof(Int32)   == 4, "Expected 32-bits integer!");
+    static_assert(sizeof(UInt32)  == 4, "Expected 32-bits integer!");
+    static_assert(sizeof(Int64)   == 8, "Expected 64-bits integer!");
+    static_assert(sizeof(UInt64)  == 8, "Expected 64-bits integer!");
+    static_assert(sizeof(Float32) == 4, "Expected 32-bits float!");
+    static_assert(sizeof(Float64) == 8, "Expected 64-bits float!");
+#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
 //TODO replace with user supplied callbacks!
-template<class T>
+template<typename T>
 inline T * memAlloc(const std::size_t countInItems) //NOTE: should just crash if out of mem! we don't check for null return!!!
 {
     NTB_ASSERT(countInItems != 0);
-    return reinterpret_cast<T *>(std::malloc(countInItems * sizeof(T)));
+    return static_cast<T *>(std::malloc(countInItems * sizeof(T)));
 }
 inline void memFree(void * ptr)
 {
@@ -115,6 +128,12 @@ inline void memFree(void * ptr)
     {
         std::free(ptr);
     }
+}
+
+inline bool stringsEqual(const char * a, const char * b)
+{
+    NTB_ASSERT(a != NTB_NULL && b != NTB_NULL);
+    return std::strcmp(a, b) == 0;
 }
 
 //TODO make non-inline
@@ -226,14 +245,12 @@ inline bool intToString(UInt64 number, char * dest, const int destSizeInChars, c
     return true;
 }
 
-} // namespace detail {}
-
-NTB_CONSTEXPR_FUNC inline float degToRad(const float degrees)
+NTB_CONSTEXPR_FUNC inline Float32 degToRad(const Float32 degrees)
 {
     return degrees * (3.1415926535897931f / 180.0f);
 }
 
-NTB_CONSTEXPR_FUNC inline float radToDeg(const float radians)
+NTB_CONSTEXPR_FUNC inline Float32 radToDeg(const Float32 radians)
 {
     return radians * (180.0f / 3.1415926535897931f);
 }
@@ -245,7 +262,7 @@ inline int lengthOf(const char * str)
     return static_cast<int>(std::strlen(str));
 }
 
-template<class T, int Size>
+template<typename T, int Size>
 NTB_CONSTEXPR_FUNC inline int lengthOf(const T (&)[Size])
 {
     return Size;
@@ -265,29 +282,29 @@ namespace ntb
 typedef UInt32 Color32;
 
 // Remaps the value 'x' from one arbitrary min,max range to another.
-template<class T>
+template<typename T>
 NTB_CONSTEXPR_FUNC inline T remap(const T x, const T inMin, const T inMax, const T outMin, const T outMax)
 {
     return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
 }
 
 // Clamp 'x' between min/max bounds.
-template<class T>
+template<typename T>
 NTB_CONSTEXPR_FUNC inline T clamp(const T x, const T minimum, const T maximum)
 {
     return (x < minimum) ? minimum : (x > maximum) ? maximum : x;
 }
 
-// Byte in [0,255] range to float in [0,1] range.
+// Byte in [0,255] range to Float32 in [0,1] range.
 // Used for color space conversions.
-NTB_CONSTEXPR_FUNC inline float byteToFloat(const UByte b)
+NTB_CONSTEXPR_FUNC inline Float32 byteToFloat(const UByte b)
 {
-    return static_cast<float>(b) * (1.0f / 255.0f);
+    return static_cast<Float32>(b) * (1.0f / 255.0f);
 }
 
 // Float in [0,1] range to byte in [0,255] range.
 // Used for color space conversions. Note that 'f' is not clamped!
-NTB_CONSTEXPR_FUNC inline UByte floatToByte(const float f)
+NTB_CONSTEXPR_FUNC inline UByte floatToByte(const Float32 f)
 {
     return static_cast<UByte>(f * 255.0f);
 }
@@ -306,16 +323,16 @@ void unpackColor(Color32 color, UByte & r, UByte & g, UByte & b, UByte & a);
 
 // Lightens/darkens the given color by a percentage. Alpha channel remains unaltered.
 // NOTE: The algorithm used is not very accurate!
-Color32 lighthenRGB(Color32 color, float percent);
-Color32 darkenRGB(Color32 color, float percent);
+Color32 lighthenRGB(Color32 color, Float32 percent);
+Color32 darkenRGB(Color32 color, Float32 percent);
 
-// Very simple blending of float RGBA [0,1] range colors by a given percentage.
-Color32 blendColors(const float color1[], const float color2[], float percent);
-Color32 blendColors(Color32 color1, Color32 color2, float percent);
+// Very simple blending of Float32 RGBA [0,1] range colors by a given percentage.
+Color32 blendColors(const Float32 color1[], const Float32 color2[], Float32 percent);
+Color32 blendColors(Color32 color1, Color32 color2, Float32 percent);
 
 // Hue Lightens Saturation <=> Red Green Blue conversions:
-void RGBToHLS(float fR, float fG, float fB, float & hue, float & light, float & saturation);
-void HLSToRGB(float hue, float light, float saturation, float & fR, float & fG, float & fB);
+void RGBToHLS(Float32 fR, Float32 fG, Float32 fB, Float32 & hue, Float32 & light, Float32 & saturation);
+void HLSToRGB(Float32 hue, Float32 light, Float32 saturation, Float32 & fR, Float32 & fG, Float32 & fB);
 
 // ========================================================
 // class PODArray:
@@ -357,7 +374,7 @@ public:
         // New items are left uninitialized.
     }
 
-    template<class T>
+    template<typename T>
     PODArray(const int itemSizeBytes, const int sizeInItems, const T & fillWith)
     {
         initInternal(itemSizeBytes);
@@ -406,7 +423,7 @@ public:
                                (itemSize <= 8) ?  8 : 4;
 
         const int newCapacity = capacityHint + allocExtra;
-        UByte * newMemory = detail::memAlloc<UByte>(newCapacity * itemSize);
+        UByte * newMemory = memAlloc<UByte>(newCapacity * itemSize);
 
         // Preserve old data, if any:
         if (getSize() > 0)
@@ -429,7 +446,7 @@ public:
         }
 
         const int itemSize = getItemSize();
-        UByte * newMemory = detail::memAlloc<UByte>(capacityWanted * itemSize);
+        UByte * newMemory  = memAlloc<UByte>(capacityWanted * itemSize);
         if (getSize() > 0) // Preserve old data, if any:
         {
             std::memcpy(newMemory, basePtr, getSize() * itemSize);
@@ -461,7 +478,7 @@ public:
     }
 
     // Append one element, possibly reallocating to make room.
-    template<class T>
+    template<typename T>
     void pushBack(const T & item)
     {
         const int currSize = getSize();
@@ -489,8 +506,8 @@ public:
     //TODO test this!
     //
     // Insert at index, possibly growing the array and shifting to the right to make room.
-    template<class T>
-    void insert(const T & item, const int index)
+    template<typename T>
+    void insert(const int index, const T & item)
     {
         // Inserting at the start of an empty array is permitted.
         if (isEmpty() && index == 0)
@@ -520,7 +537,7 @@ public:
     //TODO test this!
     //
     // Removes at index, shifting the array by one.
-    void remove(const int index)
+    void erase(const int index)
     {
         NTB_ASSERT(index >= 0 && index < getSize());
 
@@ -542,8 +559,8 @@ public:
     //TODO test this!
     //
     // Swap the last element of the array into the given index.
-    // Unlike remove() this is constant time.
-    void removeAndSwap(const int index)
+    // Unlike erase() this is constant time.
+    void eraseSwap(const int index)
     {
         NTB_ASSERT(index >= 0 && index < getSize());
 
@@ -561,7 +578,7 @@ public:
     //
     // Access item with cast and bounds checking:
     //
-    template<class T>
+    template<typename T>
     const T & get(const int index) const
     {
         NTB_ASSERT(isAllocated());
@@ -569,7 +586,7 @@ public:
         NTB_ASSERT(index >= 0 && index < getSize());
         return *reinterpret_cast<const T *>(basePtr + (index * sizeof(T)));
     }
-    template<class T>
+    template<typename T>
     T & get(const int index)
     {
         NTB_ASSERT(isAllocated());
@@ -582,12 +599,12 @@ public:
     // Pointer to base address:
     // (T doesn't have to match itemSize in this case)
     //
-    template<class T>
+    template<typename T>
     const T * getData() const
     {
         return reinterpret_cast<const T *>(basePtr);
     }
-    template<class T>
+    template<typename T>
     T * getData()
     {
         return reinterpret_cast<T *>(basePtr);
@@ -617,7 +634,7 @@ private:
 
     void setNewStorage(UByte * newMemory)
     {
-        detail::memFree(basePtr);
+        memFree(basePtr);
         basePtr = newMemory;
     }
 
@@ -664,8 +681,8 @@ public:
     { }
 
     bool isLinked() const { return prev != NTB_NULL && next != NTB_NULL; }
-    template<class T> T * getNext() const { return static_cast<T *>(next); }
-    template<class T> T * getPrev() const { return static_cast<T *>(prev); }
+    template<typename T> T * getNext() const { return static_cast<T *>(next); }
+    template<typename T> T * getPrev() const { return static_cast<T *>(prev); }
 
 protected:
 
@@ -857,12 +874,12 @@ public:
     // Access the head or tail elements
     // of the doubly-linked list.
     //
-    template<class T>
+    template<typename T>
     T * getFirst() const
     {
         return static_cast<T *>(head);
     }
-    template<class T>
+    template<typename T>
     T * getLast() const
     {
         if (isEmpty()) { return NTB_NULL; }
@@ -890,13 +907,12 @@ private:
 // to avoid a dynamic memory alloc for small strings.
 // It can also grow to accommodate arbitrarily sized strings.
 // The overall design is somewhat similar to std::string.
-// Total structure size should be ~56 bytes.
 // ========================================================
 
 //TODO make non-inline
 //
 //TODO 2: update the similar SmallStr class in lib-cfg!
-// It still has the resizeInternal/setCString bugs!!!
+// It still has the resize/setCString bugs!!!
 //
 class SmallStr NTB_FINAL_CLASS
 {
@@ -911,7 +927,7 @@ public:
     {
         if (isDynamic())
         {
-            detail::memFree(backingStore.dynamic);
+            memFree(backingStore.dynamic);
         }
         // else storage is inline with the object.
     }
@@ -930,12 +946,13 @@ public:
 
     SmallStr(const SmallStr & other)
     {
-        initInternal(other.getCString(), other.getLength());
+        initInternal(other.c_str(), other.getLength());
+        setMaxSize(other.getMaxSize());
     }
 
     SmallStr & operator = (const SmallStr & other)
     {
-        setCString(other.getCString(), other.getLength());
+        setCString(other.c_str(), other.getLength());
         return *this;
     }
 
@@ -947,7 +964,7 @@ public:
 
     SmallStr & operator += (const SmallStr & other)
     {
-        append(other.getCString(), other.getLength());
+        append(other.c_str(), other.getLength());
         return *this;
     }
 
@@ -974,17 +991,40 @@ public:
         }
         if (ctrl.maxSize > 0 && (len + 1) > ctrl.maxSize)
         {
-            NTB_ERROR("Assigning to SmallStr would overflow maxSize!");
+            NTB_ERROR("Setting SmallStr would overflow maxSize!");
             return;
         }
         if ((len + 1) > ctrl.capacity)
         {
-            resizeInternal(len + 1, false);
+            reallocInternal(len + 1, false);
         }
 
-        std::memcpy(getCString(), str, len);
-        getCString()[len] = '\0';
+        std::memcpy(c_str(), str, len);
+        c_str()[len] = '\0';
         ctrl.length = len;
+    }
+
+    void append(const char c)
+    {
+        if (c == '\0')
+        {
+            return;
+        }
+
+        const int lengthNeeded = ctrl.length + 1;
+        if (ctrl.maxSize > 0 && (lengthNeeded + 1) > ctrl.maxSize)
+        {
+            NTB_ERROR("Appending to SmallStr would overflow maxSize!");
+            return;
+        }
+        if ((lengthNeeded + 1) > ctrl.capacity)
+        {
+            reallocInternal(lengthNeeded + 1, true);
+        }
+
+        c_str()[lengthNeeded - 1] = c;
+        c_str()[lengthNeeded] = '\0';
+        ctrl.length = lengthNeeded;
     }
 
     void append(const char * str, const int len)
@@ -1004,55 +1044,165 @@ public:
         }
         if ((lengthNeeded + 1) > ctrl.capacity)
         {
-            resizeInternal(lengthNeeded + 1, true);
+            reallocInternal(lengthNeeded + 1, true);
         }
 
-        std::memcpy(getCString() + ctrl.length, str, len);
-        getCString()[lengthNeeded] = '\0';
+        std::memcpy(c_str() + ctrl.length, str, len);
+        c_str()[lengthNeeded] = '\0';
         ctrl.length = lengthNeeded;
+    }
+
+    void resize(const int newLength, const bool preserveOldStr = true, const char fillVal = '\0')
+    {
+        if (newLength <= 0)
+        {
+            clear();
+            return;
+        }
+        else if (newLength == ctrl.length)
+        {
+            return;
+        }
+        else if (ctrl.maxSize > 0 && (newLength + 1) > ctrl.maxSize)
+        {
+            NTB_ERROR("Resizing SmallStr would overflow maxSize!");
+            return;
+        }
+
+        if ((newLength + 1) > ctrl.capacity) // newLength doesn't include the NUL-terminator.
+        {
+            reallocInternal(newLength + 1, preserveOldStr);
+        }
+
+        if (!preserveOldStr || isEmpty())
+        {
+            std::memset(c_str(), fillVal, newLength);
+        }
+        else
+        {
+            if (newLength > ctrl.length) // Made longer?
+            {
+                std::memset(c_str() + ctrl.length, fillVal, (newLength - ctrl.length));
+            }
+            // If shrunk, just truncate.
+        }
+
+        c_str()[newLength] = '\0';
+        ctrl.length = newLength;
+    }
+
+    void erase(int index)
+    {
+        const int len = ctrl.length;
+        if (len == 0) // Empty string?
+        {
+            return;
+        }
+
+        if (index < 0)
+        {
+            index = 0;
+        }
+        else if (index >= len)
+        {
+            index = len - 1;
+        }
+
+        // Erase one char from an arbitrary position by shifting to the left:
+        char * str = c_str();
+        std::memmove(str + index, str + index + 1, (len - index) + 2);
+        ctrl.length = len - 1;
+    }
+
+    void insert(int index, const char c)
+    {
+        int len = ctrl.length;
+        if (len == 0 || index >= len) // Empty string or inserting past the end?
+        {
+            append(c);
+            return;
+        }
+
+        ++len;
+        if (index < 0) // Clamp and allow inserting at the beginning
+        {
+            index = 0;
+        }
+
+        if (ctrl.maxSize > 0 && (len + 1) > ctrl.maxSize)
+        {
+            NTB_ERROR("Inserting into SmallStr would overflow maxSize!");
+            return;
+        }
+        if ((len + 1) > ctrl.capacity)
+        {
+            reallocInternal(len + 1, true);
+        }
+
+        // Shift the array by one (including the '\0'):
+        char * str = c_str();
+        std::memmove(str + index + 1, str + index, len - index);
+
+        // Insert new:
+        str[index]  = c;
+        ctrl.length = len;
     }
 
     char & operator[] (const int index)
     {
         NTB_ASSERT(index >= 0 && index < getLength());
-        return getCString()[index];
+        return c_str()[index];
     }
 
     char operator[] (const int index) const
     {
         NTB_ASSERT(index >= 0 && index < getLength());
-        return getCString()[index];
+        return c_str()[index];
     }
 
     void clear()
     {
         // Does not free dynamic memory.
         ctrl.length = 0;
-        getCString()[0] = '\0';
+        c_str()[0] = '\0';
     }
 
-    bool isDynamic()   const { return ctrl.capacity > static_cast<int>(sizeof(backingStore)); }
-    bool isEmpty()     const { return ctrl.length == 0; }
-    int  getLength()   const { return ctrl.length;      }
-    int  getCapacity() const { return ctrl.capacity;    }
-    int  getMaxSize()  const { return ctrl.maxSize;     }
-
+    // Miscellaneous accessors:
+    bool isDynamic() const
+    {
+        return ctrl.capacity > static_cast<int>(sizeof(backingStore));
+    }
+    bool isEmpty() const
+    {
+        return ctrl.length == 0;
+    }
+    int getLength() const
+    {
+        return ctrl.length;
+    }
+    int getCapacity() const
+    {
+        return ctrl.capacity;
+    }
+    int getMaxSize() const
+    {
+        return ctrl.maxSize;
+    }
     void setMaxSize(const int numChars)
     {
         NTB_ASSERT(numChars <= 65536);
         ctrl.maxSize = numChars;
     }
-    const char * getCString() const
-    {
-        return (!isDynamic() ? backingStore.fixed : backingStore.dynamic);
-    }
-    char * getCString()
-    {
-        return (!isDynamic() ? backingStore.fixed : backingStore.dynamic);
-    }
 
-    // c_str() method is for compatibility with std::string.
-    const char * c_str() const { return getCString(); }
+    // C-string access: (c_str() name is compatible with std::string)
+    const char * c_str() const
+    {
+        return !isDynamic() ? backingStore.fixed : backingStore.dynamic;
+    }
+    char * c_str()
+    {
+        return !isDynamic() ? backingStore.fixed : backingStore.dynamic;
+    }
 
     //
     // Swap the internal contents of two SmallStrs:
@@ -1081,22 +1231,22 @@ public:
 
     bool operator == (const SmallStr & other) const
     {
-        return std::strcmp(getCString(), other.getCString()) == 0;
+        return std::strcmp(c_str(), other.c_str()) == 0;
     }
     bool operator != (const SmallStr & other) const
     {
-        return std::strcmp(getCString(), other.getCString()) != 0;
+        return std::strcmp(c_str(), other.c_str()) != 0;
     }
 
     bool operator == (const char * str) const
     {
         NTB_ASSERT(str != NTB_NULL);
-        return std::strcmp(getCString(), str) == 0;
+        return std::strcmp(c_str(), str) == 0;
     }
     bool operator != (const char * str) const
     {
         NTB_ASSERT(str != NTB_NULL);
-        return std::strcmp(getCString(), str) != 0;
+        return std::strcmp(c_str(), str) != 0;
     }
 
     //
@@ -1126,7 +1276,7 @@ public:
         return fromNumber(static_cast<UInt64>(reinterpret_cast<std::uintptr_t>(ptr)), base);
     }
 
-    static SmallStr fromNumber(const double num, const int base = 10)
+    static SmallStr fromNumber(const Float64 num, const int base = 10)
     {
         if (base == 10)
         {
@@ -1160,30 +1310,28 @@ public:
         // Cast to integer and display as hex/bin/octal:
         union
         {
-            double asDouble;
-            UInt64 asU64;
+            Float64 asF64;
+            UInt64  asU64;
         } val;
-
-        val.asU64 = 0; // In case UInt64 > double
-        val.asDouble = num;
+        val.asF64 = num;
         return fromNumber(val.asU64, base);
     }
 
     static SmallStr fromNumber(const Int64 num, const int base = 10)
     {
         char buffer[NumConvBufSize];
-        detail::intToString(static_cast<UInt64>(num), buffer, sizeof(buffer), base, (num < 0));
+        intToString(static_cast<UInt64>(num), buffer, sizeof(buffer), base, (num < 0));
         return buffer;
     }
 
     static SmallStr fromNumber(const UInt64 num, const int base = 10)
     {
         char buffer[NumConvBufSize];
-        detail::intToString(num, buffer, sizeof(buffer), base, false);
+        intToString(num, buffer, sizeof(buffer), base, false);
         return buffer;
     }
 
-    static SmallStr fromFloatVec(const float vec[], const int elemCount, const char * prefix = "")
+    static SmallStr fromFloatVec(const Float32 vec[], const int elemCount, const char * prefix = "")
     {
         NTB_ASSERT(elemCount > 0 && elemCount <= 4);
 
@@ -1191,7 +1339,7 @@ public:
         str += "{";
         for (int i = 0; i < elemCount; ++i)
         {
-            str += fromNumber(static_cast<double>(vec[i]));
+            str += fromNumber(static_cast<Float64>(vec[i]));
             if (i != elemCount - 1)
             {
                 str += ",";
@@ -1217,7 +1365,7 @@ private:
         }
     }
 
-    void resizeInternal(int newCapacity, const bool preserveOldStr)
+    void reallocInternal(int newCapacity, const bool preserveOldStr)
     {
         const bool isDyn = isDynamic();
 
@@ -1225,15 +1373,15 @@ private:
         // avoid more allocations if the string grows again in the future.
         // This can be tuned for environments with more limited memory.
         newCapacity += 64;
-        char * newMemory = detail::memAlloc<char>(newCapacity);
+        char * newMemory = memAlloc<char>(newCapacity);
 
         if (preserveOldStr)
         {
-            std::memcpy(newMemory, getCString(), getLength() + 1);
+            std::memcpy(newMemory, c_str(), getLength() + 1);
         }
         if (isDyn)
         {
-            detail::memFree(backingStore.dynamic);
+            memFree(backingStore.dynamic);
         }
 
         ctrl.capacity = newCapacity;
@@ -1319,10 +1467,10 @@ struct Rectangle
     int getHeight() const { return yMaxs - yMins; }
     int getArea()   const { return getWidth() * getHeight(); }
 
-    float getAspect() const
+    Float32 getAspect() const
     {
-        return static_cast<float>(getWidth()) /
-               static_cast<float>(getHeight());
+        return static_cast<Float32>(getWidth()) /
+               static_cast<Float32>(getHeight());
     }
 
     bool containsPoint(const Point p) const
@@ -1399,11 +1547,11 @@ inline Rectangle makeRect(const int x0, const int y0, const int x1, const int y1
 
 struct Vec3
 {
-    float x;
-    float y;
-    float z;
+    Float32 x;
+    Float32 y;
+    Float32 z;
 
-    void set(const float xx, const float yy, const float zz)
+    void set(const Float32 xx, const Float32 yy, const Float32 zz)
     {
         x = xx;
         y = yy;
@@ -1447,25 +1595,25 @@ struct Vec3
     static Vec3 normalize(const Vec3 & v)
     {
         Vec3 result;
-        const float invLen = 1.0f / Vec3::length(v);
+        const Float32 invLen = 1.0f / Vec3::length(v);
         result.x = v.x * invLen;
         result.y = v.y * invLen;
         result.z = v.z * invLen;
         return result;
     }
 
-    static float length(const Vec3 & v)
+    static Float32 length(const Vec3 & v)
     {
         return std::sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
     }
 
-    static float dot(const Vec3 & a, const Vec3 & b)
+    static Float32 dot(const Vec3 & a, const Vec3 & b)
     {
         return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
     }
 };
 
-inline Vec3 makeVec3(const float x, const float y, const float z)
+inline Vec3 makeVec3(const Float32 x, const Float32 y, const Float32 z)
 {
     Vec3 result = { x, y, z };
     return result;
@@ -1473,12 +1621,12 @@ inline Vec3 makeVec3(const float x, const float y, const float z)
 
 struct Vec4
 {
-    float x;
-    float y;
-    float z;
-    float w;
+    Float32 x;
+    Float32 y;
+    Float32 z;
+    Float32 w;
 
-    void set(const float xx, const float yy, const float zz, const float ww)
+    void set(const Float32 xx, const Float32 yy, const Float32 zz, const Float32 ww)
     {
         x = xx;
         y = yy;
@@ -1495,7 +1643,7 @@ struct Vec4
     }
 };
 
-inline Vec4 makeVec4(const float x, const float y, const float z, const float w)
+inline Vec4 makeVec4(const Float32 x, const Float32 y, const Float32 z, const Float32 w)
 {
     Vec4 result = { x, y, z, w };
     return result;
@@ -1503,11 +1651,11 @@ inline Vec4 makeVec4(const float x, const float y, const float z, const float w)
 
 struct Mat4x4
 {
-    typedef float Vec4Ptr[4];
+    typedef Float32 Vec4Ptr[4];
     Vec4 rows[4];
 
-    float       * getData()       { return reinterpret_cast<float       *>(this); }
-    const float * getData() const { return reinterpret_cast<const float *>(this); }
+    Float32       * getData()       { return reinterpret_cast<Float32       *>(this); }
+    const Float32 * getData() const { return reinterpret_cast<const Float32 *>(this); }
 
     Vec4Ptr       * getRows()       { return reinterpret_cast<Vec4Ptr       *>(this); }
     const Vec4Ptr * getRows() const { return reinterpret_cast<const Vec4Ptr *>(this); }
@@ -1532,33 +1680,33 @@ struct Mat4x4
     }
 
     // Rotation matrices:
-    static Mat4x4 rotationX(const float radians)
+    static Mat4x4 rotationX(const Float32 radians)
     {
         Mat4x4 result;
-        const float c = std::cos(radians);
-        const float s = std::sin(radians);
+        const Float32 c = std::cos(radians);
+        const Float32 s = std::sin(radians);
         result.rows[0].set(1.0f,  0.0f, 0.0f, 0.0f);
         result.rows[1].set(0.0f,  c,    s,    0.0f);
         result.rows[2].set(0.0f, -s,    c,    0.0f);
         result.rows[3].set(0.0f,  0.0f, 0.0f, 1.0f);
         return result;
     }
-    static Mat4x4 rotationY(const float radians)
+    static Mat4x4 rotationY(const Float32 radians)
     {
         Mat4x4 result;
-        const float c = std::cos(radians);
-        const float s = std::sin(radians);
+        const Float32 c = std::cos(radians);
+        const Float32 s = std::sin(radians);
         result.rows[0].set(c,    0.0f, s,    0.0f),
         result.rows[1].set(0.0f, 1.0f, 0.0f, 0.0f);
         result.rows[2].set(-s,   0.0f, c,    0.0f);
         result.rows[3].set(0.0f, 0.0f, 0.0f, 1.0f);
         return result;
     }
-    static Mat4x4 rotationZ(const float radians)
+    static Mat4x4 rotationZ(const Float32 radians)
     {
         Mat4x4 result;
-        const float c = std::cos(radians);
-        const float s = std::sin(radians);
+        const Float32 c = std::cos(radians);
+        const Float32 s = std::sin(radians);
         result.rows[0].set( c,   s,    0.0f, 0.0f);
         result.rows[1].set(-s,   c,    0.0f, 0.0f);
         result.rows[2].set(0.0f, 0.0f, 1.0f, 0.0f);
@@ -1567,7 +1715,7 @@ struct Mat4x4
     }
 
     // Translation/scaling:
-    static Mat4x4 translation(const float x, const float y, const float z)
+    static Mat4x4 translation(const Float32 x, const Float32 y, const Float32 z)
     {
         Mat4x4 result;
         result.rows[0].set(1.0f, 0.0f, 0.0f, 0.0f);
@@ -1576,7 +1724,7 @@ struct Mat4x4
         result.rows[3].set(x,    y,    z,    1.0f);
         return result;
     }
-    static Mat4x4 scaling(const float x, const float y, const float z)
+    static Mat4x4 scaling(const Float32 x, const Float32 y, const Float32 z)
     {
         Mat4x4 result;
         result.rows[0].set(x,    0.0f, 0.0f, 0.0f);
@@ -1593,9 +1741,9 @@ struct Mat4x4
         const Vec3 right = Vec3::cross(Vec3::normalize(upVector), look);
         const Vec3 up    = Vec3::cross(look, right);
 
-        const float a = -Vec3::dot(right, eye);
-        const float b = -Vec3::dot(up,    eye);
-        const float c = -Vec3::dot(look,  eye);
+        const Float32 a = -Vec3::dot(right, eye);
+        const Float32 b = -Vec3::dot(up,    eye);
+        const Float32 c = -Vec3::dot(look,  eye);
 
         Mat4x4 result;
         result.rows[0].set(right.x, up.x, look.x, 0.0f);
@@ -1606,12 +1754,12 @@ struct Mat4x4
     }
 
     // Left-handed perspective projection matrix.
-    static Mat4x4 perspective(const float fovYRadians, const float aspect, const float zNear, const float zFar)
+    static Mat4x4 perspective(const Float32 fovYRadians, const Float32 aspect, const Float32 zNear, const Float32 zFar)
     {
-        const float invFovTan = 1.0f / std::tan(fovYRadians * 0.5f);
-        const float a = (aspect * invFovTan);
-        const float c = -(zFar + zNear) / (zFar - zNear);
-        const float e = (2.0f * zFar * zNear) / (zFar - zNear);
+        const Float32 invFovTan = 1.0f / std::tan(fovYRadians * 0.5f);
+        const Float32 a = (aspect * invFovTan);
+        const Float32 c = -(zFar + zNear) / (zFar - zNear);
+        const Float32 e = (2.0f * zFar * zNear) / (zFar - zNear);
 
         Mat4x4 result;
         result.rows[0].set(a,    0.0f,      0.0f, 0.0f);
