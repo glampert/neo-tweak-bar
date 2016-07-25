@@ -256,7 +256,7 @@ NTB_CONSTEXPR_FUNC inline Float32 radToDeg(const Float32 radians)
 }
 
 // Don't care about 32-64bit truncation. Our strings are not nearly that long.
-inline int lengthOf(const char * str)
+inline int lengthOf(const char * const str)
 {
     NTB_ASSERT(str != NTB_NULL);
     return static_cast<int>(std::strlen(str));
@@ -735,11 +735,12 @@ public:
 
         if (!isEmpty())
         {
-            // head->prev points the tail, and vice-versa:
+            // head->prev points the tail, tail->next points back to the head.
             ListNode * tail = head->prev;
             node->next = head;
             head->prev = node;
             node->prev = tail;
+            tail->next = node;
             head = node;
         }
         else // Empty list, first insertion:
@@ -779,32 +780,43 @@ public:
     // Removes one node from head or tail of the list, without destroying the object.
     // Returns the removed node or null if the list is already empty. Both are constant time.
     //
-    void popFront()
+    ListNode * popFront()
     {
-        if (isEmpty()) { return; }
+        if (isEmpty())
+        {
+            return NTB_NULL;
+        }
 
         ListNode * removedNode = head;
         ListNode * tail = head->prev;
+
         head = head->next;
         head->prev = tail;
+        tail->next = head;
         --size;
 
         removedNode->prev = NTB_NULL;
         removedNode->next = NTB_NULL;
+        return removedNode;
     }
 
-    void popBack()
+    ListNode * popBack()
     {
-        if (isEmpty()) { return; }
+        if (isEmpty())
+        {
+            return NTB_NULL;
+        }
 
-        ListNode * removedNode = head->prev;
         ListNode * tail = head->prev;
+        ListNode * removedNode = tail;
+
         head->prev = tail->prev;
         tail->prev->next = head;
         --size;
 
         removedNode->prev = NTB_NULL;
         removedNode->next = NTB_NULL;
+        return removedNode;
     }
 
     //

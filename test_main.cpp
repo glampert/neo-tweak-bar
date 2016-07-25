@@ -209,6 +209,10 @@ VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(const OT * obj, VT (OT::*getCb)(
     return VarCallbacksMemFuncByValOrRef<OT, VT>(obj, getCb, NTB_NULL);
 }
 
+//TODO note:
+//set method doesn't necessarily returns void.
+//e.g. lib-cfg CVars return bool on the setter.
+//Make the return a parameter as well?
 template<typename OT, typename VT>
 VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(OT * obj, VT (OT::*getCb)() const, void (OT::*setCb)(VT))
 {
