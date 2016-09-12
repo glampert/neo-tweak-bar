@@ -670,7 +670,7 @@ private:
 // intrusive lists. They inherit from this node type.
 // ========================================================
 
-//TODO make non-inline
+//TODO make it a template again, since this will be an internal detail now...
 class ListNode
 {
 public:
@@ -710,7 +710,7 @@ private:
 // List is circularly referenced: head<->tail are linked.
 // ========================================================
 
-//TODO make non-inline
+//TODO make it a template again, since this will be an internal detail now...
 class IntrusiveList NTB_FINAL_CLASS
 {
     NTB_DISABLE_COPY_ASSIGN(IntrusiveList);

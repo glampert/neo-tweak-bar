@@ -446,8 +446,8 @@ void NtbRenderInterfaceCoreGL::endDraw()
     CHECK_GL_ERRORS();
 }
 
-ntb::TextureHandle NtbRenderInterfaceCoreGL::createTexture(const int widthPixels, const int heightPixels,
-                                                           const int colorChannels, const void * pixels)
+ntb::TextureHandle NtbRenderInterfaceCoreGL::createTexture(int widthPixels, int heightPixels,
+                                                           int colorChannels, const void * pixels)
 {
     assert(widthPixels   > 0);
     assert(heightPixels  > 0);
@@ -507,10 +507,9 @@ void NtbRenderInterfaceCoreGL::destroyTexture(ntb::TextureHandle texture)
     delete texObj;
 }
 
-void NtbRenderInterfaceCoreGL::drawClipped2DTriangles(const ntb::VertexPTC * verts, const int vertCount,
-                                                      const ntb::UInt16 * indexes, const int indexCount,
-                                                      const ntb::DrawClippedInfo * drawInfo, const int drawInfoCount,
-                                                      const int frameMaxZ)
+void NtbRenderInterfaceCoreGL::drawClipped2DTriangles(const ntb::VertexPTC * verts, int vertCount,
+                                                      const ntb::UInt16 * indexes, int indexCount,
+                                                      const ntb::DrawClippedInfo * drawInfo, int drawInfoCount, int frameMaxZ)
 {
     assert(verts != NULLPTR);
     assert(indexes != NULLPTR);
@@ -575,9 +574,9 @@ void NtbRenderInterfaceCoreGL::drawClipped2DTriangles(const ntb::VertexPTC * ver
                savedState.viewport[2], savedState.viewport[3]);
 }
 
-void NtbRenderInterfaceCoreGL::draw2DTriangles(const ntb::VertexPTC * verts, const int vertCount,
-                                               const ntb::UInt16 * indexes, const int indexCount,
-                                               ntb::TextureHandle texture, const int frameMaxZ)
+void NtbRenderInterfaceCoreGL::draw2DTriangles(const ntb::VertexPTC * verts, int vertCount,
+                                               const ntb::UInt16 * indexes, int indexCount,
+                                               ntb::TextureHandle texture, int frameMaxZ)
 {
     assert(verts != NULLPTR);
     assert(indexes != NULLPTR);
@@ -647,7 +646,7 @@ void NtbRenderInterfaceCoreGL::draw2DTriangles(const ntb::VertexPTC * verts, con
     temp2dVerts.clear();
 }
 
-void NtbRenderInterfaceCoreGL::draw2DLines(const ntb::VertexPC * verts, const int vertCount, const int frameMaxZ)
+void NtbRenderInterfaceCoreGL::draw2DLines(const ntb::VertexPC * verts, int vertCount, int frameMaxZ)
 {
     assert(verts != NULLPTR);
     assert(vertCount > 0);

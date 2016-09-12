@@ -86,9 +86,9 @@ void destroy(T * obj)
     }
 }
 
-// This is based on a similar trick presented on the book
+// This is based on a similar trick presented in the book
 // "Modern C++ Design: Generic Programming and Design Patterns"
-// to avoid relying on the alignas() operator, only available on
+// to avoid relying on the alignas() operator, only available from
 // C++11. The union is a mix of types with different alignments
 // and sizes, so it will select the largest alignment required.
 template<typename T, typename U = T, typename V = T>
@@ -99,9 +99,9 @@ struct MaxAlign
     typedef int  (*CFunc)(DummyS *);
     union Blob
     {
-        UByte    userDataT[sizeof(T)];
-        UByte    userDataU[sizeof(U)];
-        UByte    userDataV[sizeof(V)];
+        UInt8    userDataT[sizeof(T)];
+        UInt8    userDataU[sizeof(U)];
+        UInt8    userDataV[sizeof(V)];
         DummyS * dummy0;
         CFunc    dummy1;
         MemFunc  dummy2;
