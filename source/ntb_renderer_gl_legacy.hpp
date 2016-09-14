@@ -8,7 +8,7 @@
 // Brief:
 //  Default Legacy OpenGL RenderInterface for NTB. Useful when you just want a quick-n-dirty
 //  GL renderer that gets the library running right away. This renderer works well with GL 2.0.
-//  This header file is optional and won't be compiled into the library it you don't include it.
+//  This header file is optional and won't be compiled into the library if you don't include it.
 //  You still have to provide your platform-specific GL headers before including this file,
 //  then #define NTB_DEFAULT_RENDERER_GL_LEGACY before including the file in a .cpp to enable
 //  the implementation.
@@ -378,7 +378,7 @@ void RenderInterfaceDefaultGLLegacy::destroyTexture(TextureHandle texture)
 
     for (int count = textures.getSize(); count--; iter = iter->next)
     {
-        if (iter == reinterpret_cast<GLTextureRecord *>(texture))
+        if (iter == reinterpret_cast<const GLTextureRecord *>(texture))
         {
             found = iter;
             break;
@@ -388,7 +388,7 @@ void RenderInterfaceDefaultGLLegacy::destroyTexture(TextureHandle texture)
     if (!found)
     {
         errorF("GL texture handle %p not allocated from this RenderInterface!",
-               reinterpret_cast<void *>(texture));
+               reinterpret_cast<const void *>(texture));
         return;
     }
 
@@ -469,7 +469,7 @@ void RenderInterfaceDefaultGLLegacy::draw2DTriangles(const VertexPTC * verts, in
     if (texture != NTB_NULL)
     {
         glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, reinterpret_cast<GLTextureRecord *>(texture)->texId);
+        glBindTexture(GL_TEXTURE_2D, reinterpret_cast<const GLTextureRecord *>(texture)->texId);
     }
 
     glBegin(GL_TRIANGLES);
@@ -550,7 +550,7 @@ void RenderInterfaceDefaultGLLegacy::drawClipped2DTriangles(const VertexPTC * ve
                 glEnable(GL_TEXTURE_2D);
             }
 
-            glBindTexture(GL_TEXTURE_2D, reinterpret_cast<GLTextureRecord *>(drawInfo[i].texture)->texId);
+            glBindTexture(GL_TEXTURE_2D, reinterpret_cast<const GLTextureRecord *>(drawInfo[i].texture)->texId);
             ++texturedDraws;
         }
 
