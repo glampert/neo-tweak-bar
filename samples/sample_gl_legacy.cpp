@@ -8,10 +8,9 @@
 // ================================================================================================
 
 #include "ntb.hpp"
-#include <GLFW/glfw3.h>
-#include <vectormath.h>
 
 int main()
 {
     //TODO
 }
+

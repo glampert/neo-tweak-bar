@@ -7,7 +7,6 @@
 // Brief: Neo Tweak Bar - A lightweight and intuitive C++ GUI library for graphics applications.
 // ================================================================================================
 
-#include "ntb.hpp"
 #include "ntb_utils.hpp"
 #include "ntb_widgets.hpp"
 #include <cstdarg> // for va_list & co
@@ -19,40 +18,19 @@ namespace ntb
 // Type size checking:
 // ========================================================
 
-#if NEO_TWEAK_BAR_CXX11_SUPPORTED
-    static_assert(sizeof(Int8)    == 1, "Expected 8-bits  integer!");
-    static_assert(sizeof(UInt8)   == 1, "Expected 8-bits  integer!");
-    static_assert(sizeof(Int16)   == 2, "Expected 16-bits integer!");
-    static_assert(sizeof(UInt16)  == 2, "Expected 16-bits integer!");
-    static_assert(sizeof(Int32)   == 4, "Expected 32-bits integer!");
-    static_assert(sizeof(UInt32)  == 4, "Expected 32-bits integer!");
-    static_assert(sizeof(Int64)   == 8, "Expected 64-bits integer!");
-    static_assert(sizeof(UInt64)  == 8, "Expected 64-bits integer!");
-    static_assert(sizeof(Float32) == 4, "Expected 32-bits float!");
-    static_assert(sizeof(Float64) == 8, "Expected 64-bits float!");
-    static_assert(sizeof(void *)  == sizeof(std::size_t),    "Expected size_t to be the size of a pointer!");
-    static_assert(sizeof(void *)  == sizeof(std::uintptr_t), "Expected uintptr_t to be the size of a pointer!");
-    static_assert(sizeof(void *)  == sizeof(std::ptrdiff_t), "Expected ptrdiff_t to be the size of a pointer!");
-#else // !C++11
-    namespace {
-    #define CT_CHECK_SIZE(type, size) typedef int static_assert_##type##_size[(sizeof(type) == (size)) ? 1 : -1]
-    CT_CHECK_SIZE(Int8,    1);
-    CT_CHECK_SIZE(UInt8,   1);
-    CT_CHECK_SIZE(Int16,   2);
-    CT_CHECK_SIZE(UInt16,  2);
-    CT_CHECK_SIZE(Int32,   4);
-    CT_CHECK_SIZE(UInt32,  4);
-    CT_CHECK_SIZE(Int64,   8);
-    CT_CHECK_SIZE(UInt64,  8);
-    CT_CHECK_SIZE(Float32, 4);
-    CT_CHECK_SIZE(Float64, 8);
-    typedef void * void_pointer;
-    CT_CHECK_SIZE(void_pointer, sizeof(std::size_t));
-    CT_CHECK_SIZE(void_pointer, sizeof(std::uintptr_t));
-    CT_CHECK_SIZE(void_pointer, sizeof(std::ptrdiff_t));
-    #undef CT_CHECK_SIZE
-    } // unnamed
-#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
+static_assert(sizeof(Int8)    == 1, "Expected 8-bits  integer!");
+static_assert(sizeof(UInt8)   == 1, "Expected 8-bits  integer!");
+static_assert(sizeof(Int16)   == 2, "Expected 16-bits integer!");
+static_assert(sizeof(UInt16)  == 2, "Expected 16-bits integer!");
+static_assert(sizeof(Int32)   == 4, "Expected 32-bits integer!");
+static_assert(sizeof(UInt32)  == 4, "Expected 32-bits integer!");
+static_assert(sizeof(Int64)   == 8, "Expected 64-bits integer!");
+static_assert(sizeof(UInt64)  == 8, "Expected 64-bits integer!");
+static_assert(sizeof(Float32) == 4, "Expected 32-bits float!");
+static_assert(sizeof(Float64) == 8, "Expected 64-bits float!");
+static_assert(sizeof(void *)  == sizeof(std::size_t),    "Expected size_t to be the size of a pointer!");
+static_assert(sizeof(void *)  == sizeof(std::uintptr_t), "Expected uintptr_t to be the size of a pointer!");
+static_assert(sizeof(void *)  == sizeof(std::ptrdiff_t), "Expected ptrdiff_t to be the size of a pointer!");
 
 // ========================================================
 // Virtual destructors anchored to this file:
@@ -73,7 +51,8 @@ Panel::~Panel()
 GUI::~GUI()
 { }
 
-namespace detail {
+namespace detail
+{
 VarCallbacksInterface::~VarCallbacksInterface() { }
 } // namespace detail
 
@@ -89,7 +68,7 @@ void * ShellInterface::memAlloc(UInt32 sizeInBytes)
 
 void ShellInterface::memFree(void * ptrToFree)
 {
-    if (ptrToFree != NTB_NULL)
+    if (ptrToFree != nullptr)
     {
         std::free(ptrToFree);
     }
@@ -133,7 +112,7 @@ void RenderInterface::getViewport(int * viewportX, int * viewportY,
 TextureHandle RenderInterface::createTexture(int, int, int, const void *)
 {
     // No-op.
-    return NTB_NULL;
+    return nullptr;
 }
 
 void RenderInterface::destroyTexture(TextureHandle)
@@ -205,27 +184,27 @@ VarCallbacksAny::VarCallbacksAny()
 VarCallbacksAny::VarCallbacksAny(const VarCallbacksAny & other)
 {
     clear();
-    NTB_ASSERT(other.callbacks != NTB_NULL);
+    NTB_ASSERT(other.callbacks != nullptr);
     callbacks = other.callbacks->clone(getDataPtr());
 }
 
 VarCallbacksAny & VarCallbacksAny::operator = (const VarCallbacksAny & other)
 {
     clear();
-    NTB_ASSERT(other.callbacks != NTB_NULL);
+    NTB_ASSERT(other.callbacks != nullptr);
     callbacks = other.callbacks->clone(getDataPtr());
     return *this;
 }
 
 void VarCallbacksAny::callGetter(void * valueOut) const
 {
-    NTB_ASSERT(callbacks != NTB_NULL);
+    NTB_ASSERT(callbacks != nullptr);
     callbacks->callGetter(valueOut);
 }
 
 void VarCallbacksAny::callSetter(const void * valueIn)
 {
-    NTB_ASSERT(callbacks != NTB_NULL);
+    NTB_ASSERT(callbacks != nullptr);
     callbacks->callSetter(valueIn);
 }
 
@@ -235,25 +214,25 @@ void VarCallbacksAny::clear()
     // 'callbacks' destructor before setting it to null, but assuming
     // the implementation classes are simple types that allocate no
     // memory, we can ignore that and dodge the virtual destructor call.
-    callbacks = NTB_NULL;
+    callbacks = nullptr;
     std::memset(getDataPtr(), 0, DataSizeBytes);
 }
 
 bool VarCallbacksAny::isNull() const
 {
-    return callbacks == NTB_NULL;
+    return callbacks == nullptr;
 }
 
 // ========================================================
 // Library initialization/shutdown and shared context:
 // ========================================================
 
-static ShellInterface  * g_pShellInterface  = NTB_NULL;
-static RenderInterface * g_pRenderInterface = NTB_NULL;
+static ShellInterface  * g_pShellInterface  = nullptr;
+static RenderInterface * g_pRenderInterface = nullptr;
 
 bool initialize(ShellInterface * shell, RenderInterface * renderer)
 {
-    if (shell == NTB_NULL || renderer == NTB_NULL)
+    if (shell == nullptr || renderer == nullptr)
     {
         return errorF("ntb::initialize() requires a ShellInterface and a RenderInterface!");
     }
@@ -268,8 +247,8 @@ void shutdown()
 {
     //TODO
 
-    g_pShellInterface  = NTB_NULL;
-    g_pRenderInterface = NTB_NULL;
+    g_pShellInterface  = nullptr;
+    g_pRenderInterface = nullptr;
 }
 
 ShellInterface * getShellInterface()
@@ -287,6 +266,11 @@ RenderInterface * getRenderInterface()
 // ========================================================
 
 GUI * findGUI(const char * guiName)
+{
+    //TODO
+}
+
+GUI * findGUI(UInt32 guiNameHashCode)
 {
     //TODO
 }
@@ -326,12 +310,12 @@ static void defaultErrorHandlerCb(const char * const message, void * /* userCont
 }
 
 static ErrorHandlerCallback g_errorHandler = &defaultErrorHandlerCb;
-static void *               g_errorUserCtx = NTB_NULL;
+static void *               g_errorUserCtx = nullptr;
 static bool                 g_silentErrors = false;
 
 bool errorF(const char * const fmt, ...)
 {
-    if (g_silentErrors || fmt == NTB_NULL)
+    if (g_silentErrors || fmt == nullptr)
     {
         return false;
     }
@@ -354,10 +338,10 @@ bool errorF(const char * const fmt, ...)
 
 void setErrorCallback(ErrorHandlerCallback errorHandler, void * userContext)
 {
-    if (errorHandler == NTB_NULL) // Use null to restore the default.
+    if (errorHandler == nullptr) // Use null to restore the default.
     {
         g_errorHandler = &defaultErrorHandlerCb;
-        g_errorUserCtx = NTB_NULL;
+        g_errorUserCtx = nullptr;
     }
     else
     {
@@ -380,7 +364,7 @@ void silenceErrors(const bool trueIfShouldSilence)
 // Enum to string helpers:
 // ========================================================
 
-const char * MouseButton::toString(const MouseButton::Enum button)
+const char * mouseButtonToString(const MouseButton button)
 {
     static char str[16];
     switch (button)
@@ -393,7 +377,7 @@ const char * MouseButton::toString(const MouseButton::Enum button)
     return str;
 }
 
-const char * SpecialKeys::toString(const KeyCode keyCode)
+const char * keyCodeToString(const KeyCode keyCode)
 {
     static char str[16];
     if (keyCode > 0 && keyCode < 256) // ASCII keys
@@ -403,7 +387,7 @@ const char * SpecialKeys::toString(const KeyCode keyCode)
     }
     else
     {
-        switch (keyCode)
+        switch (static_cast<SpecialKeys>(keyCode))
         {
         case SpecialKeys::Null       : copyString(str, sizeof(str), "No key");     break;
         case SpecialKeys::Return     : copyString(str, sizeof(str), "Return");     break;
@@ -438,7 +422,7 @@ const char * SpecialKeys::toString(const KeyCode keyCode)
     return str;
 }
 
-const char * KeyModifiers::toString(const KeyModFlags modifiers)
+const char * keyModFlagsToString(const KeyModFlags modifiers)
 {
     static char str[24];
     char * ptr  = str;

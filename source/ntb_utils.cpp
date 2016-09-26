@@ -38,8 +38,8 @@ UInt32 hashString(const char * cstr)
 
 int copyString(char * dest, int destSizeInChars, const char * source)
 {
-    NTB_ASSERT(dest   != NTB_NULL);
-    NTB_ASSERT(source != NTB_NULL);
+    NTB_ASSERT(dest   != nullptr);
+    NTB_ASSERT(source != nullptr);
     NTB_ASSERT(destSizeInChars > 0);
 
     // Copy until the end of source or until we run out of space in dest:
@@ -60,7 +60,7 @@ int copyString(char * dest, int destSizeInChars, const char * source)
 
 bool intToString(UInt64 number, char * dest, const int destSizeInChars, const int numBase, const bool isNegative)
 {
-    NTB_ASSERT(dest != NTB_NULL);
+    NTB_ASSERT(dest != nullptr);
     NTB_ASSERT(destSizeInChars > 3); // - or 0x and a '\0'
 
     // Supports binary, octal, decimal and hexadecimal.
@@ -145,8 +145,8 @@ int decodeUtf8(const char * encodedBuffer, int * outCharLength)
     // Adapted from code found on the "AngelCode Toolbox Library"
     //  http://www.angelcode.com/dev/bmfonts/
 
-    NTB_ASSERT(encodedBuffer != NTB_NULL);
-    NTB_ASSERT(outCharLength != NTB_NULL);
+    NTB_ASSERT(encodedBuffer != nullptr);
+    NTB_ASSERT(outCharLength != nullptr);
 
     const UInt8 * buf = reinterpret_cast<const UInt8 *>(encodedBuffer);
     int value  =  0;
@@ -470,7 +470,7 @@ void PODArray::initInternal(const int itemBytes)
     ctrl.used     = 0;
     ctrl.capacity = 0;
     ctrl.itemSize = itemBytes;
-    basePtr       = NTB_NULL;
+    basePtr       = nullptr;
 }
 
 void PODArray::setNewStorage(UInt8 * newMemory)
@@ -553,7 +553,7 @@ void PODArray::deallocate()
         return;
     }
 
-    setNewStorage(NTB_NULL);
+    setNewStorage(nullptr);
     setCapacity(0);
     setSize(0);
 }
@@ -614,9 +614,9 @@ void SmallStr::initInternal(const char * str, const int len)
     ctrl.capacity = static_cast<int>(sizeof(backingStore));
     std::memset(&backingStore, 0, sizeof(backingStore));
 
-    if (str != NTB_NULL)
+    if (str != nullptr)
     {
-        setCString(str, len);
+        set(str, len);
     }
 }
 
@@ -643,9 +643,9 @@ void SmallStr::reallocInternal(int newCapacity, const bool preserveOldStr)
     backingStore.dynamic = newMemory;
 }
 
-void SmallStr::setCString(const char * str, const int len)
+void SmallStr::set(const char * str, const int len)
 {
-    NTB_ASSERT(str != NTB_NULL);
+    NTB_ASSERT(str != nullptr);
 
     if (len <= 0 || *str == '\0')
     {
@@ -692,7 +692,7 @@ void SmallStr::append(const char c)
 
 void SmallStr::append(const char * str, const int len)
 {
-    NTB_ASSERT(str != NTB_NULL);
+    NTB_ASSERT(str != nullptr);
 
     if (len <= 0 || *str == '\0')
     {
@@ -809,6 +809,15 @@ void SmallStr::insert(int index, const char c)
     // Insert new:
     str[index]  = c;
     ctrl.length = len;
+}
+
+void SmallStr::truncate(const int maxLen)
+{
+    if (maxLen < ctrl.length)
+    {
+        ctrl.length = maxLen;
+        c_str()[maxLen] = '\0';
+    }
 }
 
 void SmallStr::clear()

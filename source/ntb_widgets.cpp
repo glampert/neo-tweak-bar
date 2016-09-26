@@ -21,7 +21,7 @@ namespace ntb
 // ========================================================
 
 GeometryBatch::GeometryBatch()
-    : glyphTex(NTB_NULL)
+    : glyphTex(nullptr)
     , currentZ(0)
     , baseVertex2D(0)
     , baseVertexText(0)
@@ -40,10 +40,10 @@ GeometryBatch::GeometryBatch()
 
 GeometryBatch::~GeometryBatch()
 {
-    if (glyphTex != NTB_NULL)
+    if (glyphTex != nullptr)
     {
         getRenderInterface()->destroyTexture(glyphTex);
-        glyphTex = NTB_NULL;
+        glyphTex = nullptr;
     }
 }
 
@@ -98,7 +98,7 @@ void GeometryBatch::endDraw()
         renderer->draw2DTriangles(
             verts2DBatch.getData<VertexPTC>(), verts2DBatch.getSize(),
             tris2DBatch.getData<UInt16>(), tris2DBatch.getSize(),
-            NTB_NULL, currentZ); // untextured
+            nullptr, currentZ); // untextured
     }
 
     if (!drawClippedInfos.isEmpty() && !vertsClippedBatch.isEmpty() && !trisClippedBatch.isEmpty())
@@ -144,13 +144,13 @@ void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int ve
                                            const UInt16 * indexes, const int indexCount,
                                            const Rectangle & viewport, const Rectangle & clipBox)
 {
-    NTB_ASSERT(verts   != NTB_NULL);
-    NTB_ASSERT(indexes != NTB_NULL);
+    NTB_ASSERT(verts   != nullptr);
+    NTB_ASSERT(indexes != nullptr);
     NTB_ASSERT(vertCount  > 0);
     NTB_ASSERT(indexCount > 0);
 
     DrawClippedInfo drawInfo;
-    drawInfo.texture    = NTB_NULL;
+    drawInfo.texture    = nullptr;
     drawInfo.viewportX  = viewport.getX();
     drawInfo.viewportY  = viewport.getY();
     drawInfo.viewportW  = viewport.getWidth();
@@ -184,8 +184,8 @@ void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int ve
 void GeometryBatch::draw2DTriangles(const VertexPTC * verts, const int vertCount,
                                     const UInt16 * indexes, const int indexCount)
 {
-    NTB_ASSERT(verts   != NTB_NULL);
-    NTB_ASSERT(indexes != NTB_NULL);
+    NTB_ASSERT(verts   != nullptr);
+    NTB_ASSERT(indexes != nullptr);
     NTB_ASSERT(vertCount  > 0);
     NTB_ASSERT(indexCount > 0);
 
@@ -306,27 +306,27 @@ void GeometryBatch::drawRectShadow(const Rectangle & rect, const Color32 shadowC
     // effect. Note that the following draw order relies on a CCW polygon winding!
 
     // bottom-left
-    drawRectFilled(makeRect(posX, h, posX + shadowOffset, h + shadowOffset),
+    drawRectFilled(Rectangle{ posX, h, posX + shadowOffset, h + shadowOffset },
                    penumbraColor, penumbraColor,
                    shadowColor, penumbraColor);
 
     // center-left
-    drawRectFilled(makeRect(posX + shadowOffset, h, w, h + shadowOffset),
+    drawRectFilled(Rectangle{ posX + shadowOffset, h, w, h + shadowOffset },
                    shadowColor, penumbraColor,
                    shadowColor, penumbraColor);
 
     // bottom-right
-    drawRectFilled(makeRect(w, h, wOffs, h + shadowOffset),
+    drawRectFilled(Rectangle{ w, h, wOffs, h + shadowOffset },
                    shadowColor, penumbraColor,
                    penumbraColor, penumbraColor);
 
     // center-right
-    drawRectFilled(makeRect(w, posY + shadowOffset, wOffs, h),
+    drawRectFilled(Rectangle{ w, posY + shadowOffset, wOffs, h },
                    shadowColor, shadowColor,
                    penumbraColor, penumbraColor);
 
     // top-right
-    drawRectFilled(makeRect(w, posY, wOffs, posY + shadowOffset),
+    drawRectFilled(Rectangle{ w, posY, wOffs, posY + shadowOffset },
                    penumbraColor, shadowColor,
                    penumbraColor, penumbraColor);
 }
@@ -376,7 +376,7 @@ void GeometryBatch::drawArrowFilled(const Rectangle & rect, const Color32 bgColo
 void GeometryBatch::createGlyphTexture()
 {
     UInt8 * decompressedBitmap = detail::decompressFontBitmap();
-    if (decompressedBitmap == NTB_NULL)
+    if (decompressedBitmap == nullptr)
     {
         errorF("Unable to decompress the built-in font bitmap data!");
         return;
@@ -394,9 +394,9 @@ void GeometryBatch::createGlyphTexture()
 
 void GeometryBatch::drawTextConstrained(const char * text, const int textLength, Rectangle alignBox,
                                         const Rectangle & clipBox, const Float32 scaling, const Color32 color,
-                                        const TextAlign::Enum align)
+                                        const TextAlign align)
 {
-    NTB_ASSERT(text != NTB_NULL);
+    NTB_ASSERT(text != nullptr);
     if (*text == '\0' || textLength <= 0)
     {
         return;
@@ -453,7 +453,7 @@ void GeometryBatch::drawTextConstrained(const char * text, const int textLength,
 void GeometryBatch::drawTextImpl(const char * text, const int textLength, Float32 x, Float32 y,
                                  const Float32 scaling, const Color32 color)
 {
-    NTB_ASSERT(text != NTB_NULL);
+    NTB_ASSERT(text != nullptr);
     NTB_ASSERT(textLength > 0);
 
     // Invariants for all characters:
@@ -472,8 +472,8 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, Float3
     // These are necessary to avoid artefacts caused by texture
     // sampling between characters that draw close together. Values
     // tuned for the current font. Might need some tweaking for a new one!
-    static const Float32 offsetU = +0.5f;
-    static const Float32 offsetV = -0.5f;
+    constexpr Float32 offsetU = +0.5f;
+    constexpr Float32 offsetV = -0.5f;
 
     int increment;
     for (int c = 0; c < textLength; c += increment)
@@ -560,7 +560,7 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, Float3
 
 Float32 GeometryBatch::calcTextWidth(const char * text, const int textLength, const Float32 scaling)
 {
-    NTB_ASSERT(text != NTB_NULL);
+    NTB_ASSERT(text != nullptr);
 
     const Float32 fixedWidth = getCharWidth();
     const Float32 tabW = fixedWidth * 4.0f * scaling; // TAB = 4 spaces.
@@ -617,5 +617,130 @@ Float32 GeometryBatch::getCharHeight()
 {
     return static_cast<Float32>(detail::getFontCharSet().charHeight);
 }
+
+// ========================================================
+// class Widget:
+// ========================================================
+
+Widget::Widget()
+    : gui(nullptr)
+    , parent(nullptr)
+    , colors(nullptr)
+    , children(sizeof(Widget *))
+    , scaling(1.0f)
+    , textScaling(1.0f)
+    , flags(0)
+{
+    rect.setZero();
+    lastMousePos.setZero();
+    setFlag(FlagVisible, true);
+}
+
+Widget::~Widget()
+{
+    //TODO children that have the FlagNeedDeleting set must be deleted!
+}
+
+void Widget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect)
+{
+    //TODO
+}
+
+bool Widget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
+{
+    //TODO
+}
+
+bool Widget::onMouseButton(MouseButton button, int clicks)
+{
+    //TODO
+}
+
+bool Widget::onMouseMotion(int mx, int my)
+{
+    //TODO
+}
+
+bool Widget::onMouseScroll(int yScroll)
+{
+    //TODO
+}
+
+void Widget::onScrollContentUp()
+{
+    //TODO
+}
+
+void Widget::onScrollContentDown()
+{
+    //TODO
+}
+
+void Widget::onDraw(GeometryBatch & geoBatch) const
+{
+    //TODO
+}
+
+void Widget::onResize(int displacementX, int displacementY, Corner corner)
+{
+    //TODO
+}
+
+void Widget::onMove(int displacementX, int displacementY)
+{
+    //TODO
+}
+
+void Widget::onAdjustLayout()
+{
+    //TODO
+}
+
+void Widget::onDisableEditing()
+{
+    //TODO
+}
+
+void Widget::setMouseDragEnabled(bool enabled)
+{
+    //TODO
+}
+
+void Widget::setNormalColors()
+{
+    //TODO
+}
+
+void Widget::setHighlightedColors()
+{
+    //TODO
+}
+
+bool Widget::isChild(const Widget * widget) const
+{
+    //TODO
+}
+
+void Widget::addChild(Widget * newChild)
+{
+    //TODO
+}
+
+void Widget::drawSelf(GeometryBatch & geoBatch) const
+{
+    //TODO
+}
+
+void Widget::drawChildren(GeometryBatch & geoBatch) const
+{
+    //TODO
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+void Widget::printHierarchy(std::ostream & out, const SmallStr & indent) const
+{
+    //TODO
+}
+#endif // NEO_TWEAK_BAR_DEBUG
 
 } // namespace ntb {}

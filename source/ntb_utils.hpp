@@ -21,17 +21,16 @@
 #include <utility>
 #include <algorithm>
 
-#if NEO_TWEAK_BAR_CXX11_SUPPORTED
+#if defined(__GNUC__) || defined(__clang__)
+    // Clang & GCC
+    #define NTB_ALIGNED(expr, alignment) expr __attribute__((aligned(alignment)))
+#elif defined(_MSC_VER)
+    // Visual Studio
+    #define NTB_ALIGNED(expr, alignment) __declspec(align(alignment)) expr
+#else
+    // Unknown compiler, try C++11 alignas()
     #define NTB_ALIGNED(expr, alignment) alignas(alignment) expr
-#else // !C++11
-    #if defined(__GNUC__) || defined(__clang__) // Clang & GCC
-        #define NTB_ALIGNED(expr, alignment) expr __attribute__((aligned(alignment)))
-    #elif defined(_MSC_VER) // Visual Studio
-        #define NTB_ALIGNED(expr, alignment) __declspec(align(alignment)) expr
-    #else // Unknown compiler
-        #define NTB_ALIGNED(expr, alignment) expr /* hope for the best? */
-    #endif // Compiler id switch
-#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
+#endif
 
 namespace ntb
 {
@@ -47,13 +46,13 @@ int decodeUtf8(const char * encodedBuffer, int * outCharLength);
 
 inline bool stringsEqual(const char * const a, const char * const b)
 {
-    NTB_ASSERT(a != NTB_NULL && b != NTB_NULL);
+    NTB_ASSERT(a != nullptr && b != nullptr);
     return std::strcmp(a, b) == 0;
 }
 
 inline int lengthOfString(const char * const str)
 {
-    NTB_ASSERT(str != NTB_NULL);
+    NTB_ASSERT(str != nullptr);
     // Don't care about 32-64bit truncation.
     // Our strings are not nearly that long.
     return static_cast<int>(std::strlen(str));
@@ -80,15 +79,15 @@ template<typename T>
 inline T * implAllocT(const UInt32 countInItems = 1)
 {
     NTB_ASSERT(countInItems != 0);
-    NTB_ASSERT(getShellInterface() != NTB_NULL);
+    NTB_ASSERT(getShellInterface() != nullptr);
     return static_cast<T *>(getShellInterface()->memAlloc(countInItems * sizeof(T)));
 }
 
 inline void implFree(void * ptrToFree)
 {
-    if (ptrToFree != NTB_NULL)
+    if (ptrToFree != nullptr)
     {
-        NTB_ASSERT(getShellInterface() != NTB_NULL);
+        NTB_ASSERT(getShellInterface() != nullptr);
         getShellInterface()->memFree(ptrToFree);
     }
 }
@@ -102,7 +101,7 @@ inline T * construct(T * obj)
 template<typename T>
 inline void destroy(T * obj)
 {
-    if (obj != NTB_NULL)
+    if (obj != nullptr)
     {
         obj->~T();
     }
@@ -125,15 +124,17 @@ inline void destroy(T * obj)
 // NOTE: This class supports Plain Old Data (POD)
 // types only! No constructor or destructor is called for
 // the stored type. It also uses std::memcpy internally.
-class PODArray NTB_FINAL_CLASS
+class PODArray final
 {
-    NTB_DISABLE_COPY_ASSIGN(PODArray);
-
 public:
 
     // Constructor must receive the size in bytes of the stored type.
     explicit PODArray(int itemSizeBytes);
     PODArray(int itemSizeBytes, int sizeInItems);
+
+    // Not copyable.
+    PODArray(const PODArray &) = delete;
+    PODArray & operator = (const PODArray &) = delete;
 
     // Free all memory associated with the PODArray.
     ~PODArray();
@@ -225,7 +226,7 @@ public:
     }
 
     // Miscellaneous accessors:
-    bool isAllocated() const { return basePtr != NTB_NULL; }
+    bool isAllocated() const { return basePtr != nullptr; }
     bool isEmpty()     const { return ctrl.used == 0; }
     int  getSize()     const { return ctrl.used;      }
     int  getCapacity() const { return ctrl.capacity;  }
@@ -250,8 +251,7 @@ private:
     // Max item size is 65536 bytes (16-bits)
     //
     #pragma pack(push, 1)
-    struct
-    {
+    struct {
         int used     : 24; // Slots used by items.
         int capacity : 24; // Total slots allocated.
         int itemSize : 16; // Size in bytes of each item.
@@ -272,13 +272,13 @@ private:
 // to avoid a dynamic memory alloc for small strings.
 // It can also grow to accommodate arbitrarily sized strings.
 // The overall design is somewhat similar to std::string.
-class SmallStr NTB_FINAL_CLASS
+class SmallStr final
 {
 public:
 
     SmallStr()
     {
-        initInternal(NTB_NULL, 0);
+        initInternal(nullptr, 0);
     }
     ~SmallStr()
     {
@@ -291,12 +291,12 @@ public:
 
     SmallStr(const char * str)
     {
-        NTB_ASSERT(str != NTB_NULL);
+        NTB_ASSERT(str != nullptr);
         initInternal(str, lengthOfString(str));
     }
     SmallStr(const char * str, const int len)
     {
-        NTB_ASSERT(str != NTB_NULL);
+        NTB_ASSERT(str != nullptr);
         initInternal(str, len);
     }
     SmallStr(const SmallStr & other)
@@ -307,12 +307,12 @@ public:
 
     SmallStr & operator = (const SmallStr & other)
     {
-        setCString(other.c_str(), other.getLength());
+        set(other.c_str(), other.getLength());
         return *this;
     }
     SmallStr & operator = (const char * str)
     {
-        setCString(str);
+        set(str);
         return *this;
     }
 
@@ -332,19 +332,19 @@ public:
         NTB_ASSERT(numChars <= 65536);
         ctrl.maxSize = numChars;
     }
-    void setCString(const char * str)
+    void set(const char * str)
     {
-        NTB_ASSERT(str != NTB_NULL);
-        setCString(str, lengthOfString(str));
+        NTB_ASSERT(str != nullptr);
+        set(str, lengthOfString(str));
     }
 
     // Array access operator:
-    char & operator[] (const int index)
+    char & operator[](const int index)
     {
         NTB_ASSERT(index >= 0 && index < getLength());
         return c_str()[index];
     }
-    char operator[] (const int index) const
+    char operator[](const int index) const
     {
         NTB_ASSERT(index >= 0 && index < getLength());
         return c_str()[index];
@@ -352,10 +352,6 @@ public:
 
     // C-string access: (c_str() name for compatibility with std::string)
     const char * c_str() const
-    {
-        return !isDynamic() ? backingStore.fixed : backingStore.dynamic;
-    }
-    char * c_str()
     {
         return !isDynamic() ? backingStore.fixed : backingStore.dynamic;
     }
@@ -371,12 +367,12 @@ public:
     }
     bool operator == (const char * const str) const
     {
-        NTB_ASSERT(str != NTB_NULL);
+        NTB_ASSERT(str != nullptr);
         return std::strcmp(c_str(), str) == 0;
     }
     bool operator != (const char * const str) const
     {
-        NTB_ASSERT(str != NTB_NULL);
+        NTB_ASSERT(str != nullptr);
         return std::strcmp(c_str(), str) != 0;
     }
 
@@ -388,12 +384,13 @@ public:
     int  getMaxSize()  const { return ctrl.maxSize;     }
 
     // String manipulation:
-    void setCString(const char * str, int len);
+    void set(const char * str, int len);
     void resize(int newLength, bool preserveOldStr = true, char fillVal = '\0');
     void append(char c);
     void append(const char * str, int len);
     void erase(int index);
     void insert(int index, char c);
+    void truncate(int maxLen);
     void clear();
 
     // Covert numbers/pointers/vectors to string:
@@ -407,6 +404,7 @@ private:
 
     void initInternal(const char * str, int len);
     void reallocInternal(int newCapacity, bool preserveOldStr);
+    char * c_str() { return !isDynamic() ? backingStore.fixed : backingStore.dynamic; }
 
     #pragma pack(push, 1)
     // Bitfield used here to avoid additional
@@ -420,8 +418,7 @@ private:
     // parts of the UI to constrain text-field lengths
     // and sizes of Panel string variables, which are
     // actually already capped to 256 chars anyways.
-    struct
-    {
+    struct {
         int length   : 24; // Chars used in string, not counting a '\0' at the end.
         int capacity : 24; // Total chars available for use.
         int maxSize  : 16; // Max size (counting the '\0') that this string is allowed to have.
@@ -453,8 +450,8 @@ public:
     T * prev;
     T * next;
 
-    ListNode() : prev(NTB_NULL), next(NTB_NULL) { }
-    bool isLinked() const { return prev != NTB_NULL && next != NTB_NULL; }
+    ListNode() : prev(nullptr), next(nullptr) { }
+    bool isLinked() const { return prev != nullptr && next != nullptr; }
 
 protected:
 
@@ -475,14 +472,16 @@ protected:
 // more than once. Size is stored, so getSize() is O(N).
 // List is circularly referenced: head<->tail are linked.
 template<typename T>
-class IntrusiveList NTB_FINAL_CLASS
+class IntrusiveList final
 {
-    NTB_DISABLE_COPY_ASSIGN(IntrusiveList);
-
 public:
 
     // Constructs an empty list.
-    IntrusiveList() : head(NTB_NULL), size(0) { }
+    IntrusiveList() : head(nullptr), size(0) { }
+
+    // Not copyable.
+    IntrusiveList(const IntrusiveList &) = delete;
+    IntrusiveList & operator = (const IntrusiveList &) = delete;
 
     //
     // pushFront/pushBack:
@@ -491,7 +490,7 @@ public:
     //
     void pushFront(T * node)
     {
-        NTB_ASSERT(node != NTB_NULL);
+        NTB_ASSERT(node != nullptr);
         NTB_ASSERT(!node->isLinked()); // A node can only be a member of one list at a time!
 
         if (!isEmpty())
@@ -514,7 +513,7 @@ public:
     }
     void pushBack(T * node)
     {
-        NTB_ASSERT(node != NTB_NULL);
+        NTB_ASSERT(node != nullptr);
         NTB_ASSERT(!node->isLinked()); // A node can only be a member of one list at a time!
 
         if (!isEmpty())
@@ -544,7 +543,7 @@ public:
     {
         if (isEmpty())
         {
-            return NTB_NULL;
+            return nullptr;
         }
 
         T * removedNode = head;
@@ -555,15 +554,15 @@ public:
         tail->next = head;
         --size;
 
-        removedNode->prev = NTB_NULL;
-        removedNode->next = NTB_NULL;
+        removedNode->prev = nullptr;
+        removedNode->next = nullptr;
         return removedNode;
     }
     T * popBack()
     {
         if (isEmpty())
         {
-            return NTB_NULL;
+            return nullptr;
         }
 
         T * tail = head->prev;
@@ -573,8 +572,8 @@ public:
         tail->prev->next = head;
         --size;
 
-        removedNode->prev = NTB_NULL;
-        removedNode->next = NTB_NULL;
+        removedNode->prev = nullptr;
+        removedNode->next = nullptr;
         return removedNode;
     }
 
@@ -584,7 +583,7 @@ public:
     void unlink(T * node)
     {
         // Note: Assumes the node is linked to THIS LIST.
-        NTB_ASSERT(node != NTB_NULL);
+        NTB_ASSERT(node != nullptr);
         NTB_ASSERT(node->isLinked());
         NTB_ASSERT(!isEmpty());
 
@@ -602,8 +601,8 @@ public:
             T * nodeNext = node->next;
             nodePrev->next = nodeNext;
             nodeNext->prev = nodePrev;
-            node->prev = NTB_NULL;
-            node->next = NTB_NULL;
+            node->prev = nullptr;
+            node->next = nullptr;
             --size;
         }
     }
@@ -621,11 +620,11 @@ public:
             T * tmp = node;
             node = node->next;
 
-            NTB_ASSERT(tmp != NTB_NULL);
-            tmp->prev = NTB_NULL;
-            tmp->next = NTB_NULL;
+            NTB_ASSERT(tmp != nullptr);
+            tmp->prev = nullptr;
+            tmp->next = nullptr;
         }
-        head = NTB_NULL;
+        head = nullptr;
     }
     void unlinkAndFreeAll()
     {
@@ -638,12 +637,12 @@ public:
             destroy(tmp);
             implFree(tmp);
         }
-        head = NTB_NULL;
+        head = nullptr;
     }
 
     // Access the head or tail elements of the doubly-linked list:
     T * getFirst() const { return head; }
-    T * getLast()  const { return isEmpty() ? NTB_NULL : head->prev; }
+    T * getLast()  const { return isEmpty() ? nullptr : head->prev; }
 
     // Constant-time queries:
     int  getSize() const { return size; }
@@ -675,13 +674,6 @@ struct Point
         y = 0;
     }
 };
-
-// This could be a constructor, but I want to keep Point as a POD type.
-inline Point makePoint(const int px, const int py)
-{
-    Point pt = { px, py };
-    return pt;
-}
 
 // ========================================================
 // struct Rectangle:
@@ -731,13 +723,11 @@ struct Rectangle
 
     Rectangle expanded(const int x, const int y) const
     {
-        Rectangle rect = { xMins - x, yMins - y, xMaxs + x, yMaxs + y };
-        return rect;
+        return { xMins - x, yMins - y, xMaxs + x, yMaxs + y };
     }
     Rectangle shrunk(const int x, const int y) const
     {
-        Rectangle rect = { xMins + x, yMins + y, xMaxs - x, yMaxs - y };
-        return rect;
+        return { xMins + x, yMins + y, xMaxs - x, yMaxs - y };
     }
 
     Rectangle & moveBy(const int displacementX, const int displacementY)
@@ -767,13 +757,6 @@ struct Rectangle
     int getHeight() const { return yMaxs - yMins; }
 };
 
-// This could be a constructor, but I want to keep Rectangle as a POD type.
-inline Rectangle makeRect(const int x0, const int y0, const int x1, const int y1)
-{
-    Rectangle rect = { x0, y0, x1, y1 };
-    return rect;
-}
-
 // ========================================================
 // struct Vec3:
 // ========================================================
@@ -799,19 +782,11 @@ struct Vec3
 
     static Vec3 subtract(const Vec3 & a, const Vec3 & b)
     {
-        Vec3 result;
-        result.x = a.x - b.x;
-        result.y = a.y - b.y;
-        result.z = a.z - b.z;
-        return result;
+        return { a.x - b.x, a.y - b.y, a.z - b.z };
     }
     static Vec3 add(const Vec3 & a, const Vec3 & b)
     {
-        Vec3 result;
-        result.x = a.x + b.x;
-        result.y = a.y + b.y;
-        result.z = a.z + b.z;
-        return result;
+        return { a.x + b.x, a.y + b.y, a.z + b.z };
     }
 
     static Float32 dot(const Vec3 & a, const Vec3 & b)
@@ -820,11 +795,9 @@ struct Vec3
     }
     static Vec3 cross(const Vec3 & a, const Vec3 & b)
     {
-        Vec3 result;
-        result.x = (a.y * b.z) - (a.z * b.y);
-        result.y = (a.z * b.x) - (a.x * b.z);
-        result.z = (a.x * b.y) - (a.y * b.x);
-        return result;
+        return { (a.y * b.z) - (a.z * b.y),
+                 (a.z * b.x) - (a.x * b.z),
+                 (a.x * b.y) - (a.y * b.x) };
     }
 
     static Float32 length(const Vec3 & v)
@@ -834,16 +807,9 @@ struct Vec3
     static Vec3 normalize(const Vec3 & v)
     {
         const Float32 invLen = 1.0f / Vec3::length(v);
-        Vec3 result = { v.x * invLen, v.y * invLen, v.z * invLen };
-        return result;
+        return { v.x * invLen, v.y * invLen, v.z * invLen };
     }
 };
-
-inline Vec3 makeVec3(const Float32 x, const Float32 y, const Float32 z)
-{
-    Vec3 result = { x, y, z };
-    return result;
-}
 
 // ========================================================
 // struct Vec4:
@@ -872,29 +838,23 @@ struct Vec4
     }
 };
 
-inline Vec4 makeVec4(const Float32 x, const Float32 y, const Float32 z, const Float32 w)
-{
-    Vec4 result = { x, y, z, w };
-    return result;
-}
-
 // ========================================================
 // struct Mat4x4:
 // ========================================================
 
 struct Mat4x4
 {
-    typedef Float32 Vec4Ptr[4];
+    using Vec4Ptr = Float32[4];
     Vec4 rows[4];
 
-    Float32       * getData()       { return reinterpret_cast<Float32       *>(this); }
     const Float32 * getData() const { return reinterpret_cast<const Float32 *>(this); }
+          Float32 * getData()       { return reinterpret_cast<      Float32 *>(this); }
 
-    Vec4Ptr       * getRows()       { return reinterpret_cast<Vec4Ptr       *>(this); }
     const Vec4Ptr * getRows() const { return reinterpret_cast<const Vec4Ptr *>(this); }
+          Vec4Ptr * getRows()       { return reinterpret_cast<      Vec4Ptr *>(this); }
 
-    Vec4       & operator[](const int row)       { NTB_ASSERT(row >= 0 && row < 4); return rows[row]; }
     const Vec4 & operator[](const int row) const { NTB_ASSERT(row >= 0 && row < 4); return rows[row]; }
+          Vec4 & operator[](const int row)       { NTB_ASSERT(row >= 0 && row < 4); return rows[row]; }
 
     void setIdentity();
     void setRows(const Vec4 & row0, const Vec4 & row1, const Vec4 & row2, const Vec4 & row3);
@@ -951,12 +911,12 @@ struct BoxVert
     Color32 color;
 };
 
-inline Float32 degToRad(const Float32 degrees)
+constexpr Float32 degToRad(const Float32 degrees)
 {
     return degrees * (3.1415926535897931f / 180.0f);
 }
 
-inline Float32 radToDeg(const Float32 radians)
+constexpr Float32 radToDeg(const Float32 radians)
 {
     return radians * (180.0f / 3.1415926535897931f);
 }

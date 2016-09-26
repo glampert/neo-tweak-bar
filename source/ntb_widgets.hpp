@@ -12,32 +12,40 @@
 
 #include "ntb_utils.hpp"
 
+#if NEO_TWEAK_BAR_DEBUG
+    #include <iostream>
+#endif // NEO_TWEAK_BAR_DEBUG
+
 namespace ntb
 {
 
-struct TextAlign
+// ========================================================
+// Helper structures:
+// ========================================================
+
+enum class TextAlign
 {
-    enum
-    {
-        Left,
-        Right,
-        Center
-    };
-    typedef Int8 Enum;
+    Left,
+    Right,
+    Center
 };
+
+struct ColorScheme {}; //TODO
 
 // ========================================================
 // class GeometryBatch:
 // ========================================================
 
-class GeometryBatch NTB_FINAL_CLASS
+class GeometryBatch final
 {
-    NTB_DISABLE_COPY_ASSIGN(GeometryBatch);
-
 public:
 
      GeometryBatch();
     ~GeometryBatch();
+
+    // Not copyable.
+    GeometryBatch(const GeometryBatch &) = delete;
+    GeometryBatch & operator = (const GeometryBatch &) = delete;
 
     // Preallocate memory for the draw batches. This is optional since the batches
     // will resize as needed. You can hint the number of lines, quadrilaterals, text
@@ -78,7 +86,7 @@ public:
     // Handles newlines, spaces and tabs, etc.
     // For efficiency reasons, clipping is done per character, so partly occluded chars will not draw.
     void drawTextConstrained(const char * text, int textLength, Rectangle alignBox, const Rectangle & clipBox,
-                             Float32 scaling, Color32 color, TextAlign::Enum align);
+                             Float32 scaling, Color32 color, TextAlign align);
 
     // Width in pixels of a text string using the given font. Doesn't actually draw anything.
     static Float32 calcTextWidth(const char * text, int textLength, Float32 scaling);
@@ -129,6 +137,282 @@ private:
     PODArray vertsClippedBatch; // [VertexPTC]
     PODArray trisClippedBatch;  // [UInt16]
 };
+
+// ========================================================
+// class Widget:
+// ========================================================
+
+// Basically an interactive screen/UI element.
+// A panel has a widget, but so does a button
+// or a tweakable variable. Widget are drawable
+// and can also respond to user input.
+class Widget
+{
+public:
+
+    enum Flags
+    {
+        FlagVisible           = 1 << 0,
+        FlagMinimized         = 1 << 1,
+        FlagScrolledOutOfView = 1 << 2,
+        FlagMouseIntersecting = 1 << 3,
+        FlagMouseDragEnabled  = 1 << 4,
+        FlagNoRectShadow      = 1 << 5,
+        FlagNeedDeleting      = 1 << 6
+    };
+
+    enum Corner
+    {
+        TopLeft,
+        BottomLeft,
+        TopRight,
+        BottomRight,
+
+        CornerCount,
+        CornerNone = CornerCount
+    };
+
+    // Not copyable.
+    Widget(const Widget &) = delete;
+    Widget & operator = (const Widget &) = delete;
+
+    // Init/shutdown:
+    Widget();
+    virtual ~Widget();
+    virtual void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect);
+
+    // Input events:
+    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers);
+    virtual bool onMouseButton(MouseButton button, int clicks);
+    virtual bool onMouseMotion(int mx, int my);
+    virtual bool onMouseScroll(int yScroll);
+    virtual void onScrollContentUp();
+    virtual void onScrollContentDown();
+
+    // Layout/drawing events:
+    virtual void onDraw(GeometryBatch & geoBatch) const;
+    virtual void onResize(int displacementX, int displacementY, Corner corner);
+    virtual void onMove(int displacementX, int displacementY);
+    virtual void onAdjustLayout();
+    virtual void onDisableEditing();
+
+    // Miscellaneous gets/sets:
+    bool isVisible() const;
+    bool isMinimized() const;
+    bool isScrolledOutOfView() const;
+    bool isMouseIntersecting() const;
+    bool isMouseDragEnabled() const;
+
+    virtual void setVisible(bool visible);
+    virtual void setMouseIntersecting(bool intersect);
+    void setMinimized(bool minimized);
+    void setScrolledOutOfView(bool outOfView);
+    void setMouseDragEnabled(bool enabled);
+    void setGUI(GUI * newGUI);
+    void setParent(Widget * newParent);
+    void setColors(const ColorScheme * newColors);
+    void setRect(const Rectangle & newRect);
+    void setNormalColors();
+    void setHighlightedColors();
+
+    const ColorScheme & getColors() const;
+    const Rectangle & getRect() const;
+
+    const GUI * getGUI() const;
+    GUI * getGUI();
+
+    const Widget * getParent() const;
+    Widget * getParent();
+
+    // Parenting/hierarchy:
+    const Widget * getChild(int index) const;
+    Widget * getChild(int index);
+    bool isChild(const Widget * widget) const;
+    void addChild(Widget * newChild);
+    int getChildCount() const;
+
+    // UI/text scaling:
+    Float32 getTextScaling() const;
+    Float32 getScaling() const;
+    int uiScaled(int val) const;
+    static int uiScaleBy(int val, Float32 scale);
+
+    // State flags:
+    bool testFlag(UInt32 mask) const;
+    void setFlag(UInt32 mask, int f);
+
+    // Debug printing helpers:
+    #if NEO_TWEAK_BAR_DEBUG
+    virtual void printHierarchy(std::ostream & out = std::cout, const SmallStr & indent = "") const;
+    virtual SmallStr getTypeString() const { return "Widget"; }
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+protected:
+
+    void drawSelf(GeometryBatch & geoBatch) const;
+    void drawChildren(GeometryBatch & geoBatch) const;
+
+    GUI               * gui;          // Direct pointer to the owning UI for things like color-scheme and scaling; never null.
+    Widget            * parent;       // Direct parent in the hierarchy (Panel/Window); may be null.
+    const ColorScheme * colors;       // A pointer so we can hot swap it, but never null.
+    PODArray            children;     // List of pointers to the child widgets, if any.
+    Float32             scaling;      // Scaling factor applied to the UI geometry.
+    Float32             textScaling;  // Scaling applied to the text only.
+    UInt32              flags;        // Miscellaneous state flags (from the Flags enum).
+    Rectangle           rect;         // Drawable rectangle.
+    Point               lastMousePos; // Saved from last time onMouseMotion() was called.
+};
+
+// ========================================================
+// Inline methods for the Widget class:
+// ========================================================
+
+inline bool Widget::isVisible() const
+{
+    return testFlag(FlagVisible);
+}
+
+inline bool Widget::isMinimized() const
+{
+    return testFlag(FlagMinimized);
+}
+
+inline bool Widget::isScrolledOutOfView() const
+{
+    return testFlag(FlagScrolledOutOfView);
+}
+
+inline bool Widget::isMouseIntersecting() const
+{
+    return testFlag(FlagMouseIntersecting);
+}
+
+inline bool Widget::isMouseDragEnabled() const
+{
+    return testFlag(FlagMouseDragEnabled);
+}
+
+inline void Widget::setVisible(bool visible)
+{
+    setFlag(FlagVisible, visible);
+}
+
+inline void Widget::setMouseIntersecting(bool intersect)
+{
+    setFlag(FlagMouseIntersecting, intersect);
+}
+
+inline void Widget::setMinimized(bool minimized)
+{
+    setFlag(FlagMinimized, minimized);
+}
+
+inline void Widget::setScrolledOutOfView(bool outOfView)
+{
+    setFlag(FlagScrolledOutOfView, outOfView);
+}
+
+inline void Widget::setGUI(GUI * newGUI)
+{
+    NTB_ASSERT(newGUI != nullptr);
+    gui = newGUI;
+}
+
+inline void Widget::setParent(Widget * newParent)
+{
+    parent = newParent;
+}
+
+inline void Widget::setColors(const ColorScheme * newColors)
+{
+    NTB_ASSERT(newColors != nullptr);
+    colors = newColors;
+}
+
+inline void Widget::setRect(const Rectangle & newRect)
+{
+    rect = newRect;
+}
+
+inline const ColorScheme & Widget::getColors() const
+{
+    NTB_ASSERT(colors != nullptr);
+    return *colors;
+}
+
+inline const Rectangle & Widget::getRect() const
+{
+    return rect;
+}
+
+inline const GUI * Widget::getGUI() const
+{
+    NTB_ASSERT(gui != nullptr);
+    return gui;
+}
+
+inline GUI * Widget::getGUI()
+{
+    NTB_ASSERT(gui != nullptr);
+    return gui;
+}
+
+inline const Widget * Widget::getParent() const
+{
+    return parent;
+}
+
+inline Widget * Widget::getParent()
+{
+    return parent;
+}
+
+inline const Widget * Widget::getChild(int index) const
+{
+    return children.get<const Widget *>(index);
+}
+
+inline Widget * Widget::getChild(int index)
+{
+    return children.get<Widget *>(index);
+}
+
+inline int Widget::getChildCount() const
+{
+    return children.getSize();
+}
+
+inline Float32 Widget::getTextScaling() const
+{
+    return textScaling;
+}
+
+inline Float32 Widget::getScaling() const
+{
+    return scaling;
+}
+
+inline int Widget::uiScaled(int val) const
+{
+    return uiScaleBy(val, scaling);
+}
+
+inline int Widget::uiScaleBy(int val, Float32 scale)
+{
+    return static_cast<int>(static_cast<Float32>(val) * scale);
+}
+
+inline bool Widget::testFlag(UInt32 mask) const
+{
+    return !!(flags & mask);
+}
+
+inline void Widget::setFlag(UInt32 mask, int f)
+{
+    // Using one of the Standford bit-hacks:
+    // http://graphics.stanford.edu/~seander/bithacks.html
+    flags = (flags & ~mask) | (-f & mask);
+}
 
 } // namespace ntb {}
 

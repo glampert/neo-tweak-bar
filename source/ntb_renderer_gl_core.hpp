@@ -35,6 +35,10 @@ public:
     RenderInterfaceDefaultGLCore(int windowW, int windowH);
     virtual ~RenderInterfaceDefaultGLCore();
 
+    // Not copyable.
+    RenderInterfaceDefaultGLCore(const RenderInterfaceDefaultGLCore &) = delete;
+    RenderInterfaceDefaultGLCore & operator = (const RenderInterfaceDefaultGLCore &) = delete;
+
     // -- Local queries and helpers --
 
     bool isCheckingGLErrors() const;
@@ -66,31 +70,31 @@ public:
 
     // -- Miscellaneous --
 
-    void beginDraw() NTB_OVERRIDE;
-    void endDraw()   NTB_OVERRIDE;
+    void beginDraw() override;
+    void endDraw()   override;
 
     void getViewport(int * viewportX, int * viewportY,
-                     int * viewportW, int * viewportH) const NTB_OVERRIDE;
+                     int * viewportW, int * viewportH) const override;
 
     // -- Texture allocation --
 
     TextureHandle createTexture(int widthPixels, int heightPixels,
-                                int colorChannels, const void * pixels) NTB_OVERRIDE;
+                                int colorChannels, const void * pixels) override;
 
-    void destroyTexture(TextureHandle texture) NTB_OVERRIDE;
+    void destroyTexture(TextureHandle texture) override;
 
     // -- Drawing commands --
 
-    void draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ) NTB_OVERRIDE;
+    void draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ) override;
 
     void draw2DTriangles(const VertexPTC * verts, int vertCount,
                          const UInt16 * indexes, int indexCount,
-                         TextureHandle texture, int frameMaxZ) NTB_OVERRIDE;
+                         TextureHandle texture, int frameMaxZ) override;
 
     void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
                                 const UInt16 * indexes, int indexCount,
                                 const DrawClippedInfo * drawInfo,
-                                int drawInfoCount, int frameMaxZ) NTB_OVERRIDE;
+                                int drawInfoCount, int frameMaxZ) override;
 
 private:
 
@@ -260,7 +264,7 @@ RenderInterfaceDefaultGLCore::RenderInterfaceDefaultGLCore(const int windowW, co
     , shaderProgTris2D_ColorTexture(-1)
     , vsTris2D(0)
     , fsTris2D(0)
-    , whiteTexture(NTB_NULL)
+    , whiteTexture(nullptr)
 {
     std::memset(&glStates,       0, sizeof(glStates));
     std::memset(&glslVersionStr, 0, sizeof(glslVersionStr));
@@ -352,12 +356,12 @@ void RenderInterfaceDefaultGLCore::initShaders()
 
     vsLines2D = glCreateShader(GL_VERTEX_SHADER);
     const char * vsLines2DStrings[] = { glslVersionStr, vsCommon, vsLines2DSource };
-    glShaderSource(vsLines2D, ntb::lengthOfArray(vsLines2DStrings), vsLines2DStrings, NTB_NULL);
+    glShaderSource(vsLines2D, ntb::lengthOfArray(vsLines2DStrings), vsLines2DStrings, nullptr);
     compileShader(&vsLines2D);
 
     fsLines2D = glCreateShader(GL_FRAGMENT_SHADER);
     const char * fsLines2DStrings[] = { glslVersionStr, fsLines2DSource };
-    glShaderSource(fsLines2D, ntb::lengthOfArray(fsLines2DStrings), fsLines2DStrings, NTB_NULL);
+    glShaderSource(fsLines2D, ntb::lengthOfArray(fsLines2DStrings), fsLines2DStrings, nullptr);
     compileShader(&fsLines2D);
 
     shaderProgLines2D = glCreateProgram();
@@ -410,12 +414,12 @@ void RenderInterfaceDefaultGLCore::initShaders()
 
     vsTris2D = glCreateShader(GL_VERTEX_SHADER);
     const char * vsTris2DStrings[] = { glslVersionStr, vsCommon, vsTris2DSource };
-    glShaderSource(vsTris2D, ntb::lengthOfArray(vsTris2DStrings), vsTris2DStrings, NTB_NULL);
+    glShaderSource(vsTris2D, ntb::lengthOfArray(vsTris2DStrings), vsTris2DStrings, nullptr);
     compileShader(&vsTris2D);
 
     fsTris2D = glCreateShader(GL_FRAGMENT_SHADER);
     const char * fsTris2DStrings[] = { glslVersionStr, fsTris2DSource };
-    glShaderSource(fsTris2D, ntb::lengthOfArray(fsTris2DStrings), fsTris2DStrings, NTB_NULL);
+    glShaderSource(fsTris2D, ntb::lengthOfArray(fsTris2DStrings), fsTris2DStrings, nullptr);
     compileShader(&fsTris2D);
 
     shaderProgTris2D = glCreateProgram();
@@ -455,7 +459,7 @@ void RenderInterfaceDefaultGLCore::compileShader(GLuint * shader)
         if (infoLogLength > 0)
         {
             char strInfoLog[1024] = {'\0'};
-            glGetShaderInfoLog(*shader, sizeof(strInfoLog), NTB_NULL, strInfoLog);
+            glGetShaderInfoLog(*shader, sizeof(strInfoLog), nullptr, strInfoLog);
             errorF("NTB RenderInterfaceDefaultGLCore: Shader compilation failure:\n%s", strInfoLog);
         }
         else
@@ -484,7 +488,7 @@ void RenderInterfaceDefaultGLCore::linkProgram(GLuint * program)
         if (infoLogLength > 0)
         {
             char strInfoLog[1024] = {'\0'};
-            glGetProgramInfoLog(*program, sizeof(strInfoLog), NTB_NULL, strInfoLog);
+            glGetProgramInfoLog(*program, sizeof(strInfoLog), nullptr, strInfoLog);
             errorF("NTB RenderInterfaceDefaultGLCore: Shader program linking failure:\n%s", strInfoLog);
         }
         else
@@ -578,10 +582,10 @@ void RenderInterfaceDefaultGLCore::endDraw()
 void RenderInterfaceDefaultGLCore::getViewport(int * viewportX, int * viewportY,
                                                int * viewportW, int * viewportH) const
 {
-    NTB_ASSERT(viewportX != NTB_NULL);
-    NTB_ASSERT(viewportY != NTB_NULL);
-    NTB_ASSERT(viewportW != NTB_NULL);
-    NTB_ASSERT(viewportH != NTB_NULL);
+    NTB_ASSERT(viewportX != nullptr);
+    NTB_ASSERT(viewportY != nullptr);
+    NTB_ASSERT(viewportW != nullptr);
+    NTB_ASSERT(viewportH != nullptr);
 
     (*viewportX) = glStates.viewport[0];
     (*viewportY) = glStates.viewport[1];
@@ -596,14 +600,14 @@ TextureHandle RenderInterfaceDefaultGLCore::createTexture(int widthPixels, int h
     NTB_ASSERT(heightPixels  >  0);
     NTB_ASSERT(colorChannels >  0);
     NTB_ASSERT(colorChannels <= 4); // Up to GL_RGBA
-    NTB_ASSERT(pixels != NTB_NULL);
+    NTB_ASSERT(pixels != nullptr);
 
     GLTextureRecord * newTex = implAllocT<GLTextureRecord>();
     newTex->width  = widthPixels;
     newTex->height = heightPixels;
     newTex->texId  = 0;
-    newTex->prev   = NTB_NULL;
-    newTex->next   = NTB_NULL;
+    newTex->prev   = nullptr;
+    newTex->next   = nullptr;
 
     GLint oldTexture = 0;
     GLint oldUnpackAlign = 0;
@@ -679,12 +683,12 @@ TextureHandle RenderInterfaceDefaultGLCore::createTexture(int widthPixels, int h
 
 void RenderInterfaceDefaultGLCore::destroyTexture(TextureHandle texture)
 {
-    if (texture == NTB_NULL)
+    if (texture == nullptr)
     {
         return;
     }
 
-    GLTextureRecord * found = NTB_NULL;
+    GLTextureRecord * found = nullptr;
     GLTextureRecord * iter  = textures.getFirst();
 
     for (int count = textures.getSize(); count--; iter = iter->next)
@@ -717,7 +721,7 @@ void RenderInterfaceDefaultGLCore::freeAllTextures()
     }
 
     textures.unlinkAndFreeAll();
-    whiteTexture = NTB_NULL;
+    whiteTexture = nullptr;
 }
 
 void RenderInterfaceDefaultGLCore::freeAllShadersAndBuffes()
@@ -753,7 +757,7 @@ void RenderInterfaceDefaultGLCore::freeAllShadersAndBuffes()
 
 void RenderInterfaceDefaultGLCore::draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ)
 {
-    NTB_ASSERT(verts != NTB_NULL);
+    NTB_ASSERT(verts != nullptr);
     NTB_ASSERT(vertCount > 0);
 
     glBindBuffer(GL_ARRAY_BUFFER, vboLines2D);
@@ -787,8 +791,8 @@ void RenderInterfaceDefaultGLCore::draw2DTriangles(const VertexPTC * verts, int 
                                                    const UInt16 * indexes, int indexCount,
                                                    TextureHandle texture, int frameMaxZ)
 {
-    NTB_ASSERT(verts   != NTB_NULL);
-    NTB_ASSERT(indexes != NTB_NULL);
+    NTB_ASSERT(verts   != nullptr);
+    NTB_ASSERT(indexes != nullptr);
     NTB_ASSERT(vertCount  > 0);
     NTB_ASSERT(indexCount > 0);
 
@@ -810,16 +814,16 @@ void RenderInterfaceDefaultGLCore::draw2DTriangles(const VertexPTC * verts, int 
     // Texture is optional.
     // If not set, use a default white texture so we can share the same shader program.
     glActiveTexture(GL_TEXTURE0);
-    if (texture != NTB_NULL)
+    if (texture != nullptr)
     {
         glBindTexture(GL_TEXTURE_2D, reinterpret_cast<const GLTextureRecord *>(texture)->texId);
     }
     else
     {
-        if (whiteTexture == NTB_NULL)
+        if (whiteTexture == nullptr)
         {
             makeWhiteTexture();
-            NTB_ASSERT(whiteTexture != NTB_NULL);
+            NTB_ASSERT(whiteTexture != nullptr);
         }
         glBindTexture(GL_TEXTURE_2D, whiteTexture->texId);
     }
@@ -837,7 +841,7 @@ void RenderInterfaceDefaultGLCore::draw2DTriangles(const VertexPTC * verts, int 
     glUniform1i(shaderProgTris2D_ColorTexture, 0);
 
     // Draw call:
-    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, NTB_NULL);
+    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, nullptr);
 
     if (checkGLErrors)
     {
@@ -850,9 +854,9 @@ void RenderInterfaceDefaultGLCore::drawClipped2DTriangles(const VertexPTC * vert
                                                           const DrawClippedInfo * drawInfo,
                                                           int drawInfoCount, int frameMaxZ)
 {
-    NTB_ASSERT(verts    != NTB_NULL);
-    NTB_ASSERT(indexes  != NTB_NULL);
-    NTB_ASSERT(drawInfo != NTB_NULL);
+    NTB_ASSERT(verts    != nullptr);
+    NTB_ASSERT(indexes  != nullptr);
+    NTB_ASSERT(drawInfo != nullptr);
 
     NTB_ASSERT(vertCount     > 0);
     NTB_ASSERT(indexCount    > 0);
@@ -913,17 +917,17 @@ void RenderInterfaceDefaultGLCore::drawClipped2DTriangles(const VertexPTC * vert
         glScissor(clipX, clipY, clipW, clipH);
 
         const GLTextureRecord * texGl = reinterpret_cast<const GLTextureRecord *>(drawInfo[i].texture);
-        if (texGl != NTB_NULL && texGl->texId != currentTexId)
+        if (texGl != nullptr && texGl->texId != currentTexId)
         {
             currentTexId = texGl->texId;
             glBindTexture(GL_TEXTURE_2D, currentTexId);
         }
         else
         {
-            if (whiteTexture == NTB_NULL)
+            if (whiteTexture == nullptr)
             {
                 makeWhiteTexture();
-                NTB_ASSERT(whiteTexture != NTB_NULL);
+                NTB_ASSERT(whiteTexture != nullptr);
             }
 
             if (whiteTexture->texId != currentTexId)

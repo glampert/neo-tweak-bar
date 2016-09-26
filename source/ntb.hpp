@@ -11,64 +11,19 @@
 #define NTB_HPP
 
 #include <cstddef>
+#include <cstdint>
+#include <type_traits>
 
-//
-// If the user didn't specify if C++11 or above is supported, try to guess
-// from the value of '__cplusplus'. It should be 199711L for pre-C++11 compilers
-// and 201103L in those supporting C++11, but this is not a guarantee that all
-// C++11 features will be available and stable, so again, we are making a guess.
-// It is recommended to instead supply the NEO_TWEAK_BAR_CXX11_SUPPORTED switch
-// yourself while building the library.
-//
-#ifndef NEO_TWEAK_BAR_CXX11_SUPPORTED
-    #if (__cplusplus > 199711L)
-        #define NEO_TWEAK_BAR_CXX11_SUPPORTED 1
-    #endif // __cplusplus
-#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
-
-//
 // Overridable assert() macro for NTB.
-//
 #ifndef NTB_ASSERT
     #include <cassert>
     #define NTB_ASSERT assert
 #endif // NTB_ASSERT
 
-//
-// cstdint/stdint.h and type_traits are only standard starting from C++11.
-//
-#if NEO_TWEAK_BAR_CXX11_SUPPORTED
-    #include <cstdint>
-    #include <type_traits>
-#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
-
-//
 // ntb::Panel only accepts std::string if this switch is defined.
-//
 #if NEO_TWEAK_BAR_STD_STRING_INTEROP
     #include <string>
 #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
-
-//
-// C++11 => C++98/03 compatibility.
-//
-#if NEO_TWEAK_BAR_CXX11_SUPPORTED
-    #define NTB_NULL        nullptr
-    #define NTB_OVERRIDE    override
-    #define NTB_FINAL_CLASS final
-    #define NTB_DISABLE_COPY_ASSIGN(className) \
-        private:                               \
-        className(const className &) = delete; \
-        className & operator = (const className &) = delete
-#else // !C++11
-    #define NTB_NULL        NULL
-    #define NTB_OVERRIDE    /* nothing */
-    #define NTB_FINAL_CLASS /* nothing */
-    #define NTB_DISABLE_COPY_ASSIGN(className) \
-        private:                               \
-        className(const className &);          \
-        className & operator = (const className &)
-#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
 namespace ntb
 {
@@ -85,40 +40,27 @@ class GUI;
 //
 // Integer/floating-point sized types:
 //
-#if NEO_TWEAK_BAR_CXX11_SUPPORTED
-    typedef std::int8_t        Int8;
-    typedef std::uint8_t       UInt8;
-    typedef std::int16_t       Int16;
-    typedef std::uint16_t      UInt16;
-    typedef std::int32_t       Int32;
-    typedef std::uint32_t      UInt32;
-    typedef std::int64_t       Int64;
-    typedef std::uint64_t      UInt64;
-    typedef float              Float32;
-    typedef double             Float64;
-#else // !C++11
-    typedef signed char        Int8;
-    typedef unsigned char      UInt8;
-    typedef signed short       Int16;
-    typedef unsigned short     UInt16;
-    typedef signed int         Int32;
-    typedef unsigned int       UInt32;
-    typedef signed long long   Int64;
-    typedef unsigned long long UInt64;
-    typedef float              Float32;
-    typedef double             Float64;
-#endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
+using Int8    = std::int8_t;
+using UInt8   = std::uint8_t;
+using Int16   = std::int16_t;
+using UInt16  = std::uint16_t;
+using Int32   = std::int32_t;
+using UInt32  = std::uint32_t;
+using Int64   = std::int64_t;
+using UInt64  = std::uint64_t;
+using Float32 = float;
+using Float64 = double;
 
 //
 // 32 bits ARGB color value.
 //
-typedef UInt32 Color32;
+using Color32 = UInt32;
 
 // Pack each byte into an integer Color32.
 // 0x00-00-00-00
 //   aa-rr-gg-bb
 // Order will be ARGB, but APIs like OpenGL read it right-to-left as BGRA (GL_BGRA).
-inline Color32 packColor(const UInt8 r, const UInt8 g, const UInt8 b, const UInt8 a = 255)
+constexpr Color32 packColor(const UInt8 r, const UInt8 g, const UInt8 b, const UInt8 a = 255)
 {
     return static_cast<Color32>((a << 24) | (r << 16) | (g << 8) | b);
 }
@@ -134,14 +76,14 @@ inline void unpackColor(const Color32 color, UInt8 & r, UInt8 & g, UInt8 & b, UI
 
 // Byte in [0,255] range to Float32 in [0,1] range.
 // Used for color space conversions.
-inline Float32 byteToFloat(const UInt8 b)
+constexpr Float32 byteToFloat(const UInt8 b)
 {
     return static_cast<Float32>(b) * (1.0f / 255.0f);
 }
 
 // Float in [0,1] range to byte in [0,255] range.
 // Used for color space conversions. Note that 'f' is not clamped!
-inline UInt8 floatToByte(const Float32 f)
+constexpr UInt8 floatToByte(const Float32 f)
 {
     return static_cast<UInt8>(f * 255.0f);
 }
@@ -149,22 +91,18 @@ inline UInt8 floatToByte(const Float32 f)
 //
 // Displayed numerical bases for number variables.
 //
-struct NumberFormat
+enum class NumberFormat : UInt8
 {
-    enum
-    {
-        Binary      = 2,
-        Octal       = 8,
-        Decimal     = 10,
-        Hexadecimal = 16
-    };
-    typedef Int8 Enum;
+    Binary      = 2,
+    Octal       = 8,
+    Decimal     = 10,
+    Hexadecimal = 16
 };
 
 //
 // List of allowed constant values for enum variables.
 //
-struct EnumConstant NTB_FINAL_CLASS
+struct EnumConstant final
 {
     const char * name;
     const Int64  value;
@@ -189,21 +127,21 @@ inline EnumConstant EnumTypeDecl()
 
 // Length in elements of a statically-declared C-style array.
 template<typename T, int Length>
-inline int lengthOfArray(const T (&)[Length])
+constexpr int lengthOfArray(const T (&)[Length])
 {
     return Length;
 }
 
 // Remaps the value 'x' from one arbitrary min,max range to another.
 template<typename T>
-inline T remap(const T x, const T inMin, const T inMax, const T outMin, const T outMax)
+constexpr T remap(const T x, const T inMin, const T inMax, const T outMin, const T outMax)
 {
     return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
 }
 
 // Clamp 'x' between min/max bounds.
 template<typename T>
-inline T clamp(const T x, const T minimum, const T maximum)
+constexpr T clamp(const T x, const T minimum, const T maximum)
 {
     return (x < minimum) ? minimum : (x > maximum) ? maximum : x;
 }
@@ -212,79 +150,71 @@ inline T clamp(const T x, const T minimum, const T maximum)
 // Input helpers:
 // ========================================================
 
-struct MouseButton
+enum class MouseButton
 {
-    enum
-    {
-        Left,
-        Right,
-        Middle
-    };
-    typedef Int8 Enum;
-    static const char * toString(MouseButton::Enum button);
+    Left,
+    Right,
+    Middle
 };
 
-// Following KeyModifiers can be ORed together.
-typedef UInt32 KeyModFlags;
+enum class SpecialKeys
+{
+    // Zero is reserved as a flag for "no key pressed".
+    Null = 0,
+
+    // First 0-255 keys are reserved for the ASCII characters.
+    Return = 256,
+    Escape,
+    Backspace,
+    Delete,
+    Tab,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    UpArrow,
+    DownArrow,
+    RightArrow,
+    LeftArrow,
+    Insert,
+
+    // These are not used and free for user-defined bindings.
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+
+    // Sentinel value; Used internally.
+    LastKey
+};
 
 struct KeyModifiers
 {
-    enum
-    {
-        Shift = 1 << 0,
-        Ctrl  = 1 << 1,
-        Cmd   = 1 << 2,
-    };
-    static const char * toString(KeyModFlags modifiers);
+    static constexpr UInt32 Shift = 1 << 0;
+    static constexpr UInt32 Ctrl  = 1 << 1;
+    static constexpr UInt32 Cmd   = 1 << 2;
 };
+
+// KeyModifiers flags can be ORed together.
+using KeyModFlags = UInt32;
 
 // Keyboard keys:
 // - Lowercase ASCII keys + 0-9 and digits;
-// - Special keys as the following enum.
-typedef UInt32 KeyCode;
+// - Special keys as the SpecialKeys enum.
+using KeyCode = UInt32;
 
-struct SpecialKeys
-{
-    enum
-    {
-        // Zero is reserved as a flag for "no key pressed".
-        Null = 0,
-
-        // First 0-255 keys are reserved for the ASCII characters.
-        Return = 256,
-        Escape,
-        Backspace,
-        Delete,
-        Tab,
-        Home,
-        End,
-        PageUp,
-        PageDown,
-        UpArrow,
-        DownArrow,
-        RightArrow,
-        LeftArrow,
-        Insert,
-
-        // These are not used and free for user-defined bindings.
-        F1,
-        F2,
-        F3,
-        F4,
-        F5,
-        F6,
-        F7,
-        F8,
-        F9,
-        F10,
-        F11,
-        F12,
-
-        // Sentinel value; Used internally.
-        LastKey
-    };
-    static const char * toString(KeyCode keyCode);
-};
+// Debug printing helpers:
+const char * mouseButtonToString(MouseButton button);
+const char * keyCodeToString(KeyCode keyCode);
+const char * keyModFlagsToString(KeyModFlags modifiers);
 
 // ========================================================
 // class ShellInterface:
@@ -315,7 +245,7 @@ public:
 
 // Opaque handle to a texture type, implemented by the user.
 struct OpaqueTextureType;
-typedef OpaqueTextureType * TextureHandle;
+using TextureHandle = OpaqueTextureType *;
 
 // Range of indexes to draw with custom clipbox and viewport.
 struct DrawClippedInfo
@@ -410,47 +340,16 @@ public:
 namespace detail
 {
 
-// This is based on a similar trick presented in the book
-// "Modern C++ Design: Generic Programming and Design Patterns"
-// to avoid relying on the alignas() operator, only available from
-// C++11. The union is a mix of types with different alignments
-// and sizes, so it will select the largest alignment required.
-template<typename T, typename U = T, typename V = T>
-struct MaxAlign
-{
-    struct DummyS;
-    typedef void (DummyS::*MemFunc)();
-    typedef int  (*CFunc)(DummyS *);
-    union Blob
-    {
-        UInt8    userDataT[sizeof(T)];
-        UInt8    userDataU[sizeof(U)];
-        UInt8    userDataV[sizeof(V)];
-        DummyS * dummy0;
-        CFunc    dummy1;
-        MemFunc  dummy2;
-        char     dummy3;
-        short    dummy4;
-        int      dummy5;
-        long     dummy6;
-        float    dummy7;
-        double   dummy8;
-        bool     dummy9;
-        void *   dummy10;
-        Int64    dummy11;
-    } blob;
-};
-
-template<typename T> struct StripPtrRefConst            { typedef T Type; };
-template<typename T> struct StripPtrRefConst<T *>       { typedef T Type; };
-template<typename T> struct StripPtrRefConst<T &>       { typedef T Type; };
-template<typename T> struct StripPtrRefConst<const T *> { typedef T Type; };
-template<typename T> struct StripPtrRefConst<const T &> { typedef T Type; };
+template<typename T> struct StripPtrRefConst            { using Type = T; };
+template<typename T> struct StripPtrRefConst<T *>       { using Type = T; };
+template<typename T> struct StripPtrRefConst<T &>       { using Type = T; };
+template<typename T> struct StripPtrRefConst<const T *> { using Type = T; };
+template<typename T> struct StripPtrRefConst<const T &> { using Type = T; };
 
 // These are needed for Panel::addPointer(). We must preserve the pointer qualifier
 // for the special case of a var storing the raw pointer value of a void*.
-template<> struct StripPtrRefConst<      void *> { typedef       void * Type; };
-template<> struct StripPtrRefConst<const void *> { typedef const void * Type; };
+template<> struct StripPtrRefConst<      void *> { using Type =       void *; };
+template<> struct StripPtrRefConst<const void *> { using Type = const void *; };
 
 // ========================================================
 // class VarCallbacksInterface:
@@ -471,34 +370,33 @@ public:
 // ========================================================
 
 template<typename OT, typename VT, typename RT = void>
-class VarCallbacksMemFuncByValOrRef NTB_FINAL_CLASS
+class VarCallbacksMemFuncByValOrRef final
     : public VarCallbacksInterface
 {
 public:
-    typedef typename StripPtrRefConst<OT>::Type ObjType;
-    typedef typename StripPtrRefConst<VT>::Type VarType;
-
-    typedef VT (OT::*GetCBType)() const;
-    typedef RT (OT::*SetCBType)(VT);
+    using ObjType = typename StripPtrRefConst<OT>::Type;
+    using VarType = typename StripPtrRefConst<VT>::Type;
+    using GetCBType = VT (OT::*)() const;
+    using SetCBType = RT (OT::*)(VT);
 
     VarCallbacksMemFuncByValOrRef(const ObjType * o, GetCBType getCb, SetCBType setCb)
         : obj(const_cast<ObjType *>(o))
         , getter(getCb)
         , setter(setCb)
     { }
-    void callGetter(void * valueOut) const NTB_OVERRIDE
+    void callGetter(void * valueOut) const override
     {
-        NTB_ASSERT(obj    != NTB_NULL);
-        NTB_ASSERT(getter != NTB_NULL);
+        NTB_ASSERT(obj    != nullptr);
+        NTB_ASSERT(getter != nullptr);
         *static_cast<VarType *>(valueOut) = (obj->*getter)();
     }
-    void callSetter(const void * valueIn) NTB_OVERRIDE
+    void callSetter(const void * valueIn) override
     {
-        NTB_ASSERT(obj    != NTB_NULL);
-        NTB_ASSERT(setter != NTB_NULL);
+        NTB_ASSERT(obj    != nullptr);
+        NTB_ASSERT(setter != nullptr);
         (obj->*setter)(*static_cast<const VarType *>(valueIn));
     }
-    VarCallbacksInterface * clone(void * where) const NTB_OVERRIDE
+    VarCallbacksInterface * clone(void * where) const override
     {
         return ::new(where) VarCallbacksMemFuncByValOrRef<OT, VT, RT>(*this);
     }
@@ -514,34 +412,33 @@ private:
 // ========================================================
 
 template<typename OT, typename VT>
-class VarCallbacksMemFuncByPointer NTB_FINAL_CLASS
+class VarCallbacksMemFuncByPointer final
     : public VarCallbacksInterface
 {
 public:
-    typedef typename StripPtrRefConst<OT>::Type ObjType;
-    typedef typename StripPtrRefConst<VT>::Type VarType;
-
-    typedef void (OT::*GetCBType)(VarType *) const;
-    typedef void (OT::*SetCBType)(const VarType *);
+    using ObjType = typename StripPtrRefConst<OT>::Type;
+    using VarType = typename StripPtrRefConst<VT>::Type;
+    using GetCBType = void (OT::*)(VarType *) const;
+    using SetCBType = void (OT::*)(const VarType *);
 
     VarCallbacksMemFuncByPointer(const ObjType * o, GetCBType getCb, SetCBType setCb)
         : obj(const_cast<ObjType *>(o))
         , getter(getCb)
         , setter(setCb)
     { }
-    void callGetter(void * valueOut) const NTB_OVERRIDE
+    void callGetter(void * valueOut) const override
     {
-        NTB_ASSERT(obj    != NTB_NULL);
-        NTB_ASSERT(getter != NTB_NULL);
+        NTB_ASSERT(obj    != nullptr);
+        NTB_ASSERT(getter != nullptr);
         (obj->*getter)(static_cast<VarType *>(valueOut));
     }
-    void callSetter(const void * valueIn) NTB_OVERRIDE
+    void callSetter(const void * valueIn) override
     {
-        NTB_ASSERT(obj    != NTB_NULL);
-        NTB_ASSERT(setter != NTB_NULL);
+        NTB_ASSERT(obj    != nullptr);
+        NTB_ASSERT(setter != nullptr);
         (obj->*setter)(static_cast<const VarType *>(valueIn));
     }
-    VarCallbacksInterface * clone(void * where) const NTB_OVERRIDE
+    VarCallbacksInterface * clone(void * where) const override
     {
         return ::new(where) VarCallbacksMemFuncByPointer<OT, VT>(*this);
     }
@@ -557,32 +454,31 @@ private:
 // ========================================================
 
 template<typename OT, typename VT>
-class VarCallbacksCFuncPtr NTB_FINAL_CLASS
+class VarCallbacksCFuncPtr final
     : public VarCallbacksInterface
 {
 public:
-    typedef typename StripPtrRefConst<OT>::Type ObjType;
-    typedef typename StripPtrRefConst<VT>::Type VarType;
-
-    typedef void (*GetCBType)(const ObjType *, VarType *);
-    typedef void (*SetCBType)(ObjType *, const VarType *);
+    using ObjType = typename StripPtrRefConst<OT>::Type;
+    using VarType = typename StripPtrRefConst<VT>::Type;
+    using GetCBType = void (*)(const ObjType *, VarType *);
+    using SetCBType = void (*)(ObjType *, const VarType *);
 
     VarCallbacksCFuncPtr(const ObjType * o, GetCBType getCb, SetCBType setCb)
         : obj(const_cast<ObjType *>(o))
         , getter(getCb)
         , setter(setCb)
     { }
-    void callGetter(void * valueOut) const NTB_OVERRIDE
+    void callGetter(void * valueOut) const override
     {
-        NTB_ASSERT(getter != NTB_NULL);
+        NTB_ASSERT(getter != nullptr);
         getter(obj, static_cast<VarType *>(valueOut));
     }
-    void callSetter(const void * valueIn) NTB_OVERRIDE
+    void callSetter(const void * valueIn) override
     {
-        NTB_ASSERT(setter != NTB_NULL);
+        NTB_ASSERT(setter != nullptr);
         setter(obj, static_cast<const VarType *>(valueIn));
     }
-    VarCallbacksInterface * clone(void * where) const NTB_OVERRIDE
+    VarCallbacksInterface * clone(void * where) const override
     {
         return ::new(where) VarCallbacksCFuncPtr<OT, VT>(*this);
     }
@@ -599,16 +495,14 @@ private:
 // class VarCallbacksAny:
 // ========================================================
 
-class VarCallbacksAny NTB_FINAL_CLASS
+class VarCallbacksAny final
 {
 public:
 
     template<typename OT, typename VT, typename RT>
     VarCallbacksAny(const detail::VarCallbacksMemFuncByValOrRef<OT, VT, RT> & cbs)
     {
-        #if NEO_TWEAK_BAR_CXX11_SUPPORTED
         static_assert(DataSizeBytes >= sizeof(cbs), "Size mismatch!");
-        #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
         clear();
         callbacks = cbs.clone(getDataPtr());
@@ -617,9 +511,7 @@ public:
     template<typename OT, typename VT>
     VarCallbacksAny(const detail::VarCallbacksMemFuncByPointer<OT, VT> & cbs)
     {
-        #if NEO_TWEAK_BAR_CXX11_SUPPORTED
         static_assert(DataSizeBytes >= sizeof(cbs), "Size mismatch!");
-        #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
         clear();
         callbacks = cbs.clone(getDataPtr());
@@ -628,9 +520,7 @@ public:
     template<typename OT, typename VT>
     VarCallbacksAny(const detail::VarCallbacksCFuncPtr<OT, VT> & cbs)
     {
-        #if NEO_TWEAK_BAR_CXX11_SUPPORTED
         static_assert(DataSizeBytes >= sizeof(cbs), "Size mismatch!");
-        #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
 
         clear();
         callbacks = cbs.clone(getDataPtr());
@@ -648,23 +538,26 @@ public:
 
 private:
 
-    // Inplace storage for a VarCallbacks implementation:
+    // Inline storage for a VarCallbacks implementation:
     struct S;
-    typedef detail::MaxAlign
-    <
-        detail::VarCallbacksMemFuncByValOrRef<S, Int64>,
-        detail::VarCallbacksMemFuncByPointer<S, Int64>,
-        detail::VarCallbacksCFuncPtr<S, Int64>
-    > DataBlob;
+    union Blob
+    {
+         Blob() { }
+        ~Blob() { }
+
+        detail::VarCallbacksMemFuncByValOrRef<S, Int64> dummy0;
+        detail::VarCallbacksMemFuncByPointer<S, Int64>  dummy1;
+        detail::VarCallbacksCFuncPtr<S, Int64>          dummy2;
+    };
 
     // The pointer will hold our placement-new constructed callback impl,
     // the data blob is where we place it, so heap allocations are avoided.
     detail::VarCallbacksInterface * callbacks;
-    DataBlob blob;
+    Blob dataBlob;
 
     // We use the raw pointer to placement-new callbacks into it.
-    void * getDataPtr() { return &blob; }
-    enum { DataSizeBytes = sizeof(DataBlob) };
+    void * getDataPtr() { return &dataBlob; }
+    enum { DataSizeBytes = sizeof(Blob) };
 };
 
 // ========================================================
@@ -688,13 +581,10 @@ inline detail::VarCallbacksMemFuncByValOrRef<OT, VT> callbacks(const OT * obj, V
     // will provide a clean error message right away,
     // which should help the user find out the offending
     // method more easily. If C++11 is not available,
-    // we still get a compiler error, but it might be a
+    // we'd still get a compiler error, but it might be a
     // little harder to figure out where is the offending method.
-    #if NEO_TWEAK_BAR_CXX11_SUPPORTED
     static_assert(!std::is_pointer<VT>::value, "Variable cannot be a pointer for this type of callback!");
-    #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
-
-    return detail::VarCallbacksMemFuncByValOrRef<OT, VT>(obj, getCb, NTB_NULL);
+    return detail::VarCallbacksMemFuncByValOrRef<OT, VT>(obj, getCb, nullptr);
 }
 
 template<typename OT, typename VT, typename RT = void>
@@ -702,10 +592,7 @@ inline detail::VarCallbacksMemFuncByValOrRef<OT, VT, RT> callbacks(OT * obj, VT 
 {
     // No pointers allowed here!
     // See the comment above in the other function.
-    #if NEO_TWEAK_BAR_CXX11_SUPPORTED
     static_assert(!std::is_pointer<VT>::value, "Variable cannot be a pointer for this type of callbacks!");
-    #endif // NEO_TWEAK_BAR_CXX11_SUPPORTED
-
     return detail::VarCallbacksMemFuncByValOrRef<OT, VT, RT>(obj, getCb, setCb);
 }
 
@@ -720,7 +607,7 @@ inline detail::VarCallbacksMemFuncByValOrRef<OT, VT, RT> callbacks(OT * obj, VT 
 template<typename OT, typename VT>
 inline detail::VarCallbacksMemFuncByPointer<OT, VT> callbacks(const OT * obj, void (OT::*getCb)(VT *) const)
 {
-    return detail::VarCallbacksMemFuncByPointer<OT, VT>(obj, getCb, NTB_NULL);
+    return detail::VarCallbacksMemFuncByPointer<OT, VT>(obj, getCb, nullptr);
 }
 
 template<typename OT, typename VT>
@@ -740,7 +627,7 @@ inline detail::VarCallbacksMemFuncByPointer<OT, VT> callbacks(OT * obj, void (OT
 template<typename OT, typename VT>
 inline detail::VarCallbacksCFuncPtr<OT, VT> callbacks(const OT * obj, void (*getCb)(const OT *, VT *))
 {
-    return detail::VarCallbacksCFuncPtr<OT, VT>(obj, getCb, NTB_NULL);
+    return detail::VarCallbacksCFuncPtr<OT, VT>(obj, getCb, nullptr);
 }
 
 template<typename OT, typename VT>
@@ -779,7 +666,7 @@ public:
 // First argument is the variable being iterated, second is the
 // user context/data passed to the enumerate function. Returning
 // true continues the enumeration, retuning false stops it.
-typedef bool (*VariableEnumerateCallback)(Variable *, void *);
+using VariableEnumerateCallback = bool (*)(Variable *, void *);
 
 // ========================================================
 // class Panel:
@@ -1014,6 +901,7 @@ public:
     //
 
     virtual Variable * findVariable(const char * varName) const = 0;
+    virtual Variable * findVariable(UInt32 varNameHashCode) const = 0;
     virtual bool destroyVariable(Variable * variable) = 0;
     virtual void destroyAllVariables() = 0;
     virtual int getVariablesCount() const = 0;
@@ -1042,7 +930,7 @@ public:
 // First argument is the Panel being iterated, second is the
 // user context/data passed to the enumerate function. Returning
 // true continues the enumeration, retuning false stops it.
-typedef bool (*PanelEnumerateCallback)(Panel *, void *);
+using PanelEnumerateCallback = bool (*)(Panel *, void *);
 
 // ========================================================
 // class GUI:
@@ -1056,6 +944,7 @@ public:
 
     // Panel creation and management:
     virtual Panel * findPanel(const char * panelName) const = 0;
+    virtual Panel * findPanel(UInt32 panelNameHashCode) const = 0;
     virtual Panel * createPanel(const char * panelName) = 0;
     virtual bool destroyPanel(Panel * panel) = 0;
     virtual void destroyAllPanels() = 0;
@@ -1064,7 +953,7 @@ public:
 
     // Input events:
     virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers) = 0;
-    virtual bool onMouseButton(MouseButton::Enum button, int clicks) = 0;
+    virtual bool onMouseButton(MouseButton button, int clicks) = 0;
     virtual bool onMouseMotion(int mx, int my) = 0;
     virtual bool onMouseScroll(int yScroll) = 0; // +Y=forward, -Y=back
 
@@ -1092,7 +981,7 @@ public:
 // First argument is the GUI being iterated, second is the
 // user context/data passed to the enumerate function. Returning
 // true continues the enumeration, retuning false stops it.
-typedef bool (*GUIEnumerateCallback)(GUI *, void *);
+using GUIEnumerateCallback = bool (*)(GUI *, void *);
 
 // ========================================================
 // Library initialization/shutdown and GUI allocation:
@@ -1122,6 +1011,7 @@ RenderInterface * getRenderInterface();
 // If more than one GUI with the same name exits, the
 // first one found is returned.
 GUI * findGUI(const char * guiName);
+GUI * findGUI(UInt32 guiNameHashCode);
 
 // Create a new GUI instance. Name doesn't have to be unique,
 // but it must not be null nor an empty string.
@@ -1147,7 +1037,7 @@ int getGUICount();
 
 // First argument is the error message.
 // Second is a user-defined pointer to data/context.
-typedef void (*ErrorHandlerCallback)(const char *, void *);
+using ErrorHandlerCallback = void (*)(const char *, void *);
 
 // Error printer used internally by the library.
 // The output can be controlled via the error handler callback.

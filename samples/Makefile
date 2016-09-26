@@ -56,15 +56,19 @@ endif # VERBOSE
 MKDIR_CMD         = mkdir -p
 AR_CMD            = ar rcs
 
-LIB_SRC_DIR       = ../source
+LIB_NTB_SRC_DIR   = ../source
+LIB_APP_SRC_DIR   = app_lib
 OUTPUT_DIR        = build
 OBJ_DIR           = $(OUTPUT_DIR)/obj
-LIB_TARGET        = $(OUTPUT_DIR)/libNTB.a
+LIB_NTB_TARGET    = $(OUTPUT_DIR)/libNTB.a
+LIB_APP_TARGET    = $(OUTPUT_DIR)/libSampleApp.a
 
-LIB_SRC_FILES     = $(wildcard $(LIB_SRC_DIR)/*.cpp)
+LIB_NTB_SRC_FILES = $(wildcard $(LIB_NTB_SRC_DIR)/*.cpp)
+LIB_APP_SRC_FILES = $(wildcard $(LIB_APP_SRC_DIR)/*.cpp)
 SAMPLES_SRC_FILES = $(wildcard *.cpp)
 
-LIB_OBJ_FILES     = $(addprefix $(OBJ_DIR)/, $(notdir $(patsubst %.cpp, %.o, $(LIB_SRC_FILES))))
+LIB_NTB_OBJ_FILES = $(addprefix $(OBJ_DIR)/, $(notdir $(patsubst %.cpp, %.o, $(LIB_NTB_SRC_FILES))))
+LIB_APP_OBJ_FILES = $(addprefix $(OBJ_DIR)/, $(notdir $(patsubst %.cpp, %.o, $(LIB_APP_SRC_FILES))))
 SAMPLES_OBJ_FILES = $(addprefix $(OBJ_DIR)/, $(patsubst %.cpp, %.o, $(SAMPLES_SRC_FILES)))
 
 ADDITIONAL_LIBS   = $(OPENGL_LIB) $(GLFW_LIB)
@@ -76,11 +80,10 @@ COMMON_FLAGS = -std=c++11                           \
                -fno-exceptions                      \
                -fno-rtti                            \
                -fstrict-aliasing                    \
-               -DNEO_TWEAK_BAR_STD_STRING_INTEROP=1 \
-               -DNEO_TWEAK_BAR_CXX11_SUPPORTED=1
+               -DNEO_TWEAK_BAR_STD_STRING_INTEROP=1
 
 # Additional release settings:
-RELEASE_FLAGS = -O3 -DNDEBUG=1
+RELEASE_FLAGS = -O3 -DNDEBUG=1 -DNEO_TWEAK_BAR_DEBUG=0
 
 # Additional debug settings:
 DEBUG_FLAGS = -g                      \
@@ -89,7 +92,8 @@ DEBUG_FLAGS = -g                      \
               -D_DEBUG=1              \
               -D_LIBCPP_DEBUG=0       \
               -D_LIBCPP_DEBUG2=0      \
-              -D_GLIBCXX_DEBUG
+              -D_GLIBCXX_DEBUG        \
+              -DNEO_TWEAK_BAR_DEBUG=1
 
 # C++ warnings enabled:
 WARNINGS = -Wall                        \
@@ -113,8 +117,6 @@ WARNINGS = -Wall                        \
            -Wgcc-compat                 \
            -Wheader-guard               \
            -Waddress-of-array-temporary \
-           -Wglobal-constructors        \
-           -Wexit-time-destructors      \
            -Woverloaded-virtual         \
            -Wself-assign                \
            -Wweak-vtables               \
@@ -126,11 +128,11 @@ WARNINGS = -Wall                        \
 STATIC_CHECK_FLAGS = --analyze -Xanalyzer -analyzer-output=text
 
 # Include search paths:
-INC_DIRS = -I$(LIB_SRC_DIR) \
-           -I.              \
-           -Igl3w/include   \
-           -Igl3w/src       \
-           -Ivectormath
+INC_DIRS = -I$(LIB_NTB_SRC_DIR) \
+           -I$(LIB_APP_SRC_DIR) \
+           -I.                  \
+           -Igl3w/include       \
+           -Igl3w/src
 
 # Tie them up:
 CXXFLAGS += $(INC_DIRS) $(COMMON_FLAGS) $(WARNINGS)
@@ -165,13 +167,22 @@ static_check: common_rule
 # Common shared rules:
 #
 
-common_rule: $(LIB_TARGET) $(SAMPLES_OBJ_FILES)
+common_rule: $(LIB_NTB_TARGET) $(LIB_APP_TARGET) $(SAMPLES_OBJ_FILES)
 
-$(LIB_TARGET): $(LIB_OBJ_FILES)
-	@echo "-> Creating static library ..."
+$(LIB_NTB_TARGET): $(LIB_NTB_OBJ_FILES)
+	@echo "-> Creating NTB static library ..."
 	$(QUIET) $(AR_CMD) $@ $^
 
-$(LIB_OBJ_FILES): $(OBJ_DIR)/%.o: $(LIB_SRC_DIR)/%.cpp
+$(LIB_NTB_OBJ_FILES): $(OBJ_DIR)/%.o: $(LIB_NTB_SRC_DIR)/%.cpp
+	@echo "-> Compiling" $< "..."
+	$(QUIET) $(MKDIR_CMD) $(dir $@)
+	$(QUIET) $(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(LIB_APP_TARGET): $(LIB_APP_OBJ_FILES)
+	@echo "-> Creating sample app static library ..."
+	$(QUIET) $(AR_CMD) $@ $^
+
+$(LIB_APP_OBJ_FILES): $(OBJ_DIR)/%.o: $(LIB_APP_SRC_DIR)/%.cpp
 	@echo "-> Compiling" $< "..."
 	$(QUIET) $(MKDIR_CMD) $(dir $@)
 	$(QUIET) $(CXX) $(CXXFLAGS) -c $< -o $@
@@ -180,12 +191,13 @@ $(SAMPLES_OBJ_FILES): $(OBJ_DIR)/%.o: %.cpp
 	@echo "-> Compiling sample application" $< "..."
 	$(QUIET) $(MKDIR_CMD) $(dir $@)
 	$(QUIET) $(CXX) $(CXXFLAGS) -c $< -o $@
-	$(QUIET) $(CXX) $(CXXFLAGS) $@ -o $(OUTPUT_DIR)/$(basename $(@F)) $(LIB_TARGET) $(ADDITIONAL_LIBS)
+	$(QUIET) $(CXX) $(CXXFLAGS) $@ -o $(OUTPUT_DIR)/$(basename $(@F)) $(LIB_NTB_TARGET) $(LIB_APP_TARGET) $(ADDITIONAL_LIBS)
 	$(QUIET) $(STRIP_CMD) $(OUTPUT_DIR)/$(basename $(@F))
 
 clean:
 	@echo "-> Cleaning ..."
 	$(QUIET) rm -rf $(OBJ_DIR)
-	$(QUIET) rm -f $(LIB_TARGET)
+	$(QUIET) rm -f $(LIB_NTB_TARGET)
+	$(QUIET) rm -f $(LIB_APP_TARGET)
 	$(QUIET) rm -f $(addprefix $(OUTPUT_DIR)/, $(basename $(notdir $(SAMPLES_SRC_FILES))))
 

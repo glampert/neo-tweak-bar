@@ -46,11 +46,11 @@ const FontCharSet & getFontCharSet();
 // ========================================================
 
 // These must match the font-tool encoder!
-static const int LzwNil            = -1;
-static const int LzwMaxDictBits    = 12;
-static const int LzwStartBits      = 9;
-static const int LzwFirstCode      = (1 << (LzwStartBits - 1)); // 256
-static const int LzwMaxDictEntries = (1 << LzwMaxDictBits);     // 4096
+static constexpr int LzwNil            = -1;
+static constexpr int LzwMaxDictBits    = 12;
+static constexpr int LzwStartBits      = 9;
+static constexpr int LzwFirstCode      = (1 << (LzwStartBits - 1)); // 256
+static constexpr int LzwMaxDictEntries = (1 << LzwMaxDictBits);     // 4096
 
 struct LzwDictionary
 {
@@ -235,7 +235,7 @@ static int lzwDecompress(const void * compressedData, int compressedSizeBytes,
                          int compressedSizeBits, void * uncompressedData,
                          int uncompressedSizeBytes)
 {
-    if (compressedData == NTB_NULL || uncompressedData == NTB_NULL)
+    if (compressedData == nullptr || uncompressedData == nullptr)
     {
         return 0;
     }
@@ -342,7 +342,7 @@ static UInt8 * decompressFontBitmap()
     if (bytesDecoded != uncompressedSizeBytes)
     {
         implFree(uncompressedData);
-        return NTB_NULL;
+        return nullptr;
     }
 
     // Must free with implFree().

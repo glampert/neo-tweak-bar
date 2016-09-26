@@ -35,6 +35,10 @@ public:
     RenderInterfaceDefaultGLLegacy(int windowW, int windowH);
     virtual ~RenderInterfaceDefaultGLLegacy();
 
+    // Not copyable.
+    RenderInterfaceDefaultGLLegacy(const RenderInterfaceDefaultGLLegacy &) = delete;
+    RenderInterfaceDefaultGLLegacy & operator = (const RenderInterfaceDefaultGLLegacy &) = delete;
+
     // -- Local queries and helpers --
 
     bool isCheckingGLErrors() const;
@@ -58,31 +62,31 @@ public:
 
     // -- Miscellaneous --
 
-    void beginDraw() NTB_OVERRIDE;
-    void endDraw()   NTB_OVERRIDE;
+    void beginDraw() override;
+    void endDraw()   override;
 
     void getViewport(int * viewportX, int * viewportY,
-                     int * viewportW, int * viewportH) const NTB_OVERRIDE;
+                     int * viewportW, int * viewportH) const override;
 
     // -- Texture allocation --
 
     TextureHandle createTexture(int widthPixels, int heightPixels,
-                                int colorChannels, const void * pixels) NTB_OVERRIDE;
+                                int colorChannels, const void * pixels) override;
 
-    void destroyTexture(TextureHandle texture) NTB_OVERRIDE;
+    void destroyTexture(TextureHandle texture) override;
 
     // -- Drawing commands --
 
-    void draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ) NTB_OVERRIDE;
+    void draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ) override;
 
     void draw2DTriangles(const VertexPTC * verts, int vertCount,
                          const UInt16 * indexes, int indexCount,
-                         TextureHandle texture, int frameMaxZ) NTB_OVERRIDE;
+                         TextureHandle texture, int frameMaxZ) override;
 
     void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
                                 const UInt16 * indexes, int indexCount,
                                 const DrawClippedInfo * drawInfo,
-                                int drawInfoCount, int frameMaxZ) NTB_OVERRIDE;
+                                int drawInfoCount, int frameMaxZ) override;
 
 private:
 
@@ -261,10 +265,10 @@ void RenderInterfaceDefaultGLLegacy::endDraw()
 void RenderInterfaceDefaultGLLegacy::getViewport(int * viewportX, int * viewportY,
                                                  int * viewportW, int * viewportH) const
 {
-    NTB_ASSERT(viewportX != NTB_NULL);
-    NTB_ASSERT(viewportY != NTB_NULL);
-    NTB_ASSERT(viewportW != NTB_NULL);
-    NTB_ASSERT(viewportH != NTB_NULL);
+    NTB_ASSERT(viewportX != nullptr);
+    NTB_ASSERT(viewportY != nullptr);
+    NTB_ASSERT(viewportW != nullptr);
+    NTB_ASSERT(viewportH != nullptr);
 
     (*viewportX) = glStates.viewport[0];
     (*viewportY) = glStates.viewport[1];
@@ -279,14 +283,14 @@ TextureHandle RenderInterfaceDefaultGLLegacy::createTexture(int widthPixels, int
     NTB_ASSERT(heightPixels  >  0);
     NTB_ASSERT(colorChannels >  0);
     NTB_ASSERT(colorChannels <= 4); // Up to GL_RGBA
-    NTB_ASSERT(pixels != NTB_NULL);
+    NTB_ASSERT(pixels != nullptr);
 
     GLTextureRecord * newTex = implAllocT<GLTextureRecord>();
     newTex->width  = widthPixels;
     newTex->height = heightPixels;
     newTex->texId  = 0;
-    newTex->prev   = NTB_NULL;
-    newTex->next   = NTB_NULL;
+    newTex->prev   = nullptr;
+    newTex->next   = nullptr;
 
     GLint oldTexture = 0;
     GLint oldUnpackAlign = 0;
@@ -368,12 +372,12 @@ TextureHandle RenderInterfaceDefaultGLLegacy::createTexture(int widthPixels, int
 
 void RenderInterfaceDefaultGLLegacy::destroyTexture(TextureHandle texture)
 {
-    if (texture == NTB_NULL)
+    if (texture == nullptr)
     {
         return;
     }
 
-    GLTextureRecord * found = NTB_NULL;
+    GLTextureRecord * found = nullptr;
     GLTextureRecord * iter  = textures.getFirst();
 
     for (int count = textures.getSize(); count--; iter = iter->next)
@@ -433,7 +437,7 @@ void RenderInterfaceDefaultGLLegacy::freeAllTextures()
 
 void RenderInterfaceDefaultGLLegacy::draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ)
 {
-    NTB_ASSERT(verts != NTB_NULL);
+    NTB_ASSERT(verts != nullptr);
     NTB_ASSERT(vertCount > 0);
 
     glBegin(GL_LINES);
@@ -458,15 +462,15 @@ void RenderInterfaceDefaultGLLegacy::draw2DTriangles(const VertexPTC * verts, in
                                                      const UInt16 * indexes, int indexCount,
                                                      TextureHandle texture, int frameMaxZ)
 {
-    NTB_ASSERT(verts   != NTB_NULL);
-    NTB_ASSERT(indexes != NTB_NULL);
+    NTB_ASSERT(verts   != nullptr);
+    NTB_ASSERT(indexes != nullptr);
     NTB_ASSERT(vertCount  > 0);
     NTB_ASSERT(indexCount > 0);
 
     // Assert only.
     (void)vertCount;
 
-    if (texture != NTB_NULL)
+    if (texture != nullptr)
     {
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, reinterpret_cast<const GLTextureRecord *>(texture)->texId);
@@ -489,7 +493,7 @@ void RenderInterfaceDefaultGLLegacy::draw2DTriangles(const VertexPTC * verts, in
     glEnd();
 
     // Restore the default no-texture state assumed by the other draw methods.
-    if (texture != NTB_NULL)
+    if (texture != nullptr)
     {
         glDisable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
@@ -506,9 +510,9 @@ void RenderInterfaceDefaultGLLegacy::drawClipped2DTriangles(const VertexPTC * ve
                                                             const DrawClippedInfo * drawInfo,
                                                             int drawInfoCount, int frameMaxZ)
 {
-    NTB_ASSERT(verts    != NTB_NULL);
-    NTB_ASSERT(indexes  != NTB_NULL);
-    NTB_ASSERT(drawInfo != NTB_NULL);
+    NTB_ASSERT(verts    != nullptr);
+    NTB_ASSERT(indexes  != nullptr);
+    NTB_ASSERT(drawInfo != nullptr);
 
     NTB_ASSERT(vertCount     > 0);
     NTB_ASSERT(indexCount    > 0);
@@ -543,7 +547,7 @@ void RenderInterfaceDefaultGLLegacy::drawClipped2DTriangles(const VertexPTC * ve
         glViewport(viewportX, viewportY, viewportW, viewportH);
         glScissor(clipX, clipY, clipW, clipH);
 
-        if (drawInfo[i].texture != NTB_NULL)
+        if (drawInfo[i].texture != nullptr)
         {
             if (texturedDraws == 0)
             {

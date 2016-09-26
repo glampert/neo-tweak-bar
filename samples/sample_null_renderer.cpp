@@ -24,7 +24,7 @@ class MyNTBShellInterfaceNull : public ntb::ShellInterface
 {
 public:
     ~MyNTBShellInterfaceNull();
-    ntb::Int64 getTimeMilliseconds() const NTB_OVERRIDE { return 0; }
+    ntb::Int64 getTimeMilliseconds() const override { return 0; }
 };
 MyNTBShellInterfaceNull::~MyNTBShellInterfaceNull()
 { }
@@ -290,3 +290,4 @@ int main()
     // All GUIs are destroyed, also freeing any panels and variables linked to them.
     ntb::shutdown();
 }
+
