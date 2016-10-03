@@ -637,6 +637,55 @@ inline detail::VarCallbacksCFuncPtr<OT, VT> callbacks(OT * obj, void (*getCb)(co
 }
 
 // ========================================================
+// struct ColorScheme:
+// ========================================================
+
+struct ColorScheme
+{
+    // Box/rectangle styles:
+    struct Box
+    {
+        // Box background:
+        Color32 bgTopLeft;
+        Color32 bgTopRight;
+        Color32 bgBottomLeft;
+        Color32 bgBottomRight;
+
+        // Box outline:
+        Color32 outlineTop;
+        Color32 outlineBottom;
+        Color32 outlineLeft;
+        Color32 outlineRight;
+    } box;
+
+    // Shadow styles:
+    struct Shadow
+    {
+        Color32 dark;
+        Color32 light;
+        int     offset;
+    } shadow;
+
+    // Text styles:
+    struct Text
+    {
+        Color32 normal;
+        Color32 alternate;
+        Color32 informational;
+    } text;
+
+    //TODO
+    // possibly also:
+    //
+    // - button.hover
+    // - button.clicked
+    // - button.outline (the border of buttons)
+    //
+    // Something for the window wedge lines...
+    //
+};
+
+// ========================================================
 // class Variable:
 // ========================================================
 

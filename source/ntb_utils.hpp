@@ -194,6 +194,36 @@ public:
         }
     }
 
+    // Allows iterating the collection using a callback or lambda.
+    // User callback should return false if the iteration is over
+    // or true to continue till the end of the collection.
+    template<typename T, typename U, typename Func>
+    void forEach(Func fn, U userContext) const
+    {
+        const int count = getSize();
+        for (int i = 0; i < count; ++i)
+        {
+            const T & item = get<T>(i);
+            if (!fn(item, userContext))
+            {
+                break;
+            }
+        }
+    }
+    template<typename T, typename U, typename Func>
+    void forEach(Func fn, U userContext)
+    {
+        const int count = getSize();
+        for (int i = 0; i < count; ++i)
+        {
+            T & item = get<T>(i);
+            if (!fn(item, userContext))
+            {
+                break;
+            }
+        }
+    }
+
     // Access item with cast and debug bounds checking:
     template<typename T>
     const T & get(const int index) const
@@ -351,10 +381,8 @@ public:
     }
 
     // C-string access: (c_str() name for compatibility with std::string)
-    const char * c_str() const
-    {
-        return !isDynamic() ? backingStore.fixed : backingStore.dynamic;
-    }
+    const char * c_str() const { return !isDynamic() ? backingStore.fixed : backingStore.dynamic; }
+          char * c_str()       { return !isDynamic() ? backingStore.fixed : backingStore.dynamic; }
 
     // Compare against other SmallStr or a char* string:
     bool operator == (const SmallStr & other) const
@@ -404,7 +432,6 @@ private:
 
     void initInternal(const char * str, int len);
     void reallocInternal(int newCapacity, bool preserveOldStr);
-    char * c_str() { return !isDynamic() ? backingStore.fixed : backingStore.dynamic; }
 
     #pragma pack(push, 1)
     // Bitfield used here to avoid additional
@@ -638,6 +665,34 @@ public:
             implFree(tmp);
         }
         head = nullptr;
+    }
+
+    // Allows iterating the list using a callback or lambda.
+    // User callback should return false if the iteration is
+    // over or true to continue till the end of the list.
+    template<typename U, typename Func>
+    void forEach(Func fn, U userContext) const
+    {
+        const T * item = head;
+        for (int count = size; count--; item = item->next)
+        {
+            if (!fn(item, userContext))
+            {
+                break;
+            }
+        }
+    }
+    template<typename U, typename Func>
+    void forEach(Func fn, U userContext)
+    {
+        T * item = head;
+        for (int count = size; count--; item = item->next)
+        {
+            if (!fn(item, userContext))
+            {
+                break;
+            }
+        }
     }
 
     // Access the head or tail elements of the doubly-linked list:

@@ -12,7 +12,36 @@
 
 #include "ntb.hpp"
 
+struct AppEvent
+{
+    enum Type
+    {
+        None = 0,
+
+        // Mouse events:
+        MouseMotion,
+        MouseScroll,
+        MouseClickLeft,
+        MouseClickRight,
+
+        // Number of entries; internal use only.
+        Count
+    };
+
+    union Data
+    {
+        int clicks;
+        int pos[2];
+        int scroll[2];
+    };
+
+    Data data;
+    Type type;
+};
+
 struct AppWindowHandle;
+using AppEventCallback = void (*)(const AppEvent &, void *);
+
 struct AppContext
 {
     AppWindowHandle      * windowHandle;
@@ -21,8 +50,11 @@ struct AppContext
 
     int                    windowWidth;
     int                    windowHeight;
+    int                    framebufferWidth;
+    int                    framebufferHeight;
     bool                   isGlCoreProfile;
 
+    void (*setAppCallback) (AppContext * ctx, AppEventCallback cb, void * userContext);
     void (*frameUpdate)    (AppContext * ctx, bool * outIsDone);
     void (*framePresent)   (AppContext * ctx);
     void (*shutdown)       (AppContext * ctx);

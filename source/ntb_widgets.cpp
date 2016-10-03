@@ -458,15 +458,15 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, Float3
 
     // Invariants for all characters:
     const Float32 initialX      = x;
+    const FontCharSet & charSet = detail::getFontCharSet();
     const Float32 charsZ        = getNextZ(); // Assume glyphs in a string never overlap, so share the Z index.
-    const Float32 scaleU        = static_cast<Float32>(detail::getFontCharSet().bitmapWidth);
-    const Float32 scaleV        = static_cast<Float32>(detail::getFontCharSet().bitmapHeight);
+    const Float32 scaleU        = static_cast<Float32>(charSet.bitmapWidth);
+    const Float32 scaleV        = static_cast<Float32>(charSet.bitmapHeight);
     const Float32 fixedWidth    = getCharWidth();  // Unscaled
     const Float32 fixedHeight   = getCharHeight(); // Unscaled
     const Float32 tabW          = fixedWidth  * 4.0f * scaling; // TAB = 4 spaces.
     const Float32 chrW          = fixedWidth  * scaling;
     const Float32 chrH          = fixedHeight * scaling;
-    const FontCharSet & charSet = detail::getFontCharSet();
     const UInt16 indexes[6]     = { 0, 1, 2, 2, 1, 3 };
 
     // These are necessary to avoid artefacts caused by texture
@@ -619,6 +619,15 @@ Float32 GeometryBatch::getCharHeight()
 }
 
 // ========================================================
+// Misc local helpers:
+// ========================================================
+
+static bool leftClick(const MouseButton button, const int clicks)
+{
+    return clicks > 0 && button == MouseButton::Left;
+}
+
+// ========================================================
 // class Widget:
 // ========================================================
 
@@ -633,114 +642,387 @@ Widget::Widget()
 {
     rect.setZero();
     lastMousePos.setZero();
-    setFlag(FlagVisible, true);
 }
 
 Widget::~Widget()
 {
-    //TODO children that have the FlagNeedDeleting set must be deleted!
+    children.forEach<Widget *>(
+        [](Widget * widget, void * /*unused*/)
+        {
+            if (widget->testFlag(FlagNeedDeleting))
+            {
+                destroy(widget);
+                implFree(widget);
+            }
+            return true;
+        }, nullptr);
 }
 
-void Widget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect)
+void Widget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible)
 {
-    //TODO
+    NTB_ASSERT(myGUI != nullptr);
+
+    gui    = myGUI;
+    parent = myParent;
+    rect   = myRect;
+
+    lastMousePos.setZero();
+    setFlag(FlagVisible, visible);
+    setNormalColors();
 }
 
-bool Widget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
+bool Widget::onKeyPressed(KeyCode /*key*/, KeyModFlags /*modifiers*/)
 {
-    //TODO
+    // No key event handling by default. Each Widget defines its own.
+    return false;
 }
 
 bool Widget::onMouseButton(MouseButton button, int clicks)
 {
-    //TODO
+    // Obviously, hidden elements should not normally respond to mouse clicks.
+    if (!isVisible())
+    {
+        return false;
+    }
+
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        if (getChild(c)->onMouseButton(button, clicks))
+        {
+            return true;
+        }
+    }
+
+    // If the cursor is intersecting this element or any
+    // of its children, we consume the mouse click, even
+    // if it has no input effect in the UI.
+    return isMouseIntersecting();
 }
 
 bool Widget::onMouseMotion(int mx, int my)
 {
-    //TODO
+    // First, handle mouse drag:
+    if (isMouseDragEnabled())
+    {
+        onMove(mx - lastMousePos.x, my - lastMousePos.y);
+    }
+
+    // Propagate the event to its children,
+    // since they might overlap the parent.
+    bool intersectingChildWidget = false;
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        intersectingChildWidget |= getChild(c)->onMouseMotion(mx, my);
+    }
+
+    // Even if it intersected a child element, we want
+    // to notify the parent as well in case its rect
+    // falls under the mouse cursor too.
+
+    if (rect.containsPoint(mx, my))
+    {
+        setHighlightedColors();
+        setMouseIntersecting(true);
+    }
+    else
+    {
+        setNormalColors();
+        setMouseIntersecting(false);
+    }
+
+    // Remember the mouse pointer position so we can
+    // compute the displacement for mouse dragging.
+    lastMousePos.x = mx;
+    lastMousePos.y = my;
+    return isMouseIntersecting() | intersectingChildWidget;
 }
 
-bool Widget::onMouseScroll(int yScroll)
+bool Widget::onMouseScroll(int /*yScroll*/)
 {
-    //TODO
+    // No default scroll event handling.
+    // Only the scroll bars / sliders use this.
+    return false;
 }
 
 void Widget::onScrollContentUp()
 {
-    //TODO
+    // Implemented by scroll bars/var widgets.
 }
 
 void Widget::onScrollContentDown()
 {
-    //TODO
+    // Implemented by scroll bars/var widgets.
 }
 
 void Widget::onDraw(GeometryBatch & geoBatch) const
 {
-    //TODO
+    drawSelf(geoBatch);
+    drawChildren(geoBatch);
 }
 
-void Widget::onResize(int displacementX, int displacementY, Corner corner)
+void Widget::onResize(int /*displacementX*/, int /*displacementY*/, Corner /*corner*/)
 {
-    //TODO
+    // Widget is NOT resizeable by default.
+    // Resizeable UI elements have to override this method.
 }
 
 void Widget::onMove(int displacementX, int displacementY)
 {
-    //TODO
+    // Displacement may be positive or negative.
+    rect.moveBy(displacementX, displacementY);
 }
 
 void Widget::onAdjustLayout()
 {
-    //TODO
+    // Nothing done here at this level, just a default placeholder.
 }
 
 void Widget::onDisableEditing()
 {
-    //TODO
+    if (parent != nullptr)
+    {
+        parent->onDisableEditing();
+    }
 }
 
 void Widget::setMouseDragEnabled(bool enabled)
 {
-    //TODO
+    setFlag(FlagMouseDragEnabled, enabled);
+
+    // Child elements move with the parent.
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        getChild(c)->setMouseDragEnabled(enabled);
+    }
 }
 
 void Widget::setNormalColors()
 {
-    //TODO
+    //TODO this is a temporary for testing only. User should set this instead.
+    static const ColorScheme test_colors_normal = {
+        // box
+        {
+        packColor(100, 100, 100, 255),
+        packColor(100, 100, 100, 255),
+        packColor(100, 100, 100, 255),
+        packColor(100, 100, 100, 255),
+        packColor(000, 000, 000, 255), //top
+        packColor(000, 000, 000, 255), //bottom
+        packColor(80,  80,  80,  255), //left
+        packColor(000, 000, 000, 255), //right
+        },
+        // shadow
+        {
+        packColor(0, 0, 0, 128),
+        packColor(0, 0, 0, 20),
+        4,
+        },
+        // text
+        {
+        packColor(255, 255, 255, 255),
+        packColor(255, 255, 255, 255),
+        packColor(255, 255, 255, 255),
+        }
+    };
+    colors = &test_colors_normal;
 }
 
 void Widget::setHighlightedColors()
 {
-    //TODO
+    //TODO this is a temporary for testing only. User should set this instead.
+    static const ColorScheme test_colors_mousehover = {
+        // box
+        {
+        packColor(110, 110, 110, 255),
+        packColor(110, 110, 110, 255),
+        packColor(110, 110, 110, 255),
+        packColor(110, 110, 110, 255),
+        packColor(000, 000, 000, 255), //top
+        packColor(000, 000, 000, 255), //bottom
+        packColor(80,  80,  80,  255), //left
+        packColor(000, 000, 000, 255), //right
+        },
+        // shadow
+        {
+        packColor(0, 0, 0, 128),
+        packColor(0, 0, 0, 20),
+        4,
+        },
+        // text
+        {
+        packColor(255, 255, 255, 255),
+        packColor(255, 255, 255, 255),
+        packColor(255, 255, 255, 255),
+        }
+    };
+    colors = &test_colors_mousehover;
 }
 
 bool Widget::isChild(const Widget * widget) const
 {
-    //TODO
-}
+    if (widget == nullptr)
+    {
+        return false;
+    }
 
-void Widget::addChild(Widget * newChild)
-{
-    //TODO
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        if (getChild(c) == widget)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void Widget::drawSelf(GeometryBatch & geoBatch) const
 {
-    //TODO
+    if (!isVisible())
+    {
+        return;
+    }
+
+    const ColorScheme & myColors = getColors();
+
+    // Optional drop shadow effect under the element.
+    if (myColors.shadow.dark != 0 && myColors.shadow.offset != 0 && !testFlag(FlagNoRectShadow))
+    {
+        geoBatch.drawRectShadow(rect, myColors.shadow.dark,
+                                      myColors.shadow.light,
+                                      myColors.shadow.offset);
+    }
+
+    // Body box:
+    geoBatch.drawRectFilled(rect, myColors.box.bgTopLeft,
+                                  myColors.box.bgBottomLeft,
+                                  myColors.box.bgTopRight,
+                                  myColors.box.bgBottomRight);
+
+    // Box outline/border:
+    geoBatch.drawRectOutline(rect, myColors.box.outlineLeft,
+                                   myColors.box.outlineBottom,
+                                   myColors.box.outlineRight,
+                                   myColors.box.outlineTop);
 }
 
 void Widget::drawChildren(GeometryBatch & geoBatch) const
 {
-    //TODO
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        getChild(c)->onDraw(geoBatch);
+    }
 }
 
 #if NEO_TWEAK_BAR_DEBUG
 void Widget::printHierarchy(std::ostream & out, const SmallStr & indent) const
 {
-    //TODO
+    out << indent.c_str() << getTypeString().c_str() << "\n";
+    out << "|";
+
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        SmallStr nextLevel(indent);
+        nextLevel += "---";
+
+        getChild(c)->printHierarchy(out, nextLevel);
+    }
 }
 #endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// class ButtonWidget:
+// ========================================================
+
+ButtonWidget::ButtonWidget()
+    : eventListener(nullptr)
+    , icon(Icon::None)
+    , state(false)
+{
+}
+
+void ButtonWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
+                        bool visible, Icon myIcon, EventListener * myListener)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+    eventListener = myListener;
+    icon = myIcon;
+}
+
+void ButtonWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    // Nothing to display?
+    if (icon == Icon::None || !isVisible())
+    {
+        return;
+    }
+
+    if (isCheckBoxButton())
+    {
+        //TODO special case
+    }
+
+    // Draw the box background and outline, if any:
+    Widget::onDraw(geoBatch);
+
+    // Text-based button icons:
+    static const char * buttonIcons[] = {
+        " ", // None (unused)
+        "+", // Plus
+        "-", // Minus
+        "<", // LeftArrow
+        ">", // RightArrow
+        "«", // DblLeftArrow
+        "»", // DblRightArrow
+        "?", // QuestionMark
+        " "  // CheckMark (unused)
+    };
+    static_assert(lengthOfArray(buttonIcons) == static_cast<int>(Icon::Count),
+                  "Keep size in sync with Icon enum!");
+
+    Rectangle charBox = rect;
+    charBox.moveBy(0, Widget::uiScaleBy(4, textScaling)); // top offset
+    geoBatch.drawTextConstrained(buttonIcons[static_cast<int>(icon)], 1, charBox, charBox,
+                                 textScaling, getColors().text.normal, TextAlign::Center);
+}
+
+bool ButtonWidget::onMouseButton(MouseButton button, int clicks)
+{
+    if (icon != Icon::None && isVisible() && isMouseIntersecting())
+    {
+        if (leftClick(button, clicks))
+        {
+            // Always toggle the button state.
+            state = !state;
+
+            // Fire the event if we have a listener.
+            if (hasEventListener())
+            {
+                return eventListener->onButtonDown(*this);
+            }
+        }
+    }
+    return isMouseIntersecting();
+}
+
+// ========================================================
+// class ButtonWidget::EventListener:
+// ========================================================
+
+bool ButtonWidget::EventListener::onButtonDown(ButtonWidget & /*button*/)
+{
+    return false; // Button event always ignored.
+}
+
+ButtonWidget::EventListener::~EventListener()
+{
+    // Defined here to anchor the vtable to this file. Do not remove.
+}
 
 } // namespace ntb {}

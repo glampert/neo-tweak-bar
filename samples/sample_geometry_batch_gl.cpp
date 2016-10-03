@@ -220,7 +220,6 @@ int main(const int argc, const char * argv[])
             ctx.framePresent(&ctx);
         }
     }
-
     ctx.shutdown(&ctx);
     ntb::shutdown();
 }

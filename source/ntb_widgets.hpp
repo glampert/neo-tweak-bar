@@ -30,8 +30,6 @@ enum class TextAlign
     Center
 };
 
-struct ColorScheme {}; //TODO
-
 // ========================================================
 // class GeometryBatch:
 // ========================================================
@@ -144,8 +142,8 @@ private:
 
 // Basically an interactive screen/UI element.
 // A panel has a widget, but so does a button
-// or a tweakable variable. Widget are drawable
-// and can also respond to user input.
+// or a tweakable variable. Widgets are drawable
+// and can also respond to user input events.
 class Widget
 {
 public:
@@ -179,7 +177,7 @@ public:
     // Init/shutdown:
     Widget();
     virtual ~Widget();
-    virtual void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect);
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible = true);
 
     // Input events:
     virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers);
@@ -232,10 +230,12 @@ public:
     int getChildCount() const;
 
     // UI/text scaling:
+    void setTextScaling(Float32 s);
     Float32 getTextScaling() const;
+    void setScaling(Float32 s);
     Float32 getScaling() const;
     int uiScaled(int val) const;
-    static int uiScaleBy(int val, Float32 scale);
+    static int uiScaleBy(Float64 val, Float64 scale);
 
     // State flags:
     bool testFlag(UInt32 mask) const;
@@ -261,6 +261,72 @@ protected:
     UInt32              flags;        // Miscellaneous state flags (from the Flags enum).
     Rectangle           rect;         // Drawable rectangle.
     Point               lastMousePos; // Saved from last time onMouseMotion() was called.
+};
+
+// ========================================================
+// class ButtonWidget:
+// ========================================================
+
+class ButtonWidget final
+    : public Widget
+{
+public:
+
+    enum class Icon
+    {
+        None,          // No button. Nothing drawn, no events.
+        Plus,          // Plus sign [+].
+        Minus,         // Minus sign/dash [-].
+        LeftArrow,     // Arrowhead pointing left [<].
+        RightArrow,    // Arrowhead pointing right [>].
+        DblLeftArrow,  // Double arrow pointing left [«].
+        DblRightArrow, // Double arrow pointing right [»].
+        QuestionMark,  // A question mark [?].
+        CheckMark,     // A on|off check mark switch.
+
+        // Number of entries in this enum. Internal use.
+        Count
+    };
+
+    class EventListener
+    {
+    public:
+        // Callback fired when the button is left-clicked. Should return true if the
+        // event was handle. Default implementation is a no-op that always returns false.
+        virtual bool onButtonDown(ButtonWidget & button);
+
+    protected:
+        // Protected and non-virtual, since this class is meant for use as a mixin.
+        ~EventListener();
+    };
+
+    ButtonWidget();
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
+              bool visible, Icon myIcon, EventListener * myListener = nullptr);
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    bool onMouseButton(MouseButton button, int clicks) override;
+
+    bool getState() const;
+    void setState(bool newState);
+    bool isCheckBoxButton() const;
+
+    Icon getIcon() const;
+    void setIcon(Icon newIcon);
+
+    bool hasEventListener() const;
+    EventListener * getEventListener() const;
+    void setEventListener(EventListener * newListener);
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override { return "ButtonWidget"; }
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    EventListener * eventListener; // Not owned by the button.
+    Icon icon;                     // Button type and visuals.
+    bool state;                    // Flipped at each click event. Starts as false.
 };
 
 // ========================================================
@@ -367,6 +433,12 @@ inline Widget * Widget::getParent()
     return parent;
 }
 
+inline void Widget::addChild(Widget * newChild)
+{
+    NTB_ASSERT(newChild != nullptr);
+    children.pushBack<Widget *>(newChild);
+}
+
 inline const Widget * Widget::getChild(int index) const
 {
     return children.get<const Widget *>(index);
@@ -382,9 +454,19 @@ inline int Widget::getChildCount() const
     return children.getSize();
 }
 
+inline void Widget::setTextScaling(Float32 s)
+{
+    textScaling = s;
+}
+
 inline Float32 Widget::getTextScaling() const
 {
     return textScaling;
+}
+
+inline void Widget::setScaling(Float32 s)
+{
+    scaling = s;
 }
 
 inline Float32 Widget::getScaling() const
@@ -397,9 +479,9 @@ inline int Widget::uiScaled(int val) const
     return uiScaleBy(val, scaling);
 }
 
-inline int Widget::uiScaleBy(int val, Float32 scale)
+inline int Widget::uiScaleBy(Float64 val, Float64 scale)
 {
-    return static_cast<int>(static_cast<Float32>(val) * scale);
+    return static_cast<int>(val * scale);
 }
 
 inline bool Widget::testFlag(UInt32 mask) const
@@ -412,6 +494,50 @@ inline void Widget::setFlag(UInt32 mask, int f)
     // Using one of the Standford bit-hacks:
     // http://graphics.stanford.edu/~seander/bithacks.html
     flags = (flags & ~mask) | (-f & mask);
+}
+
+// ========================================================
+// Inline methods for the ButtonWidget class:
+// ========================================================
+
+inline bool ButtonWidget::getState() const
+{
+    return state;
+}
+
+inline void ButtonWidget::setState(bool newState)
+{
+    state = newState;
+}
+
+inline bool ButtonWidget::isCheckBoxButton() const
+{
+    return icon == Icon::CheckMark;
+}
+
+inline ButtonWidget::Icon ButtonWidget::getIcon() const
+{
+    return icon;
+}
+
+inline void ButtonWidget::setIcon(Icon newIcon)
+{
+    icon = newIcon;
+}
+
+inline bool ButtonWidget::hasEventListener() const
+{
+    return eventListener != nullptr;
+}
+
+inline ButtonWidget::EventListener * ButtonWidget::getEventListener() const
+{
+    return eventListener;
+}
+
+inline void ButtonWidget::setEventListener(EventListener * newListener)
+{
+    eventListener = newListener;
 }
 
 } // namespace ntb {}

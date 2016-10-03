@@ -1,0 +1,151 @@
+
+// ================================================================================================
+// -*- C++ -*-
+// File: sample_widgets_gl.cpp
+// Author: Guilherme R. Lampert
+// Created on: 02/10/16
+// Brief: Sample and testbed for the internal Widget types used by NTB.
+// ================================================================================================
+
+#include "ntb.hpp"
+#include "ntb_widgets.hpp"
+#include "sample_app_lib.hpp"
+
+#include <string>
+#include <cstdlib>
+
+#if !defined(NEO_TWEAK_BAR_STD_STRING_INTEROP)
+    #error "NEO_TWEAK_BAR_STD_STRING_INTEROP is required for this sample!"
+#endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
+
+// ========================================================
+
+static void myAppEventCallback(const AppEvent & event, void * userContext)
+{
+    auto widgets = static_cast<const ntb::PODArray *>(userContext);
+
+    switch (event.type)
+    {
+    case AppEvent::MouseMotion :
+        widgets->forEach<ntb::Widget *>(
+            [](ntb::Widget * widget, const AppEvent * ev)
+            {
+                widget->onMouseMotion(ev->data.pos[0], ev->data.pos[1]);
+                return true;
+            }, &event);
+        break;
+
+    case AppEvent::MouseScroll :
+        widgets->forEach<ntb::Widget *>(
+            [](ntb::Widget * widget, const AppEvent * ev)
+            {
+                widget->onMouseScroll(ev->data.scroll[1]);
+                return true;
+            }, &event);
+        break;
+
+    case AppEvent::MouseClickLeft :
+        widgets->forEach<ntb::Widget *>(
+            [](ntb::Widget * widget, const AppEvent * ev)
+            {
+                widget->onMouseButton(ntb::MouseButton::Left, ev->data.clicks);
+                return true;
+            }, &event);
+        break;
+
+    case AppEvent::MouseClickRight :
+        widgets->forEach<ntb::Widget *>(
+            [](ntb::Widget * widget, const AppEvent * ev)
+            {
+                widget->onMouseButton(ntb::MouseButton::Right, ev->data.clicks);
+                return true;
+            }, &event);
+        break;
+
+    default :
+        break;
+    } // switch (event.type)
+}
+
+// ========================================================
+
+struct MyButtonEventListener final
+    : public ntb::ButtonWidget::EventListener
+{
+    bool onButtonDown(ntb::ButtonWidget & button) override;
+};
+
+bool MyButtonEventListener::onButtonDown(ntb::ButtonWidget & button)
+{
+    std::printf("Clicked button widget %p\n", reinterpret_cast<void *>(&button));
+    return true;
+}
+
+// ========================================================
+
+int main(const int argc, const char * argv[])
+{
+    AppContext ctx;
+    if (!appInit(argc, argv, "NTB Widgets Tests", 1024, 768, &ctx))
+    {
+        std::fprintf(stderr, "[APP_ERROR]: Failed to initialize sample app!\n");
+        return EXIT_FAILURE;
+    }
+
+    ntb::initialize(ctx.shellInterface, ctx.renderInterface);
+    {
+        bool done = false;
+        ntb::GeometryBatch geoBatch;
+        ntb::PODArray widgets{ sizeof(ntb::Widget *) };
+        ntb::GUI * gui = ntb::createGUI("Sample GUI");
+
+        // Base widget:
+        auto w = new ntb::Widget{};
+        w->init(gui, nullptr, ntb::Rectangle{ 20, 20, 300, 300 }, true);
+        widgets.pushBack(w);
+
+        // A set of buttons:
+        MyButtonEventListener buttonEventListener;
+        const int buttonIconCount = static_cast<int>(ntb::ButtonWidget::Icon::Count);
+        for (int i = 1; i < buttonIconCount; ++i) // Skip fist (Icon::None/0)
+        {
+            constexpr int buttonSize = 50;
+            const ntb::Rectangle rect{ 270 + (i * buttonSize) + (i * 10), 20,
+                                       320 + (i * buttonSize) + (i * 10), 20 + buttonSize };
+
+            auto btn = new ntb::ButtonWidget{};
+            btn->init(gui, nullptr, rect, true, ntb::ButtonWidget::Icon(i), &buttonEventListener);
+            btn->setTextScaling(1.6f);
+            widgets.pushBack(btn);
+        }
+
+        // To forward window input events to the widgets list.
+        ctx.setAppCallback(&ctx, &myAppEventCallback, &widgets);
+
+        while (!done)
+        {
+            ctx.frameUpdate(&ctx, &done);
+            geoBatch.beginDraw();
+
+            widgets.forEach<ntb::Widget *>(
+                [](ntb::Widget * widget, ntb::GeometryBatch * batch)
+                {
+                    widget->onDraw(*batch);
+                    return true;
+                }, &geoBatch);
+
+            geoBatch.endDraw();
+            ctx.framePresent(&ctx);
+        }
+
+        widgets.forEach<ntb::Widget *>(
+            [](ntb::Widget * widget, void * /*unused*/)
+            {
+                delete widget;
+                return true;
+            }, nullptr);
+    }
+    ctx.shutdown(&ctx);
+    ntb::shutdown(); // This will also free the GUI instance.
+}
+
