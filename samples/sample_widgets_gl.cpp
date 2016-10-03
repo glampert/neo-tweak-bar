@@ -99,23 +99,35 @@ int main(const int argc, const char * argv[])
         ntb::PODArray widgets{ sizeof(ntb::Widget *) };
         ntb::GUI * gui = ntb::createGUI("Sample GUI");
 
+        //
         // Base widget:
+        //
         auto w = new ntb::Widget{};
         w->init(gui, nullptr, ntb::Rectangle{ 20, 20, 300, 300 }, true);
         widgets.pushBack(w);
 
+        //
         // A set of buttons:
+        //
         MyButtonEventListener buttonEventListener;
         const int buttonIconCount = static_cast<int>(ntb::ButtonWidget::Icon::Count);
+
+        constexpr float btnScale   = 1.6f;
+        constexpr int   btnSize    = 50;
+        constexpr int   btnStartX  = 350;
+        constexpr int   btnStartY  = 20;
+
+        int x = btnStartX;
         for (int i = 1; i < buttonIconCount; ++i) // Skip fist (Icon::None/0)
         {
-            constexpr int buttonSize = 50;
-            const ntb::Rectangle rect{ 270 + (i * buttonSize) + (i * 10), 20,
-                                       320 + (i * buttonSize) + (i * 10), 20 + buttonSize };
-
             auto btn = new ntb::ButtonWidget{};
-            btn->init(gui, nullptr, rect, true, ntb::ButtonWidget::Icon(i), &buttonEventListener);
-            btn->setTextScaling(1.6f);
+            btn->init(gui, nullptr, ntb::Rectangle{ x, btnStartY, x + btnSize, btnStartY + btnSize },
+                      true, ntb::ButtonWidget::Icon(i), &buttonEventListener);
+
+            btn->setTextScaling(btnScale);
+            btn->setState(true);
+            x += btnSize + 20; // gap between each (20)
+
             widgets.pushBack(btn);
         }
 

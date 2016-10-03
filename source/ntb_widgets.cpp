@@ -622,7 +622,56 @@ Float32 GeometryBatch::getCharHeight()
 // Misc local helpers:
 // ========================================================
 
-static bool leftClick(const MouseButton button, const int clicks)
+static void drawCheckMark(GeometryBatch & geoBatch, const Rectangle & rect, const Color32 color, const Float32 scaling)
+{
+    // Invariants for all triangles:
+    static const UInt16 indexes[6] = { 0, 1, 2, 2, 1, 3 };
+    VertexPTC verts[4];
+    verts[0].u = 0.0f;
+    verts[0].v = 0.0f;
+    verts[0].color = color;
+    verts[1].u = 0.0f;
+    verts[1].v = 0.0f;
+    verts[1].color = color;
+    verts[2].u = 0.0f;
+    verts[2].v = 0.0f;
+    verts[2].color = color;
+    verts[3].u = 0.0f;
+    verts[3].v = 0.0f;
+    verts[3].color = color;
+
+    // Offsets are arbitrary. Decided via visual testing.
+    const int halfW   = rect.getWidth() / 2;
+    const int offset1 = Widget::uiScaleBy(2, scaling);
+    const int offset2 = Widget::uiScaleBy(3, scaling);
+    const int offset3 = Widget::uiScaleBy(6, scaling);
+    const int offset4 = Widget::uiScaleBy(1, scaling);
+    const int offset5 = Widget::uiScaleBy(4, scaling);
+
+    // Large leg of the check mark to the right:
+    verts[0].x = rect.xMaxs - offset1;
+    verts[0].y = rect.yMins + offset4;
+    verts[1].x = rect.xMins + halfW - offset1;
+    verts[1].y = rect.yMaxs - offset1;
+    verts[2].x = rect.xMaxs;
+    verts[2].y = rect.yMins + offset2;
+    verts[3].x = rect.xMins + halfW;
+    verts[3].y = rect.yMaxs;
+    geoBatch.draw2DTriangles(verts, lengthOfArray(verts), indexes, lengthOfArray(indexes));
+
+    // Small leg to the left:
+    verts[0].x = rect.xMins;
+    verts[0].y = rect.yMins + offset3;
+    verts[1].x = rect.xMins + halfW - offset1;
+    verts[1].y = rect.yMaxs - offset1;
+    verts[2].x = rect.xMins + offset1;
+    verts[2].y = rect.yMins + offset5;
+    verts[3].x = rect.xMins + halfW;
+    verts[3].y = rect.yMaxs - offset5;
+    geoBatch.draw2DTriangles(verts, lengthOfArray(verts), indexes, lengthOfArray(indexes));
+}
+
+static inline bool leftClick(const MouseButton button, const int clicks)
 {
     return clicks > 0 && button == MouseButton::Left;
 }
@@ -811,7 +860,7 @@ void Widget::setNormalColors()
         packColor(100, 100, 100, 255),
         packColor(000, 000, 000, 255), //top
         packColor(000, 000, 000, 255), //bottom
-        packColor(80,  80,  80,  255), //left
+        packColor(80, 80, 80, 255),    //left
         packColor(000, 000, 000, 255), //right
         },
         // shadow
@@ -825,7 +874,11 @@ void Widget::setNormalColors()
         packColor(255, 255, 255, 255),
         packColor(255, 255, 255, 255),
         packColor(255, 255, 255, 255),
-        }
+        },
+
+        //checkmark
+        packColor(0, 255, 0),
+        packColor(255, 255, 255, 255),
     };
     colors = &test_colors_normal;
 }
@@ -856,7 +909,11 @@ void Widget::setHighlightedColors()
         packColor(255, 255, 255, 255),
         packColor(255, 255, 255, 255),
         packColor(255, 255, 255, 255),
-        }
+        },
+
+        //checkmark
+        packColor(0, 255, 0),
+        packColor(255, 255, 255, 255),
     };
     colors = &test_colors_mousehover;
 }
@@ -963,33 +1020,51 @@ void ButtonWidget::onDraw(GeometryBatch & geoBatch) const
         return;
     }
 
-    if (isCheckBoxButton())
-    {
-        //TODO special case
-    }
-
     // Draw the box background and outline, if any:
     Widget::onDraw(geoBatch);
 
-    // Text-based button icons:
-    static const char * buttonIcons[] = {
-        " ", // None (unused)
-        "+", // Plus
-        "-", // Minus
-        "<", // LeftArrow
-        ">", // RightArrow
-        "«", // DblLeftArrow
-        "»", // DblRightArrow
-        "?", // QuestionMark
-        " "  // CheckMark (unused)
-    };
-    static_assert(lengthOfArray(buttonIcons) == static_cast<int>(Icon::Count),
-                  "Keep size in sync with Icon enum!");
+    // A selected check box fully overrides the widget drawing logic.
+    if (isCheckBoxButton() && state == true)
+    {
+        drawCheckMark(geoBatch, rect, getColors().checkMarkFill, textScaling * 2.0f);
+        if (getColors().checkBoxBorder != 0)
+        {
+            geoBatch.drawRectOutline(rect, getColors().checkBoxBorder);
+        }
+    }
+    else
+    {
+        // Text-based button icons:
+        static const char * buttonIcons[] = {
+            " ", // None (unused)
+            "+", // Plus
+            "-", // Minus
+            "<", // LeftArrow
+            ">", // RightArrow
+            "«", // DblLeftArrow
+            "»", // DblRightArrow
+            "?", // QuestionMark
+            "-"  // CheckMark (unselected)
+        };
+        static_assert(lengthOfArray(buttonIcons) == static_cast<int>(Icon::Count),
+                      "Keep size in sync with Icon enum declaration!");
 
-    Rectangle charBox = rect;
-    charBox.moveBy(0, Widget::uiScaleBy(4, textScaling)); // top offset
-    geoBatch.drawTextConstrained(buttonIcons[static_cast<int>(icon)], 1, charBox, charBox,
-                                 textScaling, getColors().text.normal, TextAlign::Center);
+        Rectangle charBox{ rect };
+
+        // Top/center offset
+        const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+        const Float32 boxMid = charBox.getHeight() * 0.5f;
+        charBox.moveBy(0, boxMid - chrMid);
+
+        geoBatch.drawTextConstrained(buttonIcons[static_cast<int>(icon)], 1, charBox, charBox,
+                                     textScaling, getColors().text.normal, TextAlign::Center);
+
+        // Still draw the border for an unselected check box.
+        if (isCheckBoxButton() && getColors().checkBoxBorder != 0)
+        {
+            geoBatch.drawRectOutline(rect, getColors().checkBoxBorder);
+        }
+    }
 }
 
 bool ButtonWidget::onMouseButton(MouseButton button, int clicks)

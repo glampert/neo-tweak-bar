@@ -674,15 +674,9 @@ struct ColorScheme
         Color32 informational;
     } text;
 
-    //TODO
-    // possibly also:
-    //
-    // - button.hover
-    // - button.clicked
-    // - button.outline (the border of buttons)
-    //
-    // Something for the window wedge lines...
-    //
+    // Check box buttons:
+    Color32 checkMarkFill;
+    Color32 checkBoxBorder;
 };
 
 // ========================================================
