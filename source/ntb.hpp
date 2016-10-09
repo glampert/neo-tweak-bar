@@ -674,6 +674,15 @@ struct ColorScheme
         Color32 informational;
     } text;
 
+    // List widget entries:
+    struct ListItem
+    {
+        Color32 fillColorNormal;
+        Color32 fillColorSelected;
+        Color32 outlineColorNormal;
+        Color32 outlineColorHovered;
+    } listItem;
+
     // Check box buttons:
     Color32 checkMarkFill;
     Color32 checkBoxBorder;

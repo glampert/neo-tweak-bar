@@ -177,7 +177,7 @@ public:
     // Init/shutdown:
     Widget();
     virtual ~Widget();
-    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible = true);
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible);
 
     // Input events:
     virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers);
@@ -243,8 +243,8 @@ public:
 
     // Debug printing helpers:
     #if NEO_TWEAK_BAR_DEBUG
+    virtual SmallStr getTypeString() const;
     virtual void printHierarchy(std::ostream & out = std::cout, const SmallStr & indent = "") const;
-    virtual SmallStr getTypeString() const { return "Widget"; }
     #endif // NEO_TWEAK_BAR_DEBUG
 
 protected:
@@ -301,8 +301,8 @@ public:
     };
 
     ButtonWidget();
-    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
-              bool visible, Icon myIcon, EventListener * myListener = nullptr);
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+              Icon myIcon, EventListener * myListener = nullptr);
 
     void onDraw(GeometryBatch & geoBatch) const override;
     bool onMouseButton(MouseButton button, int clicks) override;
@@ -319,14 +319,148 @@ public:
     void setEventListener(EventListener * newListener);
 
     #if NEO_TWEAK_BAR_DEBUG
-    SmallStr getTypeString() const override { return "ButtonWidget"; }
+    SmallStr getTypeString() const override;
     #endif // NEO_TWEAK_BAR_DEBUG
 
 private:
 
     EventListener * eventListener; // Not owned by the button.
-    Icon icon;                     // Button type and visuals.
-    bool state;                    // Flipped at each click event. Starts as false.
+    Icon            icon;          // Button type and visuals.
+    bool            state;         // Flipped at each click event. Starts as false.
+};
+
+// ========================================================
+// class TitleBarWidget:
+// ========================================================
+
+class TitleBarWidget final
+    : public Widget, public ButtonWidget::EventListener
+{
+public:
+
+    TitleBarWidget() = default;
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+              const char * myTitle, bool minimizeButton, bool maximizeButton,
+              int buttonOffsX, int buttonOffsY, int buttonSize, int buttonSpacing);
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    bool onMouseButton(MouseButton button, int clicks) override;
+    void onResize(int displacementX, int displacementY, Corner corner) override;
+    bool onButtonDown(ButtonWidget & button) override;
+
+    void setButtonTextScaling(Float32 s);
+    void setTitle(const char * newTitle);
+    const char * getTitle() const;
+    int getBarHeight() const;
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    void buttonSetup(bool minimizeButton, bool maximizeButton,
+                     int buttonOffsX, int buttonOffsY,
+                     int buttonSize,  int buttonSpacing);
+
+    enum
+    {
+        BtnMinimize,
+        BtnMaximize,
+        BtnCount
+    };
+
+    ButtonWidget buttons[BtnCount];
+    SmallStr     titleText;
+    int          initialHeight;
+};
+
+// ========================================================
+// class InfoBarWidget:
+// ========================================================
+
+// Bar at the base of a window/panel that displays things like keys pressed.
+class InfoBarWidget final
+    : public Widget
+{
+public:
+
+    InfoBarWidget() = default;
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, const char * myText);
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    void onResize(int displacementX, int displacementY, Corner corner) override;
+
+    void setText(const char * newText);
+    const char * getText() const;
+    int getBarHeight() const;
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    SmallStr infoText;
+    int      initialHeight;
+};
+
+// ========================================================
+// class ListWidget:
+// ========================================================
+
+// Vertical list of clickable items. Widget size is adjusted to the longest item text.
+class ListWidget final
+    : public Widget
+{
+public:
+
+    ListWidget();
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible);
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    void onMove(int displacementX, int displacementY) override;
+    bool onMouseButton(MouseButton button, int clicks) override;
+    bool onMouseMotion(int mx, int my) override;
+
+    void allocEntries(int count);
+    int getNumOfEntries() const;
+
+    void addEntryText(int index, const char * value);
+    SmallStr getEntryText(int index) const;
+
+    int  getSelectedEntry() const;
+    bool hasSelectedEntry() const;
+    void clearSelectedEntry();
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    void addEntryRect(int entryIndex, int entryLengthInChars);
+    int findEntryForPoint(int x, int y) const;
+
+    struct Entry
+    {
+        // Clickable rectangle
+        Rectangle rect;
+
+        // Offsets into 'strings'
+        int firstChar;
+        int lengthInChars;
+    };
+    PODArray entries; // [Entry]
+
+    // User selection in the list. No selection if < 0.
+    static const int None = -1;
+    int selectedEntry;
+    int hoveredEntry;
+
+    // All strings in the list entries/buttons are
+    // packed into this string, no spacing in between.
+    SmallStr strings;
 };
 
 // ========================================================
@@ -496,6 +630,13 @@ inline void Widget::setFlag(UInt32 mask, int f)
     flags = (flags & ~mask) | (-f & mask);
 }
 
+#if NEO_TWEAK_BAR_DEBUG
+inline SmallStr Widget::getTypeString() const
+{
+    return "Widget";
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
 // ========================================================
 // Inline methods for the ButtonWidget class:
 // ========================================================
@@ -539,6 +680,102 @@ inline void ButtonWidget::setEventListener(EventListener * newListener)
 {
     eventListener = newListener;
 }
+
+#if NEO_TWEAK_BAR_DEBUG
+inline SmallStr ButtonWidget::getTypeString() const
+{
+    return "ButtonWidget";
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// Inline methods for the TitleBarWidget class:
+// ========================================================
+
+inline void TitleBarWidget::setTitle(const char * newTitle)
+{
+    titleText = newTitle;
+}
+
+inline const char * TitleBarWidget::getTitle() const
+{
+    return titleText.c_str();
+}
+
+inline int TitleBarWidget::getBarHeight() const
+{
+    return initialHeight;
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+inline SmallStr TitleBarWidget::getTypeString() const
+{
+    return "TitleBarWidget";
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// Inline methods for the InfoBarWidget class:
+// ========================================================
+
+inline void InfoBarWidget::setText(const char * newText)
+{
+    infoText = newText;
+}
+
+inline const char * InfoBarWidget::getText() const
+{
+    return infoText.c_str();
+}
+
+inline int InfoBarWidget::getBarHeight() const
+{
+    return initialHeight;
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+inline SmallStr InfoBarWidget::getTypeString() const
+{
+    return "InfoBarWidget";
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// Inline methods for the ListWidget class:
+// ========================================================
+
+inline int ListWidget::getNumOfEntries() const
+{
+    return entries.getSize();
+}
+
+inline SmallStr ListWidget::getEntryText(int index) const
+{
+    const Entry & entry = entries.get<Entry>(index);
+    return SmallStr(strings.c_str() + entry.firstChar, entry.lengthInChars);
+}
+
+inline int ListWidget::getSelectedEntry() const
+{
+    return selectedEntry;
+}
+
+inline bool ListWidget::hasSelectedEntry() const
+{
+    return selectedEntry != None;
+}
+
+inline void ListWidget::clearSelectedEntry()
+{
+    selectedEntry = None;
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+inline SmallStr ListWidget::getTypeString() const
+{
+    return "ListWidget";
+}
+#endif // NEO_TWEAK_BAR_DEBUG
 
 } // namespace ntb {}
 

@@ -873,7 +873,14 @@ void Widget::setNormalColors()
         {
         packColor(255, 255, 255, 255),
         packColor(255, 255, 255, 255),
-        packColor(255, 255, 255, 255),
+        packColor(255, 255, 128, 255),
+        },
+        // listItem
+        {
+        packColor(80, 80, 80),
+        packColor(110, 110, 110),
+        packColor(0, 0, 0),
+        packColor(180, 180, 180),
         },
 
         //checkmark
@@ -908,7 +915,14 @@ void Widget::setHighlightedColors()
         {
         packColor(255, 255, 255, 255),
         packColor(255, 255, 255, 255),
-        packColor(255, 255, 255, 255),
+        packColor(255, 255, 128, 255),
+        },
+        // listItem
+        {
+        packColor(80, 80, 80),
+        packColor(110, 110, 110),
+        packColor(0, 0, 0),
+        packColor(180, 180, 180),
         },
 
         //checkmark
@@ -1004,8 +1018,8 @@ ButtonWidget::ButtonWidget()
 {
 }
 
-void ButtonWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect,
-                        bool visible, Icon myIcon, EventListener * myListener)
+void ButtonWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+                        Icon myIcon, EventListener * myListener)
 {
     Widget::init(myGUI, myParent, myRect, visible);
     eventListener = myListener;
@@ -1098,6 +1112,441 @@ bool ButtonWidget::EventListener::onButtonDown(ButtonWidget & /*button*/)
 ButtonWidget::EventListener::~EventListener()
 {
     // Defined here to anchor the vtable to this file. Do not remove.
+}
+
+// ========================================================
+// class TitleBarWidget:
+// ========================================================
+
+void TitleBarWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+                          const char * myTitle, bool minimizeButton, bool maximizeButton,
+                          int buttonOffsX, int buttonOffsY, int buttonSize, int buttonSpacing)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+
+    initialHeight = myRect.getHeight();
+    if (myTitle != nullptr)
+    {
+        titleText = myTitle;
+    }
+
+    buttonSetup(minimizeButton, maximizeButton, buttonOffsX, buttonOffsY, buttonSize, buttonSpacing);
+}
+
+void TitleBarWidget::buttonSetup(bool minimizeButton, bool maximizeButton,
+                                 int buttonOffsX, int buttonOffsY,
+                                 int buttonSize,  int buttonSpacing)
+{
+    Rectangle btnRect{
+        rect.xMins + buttonOffsX,
+        rect.yMins + buttonOffsY,
+        rect.xMins + buttonOffsX + buttonSize,
+        rect.yMins + buttonOffsY + buttonSize
+    };
+
+    if (minimizeButton)
+    {
+        buttons[BtnMinimize].init(getGUI(), this, btnRect, isVisible(), ButtonWidget::Icon::Minus, this);
+
+        // init() can be called more than once, so check first.
+        if (!isChild(&buttons[BtnMinimize]))
+        {
+            addChild(&buttons[BtnMinimize]);
+        }
+    }
+
+    if (maximizeButton)
+    {
+        btnRect.xMins += buttonSize + buttonSpacing;
+        btnRect.xMaxs += buttonSize + buttonSpacing;
+        buttons[BtnMaximize].init(getGUI(), this, btnRect, isVisible(), ButtonWidget::Icon::Plus, this);
+
+        if (!isChild(&buttons[BtnMaximize]))
+        {
+            addChild(&buttons[BtnMaximize]);
+        }
+    }
+}
+
+void TitleBarWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    Widget::onDraw(geoBatch);
+
+    if (titleText.isEmpty() || !isVisible())
+    {
+        return;
+    }
+
+    Rectangle textBox{ rect };
+
+    // Top/center offset
+    const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+    const Float32 boxMid = textBox.getHeight() * 0.5f;
+    textBox.moveBy(0, boxMid - chrMid);
+
+    Rectangle clipBox{ textBox };
+    if (buttons[BtnMinimize].getIcon() != ButtonWidget::Icon::None)
+    {
+        clipBox.xMins = buttons[BtnMinimize].getRect().xMaxs + Widget::uiScaled(4);
+    }
+    if (buttons[BtnMaximize].getIcon() != ButtonWidget::Icon::None)
+    {
+        clipBox.xMins = buttons[BtnMaximize].getRect().xMaxs + Widget::uiScaled(4);
+    }
+
+    geoBatch.drawTextConstrained(titleText.c_str(), titleText.getLength(), textBox, clipBox,
+                                 textScaling, getColors().text.normal, TextAlign::Center);
+}
+
+bool TitleBarWidget::onMouseButton(MouseButton button, int clicks)
+{
+    if (!isVisible())
+    {
+        return false;
+    }
+
+    // A child button handled it first?
+    if (buttons[BtnMinimize].onMouseButton(button, clicks) ||
+        buttons[BtnMaximize].onMouseButton(button, clicks))
+    {
+        return true;
+    }
+
+    // If the mouse is currently over the title bar...
+    if (isMouseIntersecting())
+    {
+        // And we have a left click, enable dragging.
+        if (leftClick(button, clicks))
+        {
+            if (parent != nullptr)
+            {
+                parent->setMouseDragEnabled(true);
+            }
+            else
+            {
+                setMouseDragEnabled(true);
+            }
+        }
+        else
+        {
+            if (parent != nullptr)
+            {
+                parent->setMouseDragEnabled(false);
+            }
+            else
+            {
+                setMouseDragEnabled(false);
+            }
+        }
+        return true;
+    }
+
+    // Click didn't interact with the bar.
+    return false;
+}
+
+void TitleBarWidget::onResize(int displacementX, int displacementY, Corner corner)
+{
+    // Title bar doesn't change height.
+    switch (corner)
+    {
+    case TopLeft :
+        rect.xMins += displacementX;
+        rect.yMins += displacementY;
+        rect.yMaxs = rect.yMins + getBarHeight();
+        buttons[BtnMinimize].onMove(displacementX, displacementY);
+        buttons[BtnMaximize].onMove(displacementX, displacementY);
+        break;
+
+    case BottomLeft :
+        rect.xMins += displacementX;
+        buttons[BtnMinimize].onMove(displacementX, 0);
+        buttons[BtnMaximize].onMove(displacementX, 0);
+        break;
+
+    case TopRight :
+        rect.xMaxs += displacementX;
+        rect.yMins += displacementY;
+        rect.yMaxs = rect.yMins + getBarHeight();
+        buttons[BtnMinimize].onMove(0, displacementY);
+        buttons[BtnMaximize].onMove(0, displacementY);
+        break;
+
+    case BottomRight :
+        rect.xMaxs += displacementX;
+        break;
+
+    default :
+        errorF("Bad corner enum in TitleBarWidget!");
+        break;
+    } // switch (corner)
+}
+
+bool TitleBarWidget::onButtonDown(ButtonWidget & button)
+{
+    if (&buttons[BtnMinimize] == &button)
+    {
+        //TODO button action!
+        return true;
+    }
+    if (&buttons[BtnMaximize] == &button)
+    {
+        //TODO button action!
+        return true;
+    }
+    return false;
+}
+
+void TitleBarWidget::setButtonTextScaling(Float32 s)
+{
+    for (int b = 0; b < BtnCount; ++b)
+    {
+        buttons[b].setTextScaling(s);
+    }
+}
+
+// ========================================================
+// class InfoBarWidget:
+// ========================================================
+
+void InfoBarWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, const char * myText)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+
+    initialHeight = myRect.getHeight();
+    if (myText != nullptr)
+    {
+        infoText  = " » ";
+        infoText += myText;
+    }
+
+    // Should not cast a shadow because the parent window already does so.
+    setFlag(FlagNoRectShadow, true);
+}
+
+void InfoBarWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    Widget::onDraw(geoBatch);
+
+    if (infoText.isEmpty() || !isVisible())
+    {
+        return;
+    }
+
+    Rectangle textBox{ rect };
+
+    // Top/center offset
+    const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+    const Float32 boxMid = textBox.getHeight() * 0.5f;
+    textBox.moveBy(Widget::uiScaled(2), boxMid - chrMid); // Slightly offset the text so that it doesn't touch the left border.
+
+    geoBatch.drawTextConstrained(infoText.c_str(), infoText.getLength(), textBox, textBox,
+                                 textScaling, getColors().text.informational, TextAlign::Left);
+}
+
+void InfoBarWidget::onResize(int displacementX, int displacementY, Corner corner)
+{
+    // Info bar doesn't change height.
+    switch (corner)
+    {
+    case TopLeft :
+        rect.xMins += displacementX;
+        break;
+
+    case BottomLeft :
+        rect.xMins += displacementX;
+        rect.yMins += displacementY;
+        rect.yMaxs = rect.yMins + getBarHeight();
+        break;
+
+    case TopRight :
+        rect.xMaxs += displacementX;
+        break;
+
+    case BottomRight :
+        rect.xMaxs += displacementX;
+        rect.yMins += displacementY;
+        rect.yMaxs = rect.yMins + getBarHeight();
+        break;
+
+    default :
+        errorF("Bad corner enum in InfoBarWidget!");
+        break;
+    } // switch (corner)
+}
+
+// ========================================================
+// class ListWidget:
+// ========================================================
+
+ListWidget::ListWidget()
+    : entries(sizeof(Entry))
+    , selectedEntry(None)
+    , hoveredEntry(None)
+{
+}
+
+void ListWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+}
+
+void ListWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    Widget::onDraw(geoBatch);
+
+    if (!isVisible())
+    {
+        return;
+    }
+
+    const ColorScheme & myColors = getColors();
+    const int entryCount = entries.getSize();
+
+    for (int e = 0; e < entryCount; ++e)
+    {
+        const Entry & entry = entries.get<Entry>(e);
+
+        geoBatch.drawRectFilled(entry.rect, (e == selectedEntry) ?
+                myColors.listItem.fillColorSelected : myColors.listItem.fillColorNormal);
+
+        geoBatch.drawRectOutline(entry.rect, (e == hoveredEntry) ?
+                myColors.listItem.outlineColorHovered : myColors.listItem.outlineColorNormal);
+
+        Rectangle textBox{ entry.rect };
+
+        // Top/center offset
+        const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+        const Float32 boxMid = textBox.getHeight() * 0.5f;
+        textBox.moveBy(0, boxMid - chrMid);
+
+        geoBatch.drawTextConstrained(strings.c_str() + entry.firstChar, entry.lengthInChars, textBox,
+                                     textBox, textScaling, myColors.text.alternate, TextAlign::Center);
+    }
+}
+
+void ListWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+
+    const int entryCount = entries.getSize();
+    for (int e = 0; e < entryCount; ++e)
+    {
+        Entry & entry = entries.get<Entry>(e);
+        entry.rect.moveBy(displacementX, displacementY);
+    }
+}
+
+bool ListWidget::onMouseButton(MouseButton button, int clicks)
+{
+    bool eventHandled = Widget::onMouseButton(button, clicks);
+
+    // Find if one of the entries was clicked:
+    if (isMouseIntersecting())
+    {
+        const int index = findEntryForPoint(lastMousePos.x, lastMousePos.y);
+        if (index != None)
+        {
+            selectedEntry = index;
+            eventHandled  = true;
+        }
+    }
+
+    return eventHandled;
+}
+
+bool ListWidget::onMouseMotion(int mx, int my)
+{
+    bool eventHandled = Widget::onMouseMotion(mx, my);
+
+    // Check for intersection with the entries to highlight the hovered item:
+    if (isMouseIntersecting())
+    {
+        hoveredEntry = findEntryForPoint(mx, my);
+        if (hoveredEntry != None)
+        {
+            eventHandled = true;
+        }
+    }
+    else
+    {
+        hoveredEntry = None;
+    }
+
+    return eventHandled;
+}
+
+int ListWidget::findEntryForPoint(int x, int y) const
+{
+    const int entryCount = entries.getSize();
+    for (int e = 0; e < entryCount; ++e)
+    {
+        const Entry & entry = entries.get<Entry>(e);
+        if (entry.rect.containsPoint(x, y))
+        {
+            return e;
+        }
+    }
+    return None;
+}
+
+void ListWidget::allocEntries(int count)
+{
+    strings.clear();
+    entries.clear();
+    entries.resize(count);
+    entries.zeroFill();
+    selectedEntry = None;
+    hoveredEntry  = None;
+}
+
+void ListWidget::addEntryText(int index, const char * value)
+{
+    Entry & entry       = entries.get<Entry>(index);
+    entry.firstChar     = strings.getLength();
+    entry.lengthInChars = lengthOfString(value);
+
+    addEntryRect(index, entry.lengthInChars);
+    strings.append(value, entry.lengthInChars);
+}
+
+void ListWidget::addEntryRect(int entryIndex, int entryLengthInChars)
+{
+    const int spacing     = Widget::uiScaled(4); // Hardcoded for now.
+    const int entryHeight = (GeometryBatch::getCharHeight() * textScaling) + spacing;
+    const int entryWidth  = (GeometryBatch::getCharWidth()  * textScaling  * entryLengthInChars) + (spacing * 2);
+
+    Rectangle newRect = rect.shrunk(spacing, spacing);
+    newRect.yMins += (entryHeight + spacing) * entryIndex;
+    newRect.yMaxs  = newRect.yMins + entryHeight;
+    newRect.xMaxs  = newRect.xMins + entryWidth;
+    entries.get<Entry>(entryIndex).rect = newRect;
+
+    // Expand the background window if needed:
+    if (newRect.xMaxs > rect.xMaxs)
+    {
+        rect.xMaxs = newRect.xMaxs + spacing;
+    }
+    if (newRect.yMaxs > rect.yMaxs)
+    {
+        rect.yMaxs = newRect.yMaxs + spacing;
+    }
+
+    // Adjust the remaining rectangles to match the widest one:
+    int e, widest = 0;
+    const int entryCount = entries.getSize();
+    for (e = 0; e < entryCount; ++e)
+    {
+        const Entry & entry = entries.get<Entry>(e);
+        if (entry.rect.xMaxs > widest)
+        {
+            widest = entry.rect.xMaxs;
+        }
+    }
+    for (e = 0; e < entryCount; ++e)
+    {
+        entries.get<Entry>(e).rect.xMaxs = widest;
+    }
 }
 
 } // namespace ntb {}

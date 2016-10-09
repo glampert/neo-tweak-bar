@@ -99,39 +99,75 @@ int main(const int argc, const char * argv[])
         ntb::PODArray widgets{ sizeof(ntb::Widget *) };
         ntb::GUI * gui = ntb::createGUI("Sample GUI");
 
-        //
-        // Base widget:
-        //
-        auto w = new ntb::Widget{};
-        w->init(gui, nullptr, ntb::Rectangle{ 20, 20, 300, 300 }, true);
-        widgets.pushBack(w);
-
-        //
-        // A set of buttons:
-        //
-        MyButtonEventListener buttonEventListener;
-        const int buttonIconCount = static_cast<int>(ntb::ButtonWidget::Icon::Count);
-
-        constexpr float btnScale   = 1.6f;
-        constexpr int   btnSize    = 50;
-        constexpr int   btnStartX  = 350;
-        constexpr int   btnStartY  = 20;
-
-        int x = btnStartX;
-        for (int i = 1; i < buttonIconCount; ++i) // Skip fist (Icon::None/0)
+        // Basic widget:
         {
-            auto btn = new ntb::ButtonWidget{};
-            btn->init(gui, nullptr, ntb::Rectangle{ x, btnStartY, x + btnSize, btnStartY + btnSize },
-                      true, ntb::ButtonWidget::Icon(i), &buttonEventListener);
-
-            btn->setTextScaling(btnScale);
-            btn->setState(true);
-            x += btnSize + 20; // gap between each (20)
-
-            widgets.pushBack(btn);
+            auto w = new ntb::Widget{};
+            w->init(gui, nullptr, ntb::Rectangle{ 20, 20, 300, 300 }, true);
+            widgets.pushBack(w);
         }
 
-        // To forward window input events to the widgets list.
+        // A set of buttons:
+        {
+            MyButtonEventListener buttonEventListener;
+            const int buttonIconCount = static_cast<int>(ntb::ButtonWidget::Icon::Count);
+
+            constexpr float btnScale  = 1.6f;
+            constexpr int   btnSize   = 50;
+            constexpr int   btnStartX = 350;
+            constexpr int   btnStartY = 20;
+
+            int x = btnStartX;
+            for (int i = 1; i < buttonIconCount; ++i) // Skip fist (Icon::None/0)
+            {
+                auto btn = new ntb::ButtonWidget{};
+                btn->init(gui, nullptr, ntb::Rectangle{ x, btnStartY, x + btnSize, btnStartY + btnSize },
+                          true, ntb::ButtonWidget::Icon(i), &buttonEventListener);
+
+                btn->setTextScaling(btnScale);
+                btn->setState(true);
+                x += btnSize + 20; // gap between each (20)
+
+                widgets.pushBack(btn);
+            }
+        }
+
+        // Title bar & Info bar widgets:
+        {
+            constexpr int btnOffsX   = 20;
+            constexpr int btnOffsY   = 4;
+            constexpr int btnSize    = 40;
+            constexpr int btnSpacing = 12;
+
+            auto tb = new ntb::TitleBarWidget{};
+            tb->init(gui, nullptr, ntb::Rectangle{ 350, 120, 900, 170 }, true,
+                     "A title bar - drag me!", true, true, btnOffsX, btnOffsY, btnSize, btnSpacing);
+
+            tb->setTextScaling(1.6f);       // Title bar text
+            tb->setButtonTextScaling(1.5f); // Button icon text
+            widgets.pushBack(tb);
+
+            auto ib = new ntb::InfoBarWidget{};
+            ib->init(gui, nullptr, ntb::Rectangle{ 350, 200, 900, 250 }, true, "Info bar");
+            ib->setTextScaling(1.6f);
+            widgets.pushBack(ib);
+        }
+
+        // List widget:
+        {
+            auto l = new ntb::ListWidget{};
+            l->init(gui, nullptr, ntb::Rectangle{ 20, 350, 300, 500 }, true);
+            l->setTextScaling(1.5f);
+
+            l->allocEntries(4);
+            l->addEntryText(0, "Hello");
+            l->addEntryText(1, "World");
+            l->addEntryText(2, "A longer string");
+            l->addEntryText(3, "And this one is even longer");
+
+            widgets.pushBack(l);
+        }
+
+        // To forward window input events to the widget list.
         ctx.setAppCallback(&ctx, &myAppEventCallback, &widgets);
 
         while (!done)
