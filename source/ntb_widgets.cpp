@@ -166,6 +166,7 @@ void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int ve
     for (int i = 0; i < indexCount; ++i)
     {
         NTB_ASSERT(indexes[i] < unsigned(vertCount));
+        NTB_ASSERT(indexes[i] + baseVertexClipped <= UINT16_MAX);
         trisClippedBatch.pushBack<UInt16>(indexes[i] + baseVertexClipped);
     }
     baseVertexClipped += vertCount;
@@ -192,6 +193,7 @@ void GeometryBatch::draw2DTriangles(const VertexPTC * verts, const int vertCount
     for (int i = 0; i < indexCount; ++i)
     {
         NTB_ASSERT(indexes[i] < unsigned(vertCount));
+        NTB_ASSERT(indexes[i] + baseVertex2D <= UINT16_MAX);
         tris2DBatch.pushBack<UInt16>(indexes[i] + baseVertex2D);
     }
     baseVertex2D += vertCount;
@@ -545,6 +547,7 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, Float3
 
         for (int i = 0; i < 6; ++i)
         {
+            NTB_ASSERT(indexes[i] + baseVertexText <= UINT16_MAX);
             textTrisBatch.pushBack<UInt16>(indexes[i] + baseVertexText);
         }
         for (int v = 0; v < 4; ++v)
@@ -674,6 +677,27 @@ static void drawCheckMark(GeometryBatch & geoBatch, const Rectangle & rect, cons
 static inline bool leftClick(const MouseButton button, const int clicks)
 {
     return clicks > 0 && button == MouseButton::Left;
+}
+
+// ========================================================
+// class ValueSlider:
+// ========================================================
+
+void ValueSlider::drawSelf(GeometryBatch & geoBatch, const Rectangle & displayBox, Color32 borderColor, Color32 fillColor)
+{
+    // Bring to the [0,1] range so it is simpler to work with the value.
+    const Float64 scale = remap(currentVal, minVal, maxVal, 0.0, 1.0);
+
+    sliderRect = displayBox;
+    sliderRect.xMaxs = sliderRect.xMins + Widget::uiScaleBy(sliderRect.getWidth(), scale);
+    geoBatch.drawRectFilled(sliderRect, fillColor);
+
+    // Optional outline border
+    if (borderColor != 0)
+    {
+        geoBatch.drawRectOutline(displayBox, borderColor);
+        geoBatch.drawLine(sliderRect.xMaxs, sliderRect.yMins, sliderRect.xMaxs, sliderRect.yMaxs, borderColor);
+    }
 }
 
 // ========================================================
@@ -886,6 +910,13 @@ void Widget::setNormalColors()
         //checkmark
         packColor(0, 255, 0),
         packColor(255, 255, 255, 255),
+
+        //scrollbar line
+        packColor(50, 50, 50),
+        packColor(80, 80, 80),
+
+        // view3d outline:
+        packColor(255, 255, 255),
     };
     colors = &test_colors_normal;
 }
@@ -928,6 +959,13 @@ void Widget::setHighlightedColors()
         //checkmark
         packColor(0, 255, 0),
         packColor(255, 255, 255, 255),
+
+        //scrollbar line
+        packColor(50, 50, 50),
+        packColor(80, 80, 80),
+
+        // view3d outline:
+        packColor(255, 255, 255),
     };
     colors = &test_colors_mousehover;
 }
@@ -1316,8 +1354,7 @@ void InfoBarWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRec
     initialHeight = myRect.getHeight();
     if (myText != nullptr)
     {
-        infoText  = " » ";
-        infoText += myText;
+        setText(myText);
     }
 
     // Should not cast a shadow because the parent window already does so.
@@ -1373,6 +1410,381 @@ void InfoBarWidget::onResize(int displacementX, int displacementY, Corner corner
         errorF("Bad corner enum in InfoBarWidget!");
         break;
     } // switch (corner)
+}
+
+// ========================================================
+// class ScrollBarWidget:
+// ========================================================
+
+ScrollBarWidget::ScrollBarWidget()
+    : scrollBarOffsetY(0)
+    , scrollBarDisplacement(0)
+    , scrollBarSizeFactor(0)
+    , scrollBarThickness(0)
+    , scrollBarButtonSize(0)
+    , scrollStartY(0)
+    , scrollEndY(0)
+    , accumulatedScrollSliderDrag(0)
+    , totalLines(0)
+    , linesOutOfView(0)
+    , linesScrolledOut(0)
+{
+    upBtnRect.setZero();
+    downBtnRect.setZero();
+    barSliderRect.setZero();
+    sliderClickInitialPos.setZero();
+}
+
+void ScrollBarWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, int buttonSize)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+
+    initialWidth = myRect.getWidth();
+    scrollBarButtonSize = buttonSize;
+
+    // Set up the scroll-bar rects:
+    onAdjustLayout();
+
+    // Should not cast a shadow because the parent window already does so.
+    setFlag(FlagNoRectShadow, true);
+}
+
+void ScrollBarWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    if (!isVisible())
+    {
+        return;
+    }
+
+    // No child elements attached.
+    drawSelf(geoBatch);
+
+    // Window contents are not scrollable. Don't draw a bar slider or buttons.
+    if (scrollBarSizeFactor <= 0)
+    {
+        return;
+    }
+
+    const ColorScheme & myColors = getColors();
+
+    // Center lines taking the whole length of the scroll bar slider:
+    const int lineX = rect.xMins + (rect.getWidth() / 2);
+    geoBatch.drawLine(lineX - 1, scrollStartY, lineX - 1, scrollEndY, myColors.scrollBarCenterLine1);
+    geoBatch.drawLine(lineX,     scrollStartY, lineX,     scrollEndY, myColors.scrollBarCenterLine2);
+    geoBatch.drawLine(lineX + 1, scrollStartY, lineX + 1, scrollEndY, myColors.scrollBarCenterLine1);
+
+    // Bar body/slider (50% lighter than the background):
+    geoBatch.drawRectFilled(barSliderRect,
+                            lighthenRGB(myColors.box.bgTopLeft,     50),
+                            lighthenRGB(myColors.box.bgBottomLeft,  50),
+                            lighthenRGB(myColors.box.bgTopRight,    50),
+                            lighthenRGB(myColors.box.bgBottomRight, 50));
+
+    // Bar outline/border (50% darker than the background's):
+    geoBatch.drawRectOutline(barSliderRect,
+                             darkenRGB(myColors.box.outlineLeft,   50),
+                             darkenRGB(myColors.box.outlineBottom, 50),
+                             darkenRGB(myColors.box.outlineRight,  50),
+                             darkenRGB(myColors.box.outlineTop,    50));
+
+    // Up and down arrow buttons:
+    geoBatch.drawArrowFilled(upBtnRect,
+                             lighthenRGB(myColors.box.bgTopLeft, 80),
+                             darkenRGB(myColors.box.outlineTop,  80), 1); // up
+
+    geoBatch.drawArrowFilled(downBtnRect,
+                             lighthenRGB(myColors.box.bgBottomLeft, 80),
+                             darkenRGB(myColors.box.outlineBottom,  80), -1); // down
+}
+
+bool ScrollBarWidget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
+{
+    //TODO:
+    // [HOME] and [END] keys should scroll all the way to the top and bottom!
+    (void)key; (void)modifiers;
+    return false;
+}
+
+bool ScrollBarWidget::onMouseButton(MouseButton button, int clicks)
+{
+    if (!isVisible())
+    {
+        return false;
+    }
+
+    setFlag(FlagHoldingScrollSlider, false);
+
+    if ((scrollBarSizeFactor > 0) && isMouseIntersecting() && leftClick(button, clicks))
+    {
+        if (barSliderRect.containsPoint(lastMousePos)) // Click, hold and move the slider.
+        {
+            sliderClickInitialPos = lastMousePos;
+            setFlag(FlagHoldingScrollSlider, true);
+        }
+        else if (upBtnRect.containsPoint(lastMousePos)) // Scroll up (-Y)
+        {
+            doScrollUp();
+        }
+        else if (downBtnRect.containsPoint(lastMousePos)) // Scroll down (+Y)
+        {
+            doScrollDown();
+        }
+    }
+
+    return isMouseIntersecting();
+}
+
+bool ScrollBarWidget::onMouseMotion(int mx, int my)
+{
+    bool eventHandled = Widget::onMouseMotion(mx, my);
+
+    if (testFlag(FlagHoldingScrollSlider))
+    {
+        // Lower threshold and the scroll bar slider moves faster, but less precise.
+        // Higher value makes it much "harder" to move, but gains precision.
+        constexpr int threshold = 200;
+
+        accumulatedScrollSliderDrag += my - sliderClickInitialPos.y;
+        if (accumulatedScrollSliderDrag < -threshold)
+        {
+            doScrollUp();
+            accumulatedScrollSliderDrag = 0;
+        }
+        else if (accumulatedScrollSliderDrag > threshold)
+        {
+            doScrollDown();
+            accumulatedScrollSliderDrag = 0;
+        }
+
+        eventHandled = true;
+    }
+    else
+    {
+        accumulatedScrollSliderDrag = 0;
+    }
+
+    return eventHandled;
+}
+
+bool ScrollBarWidget::onMouseScroll(int yScroll)
+{
+    if (scrollBarSizeFactor <= 0)
+    {
+        return false; // No scrolling enabled.
+    }
+
+    if (yScroll > 0)
+    {
+        if (isMouseScrollInverted())
+        {
+            doScrollDown();
+        }
+        else
+        {
+            doScrollUp();
+        }
+        return true; // Handled the scroll event.
+    }
+
+    if (yScroll < 0)
+    {
+        if (isMouseScrollInverted())
+        {
+            doScrollUp();
+        }
+        else
+        {
+            doScrollDown();
+        }
+        return true; // Handled the scroll event.
+    }
+
+    return false;
+}
+
+void ScrollBarWidget::doScrollUp()
+{
+    if (barSliderRect.yMins <= scrollStartY)
+    {
+        return;
+    }
+
+    if (parent != nullptr)
+    {
+        parent->onScrollContentUp();
+    }
+
+    if ((barSliderRect.yMins - (scrollBarDisplacement * 2)) < scrollStartY) // Don't go out of bounds
+    {
+        scrollBarOffsetY -= scrollBarDisplacement;
+        // Snap to to the beginning of the scroll area.
+        scrollBarOffsetY += scrollStartY - (barSliderRect.yMins - scrollBarDisplacement);
+    }
+    else
+    {
+        scrollBarOffsetY -= scrollBarDisplacement;
+    }
+
+    --linesScrolledOut;
+    barSliderRect = makeInnerBarRect();
+}
+
+void ScrollBarWidget::doScrollDown()
+{
+    if (barSliderRect.yMaxs >= scrollEndY)
+    {
+        return;
+    }
+
+    if (parent != nullptr)
+    {
+        parent->onScrollContentDown();
+    }
+
+    if ((barSliderRect.yMaxs + (scrollBarDisplacement * 2)) > scrollEndY) // Don't go out of bounds
+    {
+        scrollBarOffsetY += scrollBarDisplacement;
+        // Snap to to the end of the scroll area.
+        scrollBarOffsetY -= (barSliderRect.yMaxs + scrollBarDisplacement) - scrollEndY;
+    }
+    else
+    {
+        scrollBarOffsetY += scrollBarDisplacement;
+    }
+
+    ++linesScrolledOut;
+    barSliderRect = makeInnerBarRect();
+}
+
+void ScrollBarWidget::onResize(int displacementX, int displacementY, Corner corner)
+{
+    // Scroll bar doesn't change width.
+    switch (corner)
+    {
+    case TopLeft :
+        rect.yMins += displacementY;
+        break;
+
+    case BottomLeft :
+        rect.yMaxs += displacementY;
+        break;
+
+    case TopRight :
+        rect.yMins += displacementY;
+        rect.xMins += displacementX;
+        rect.xMaxs = rect.xMins + getBarWidth();
+        break;
+
+    case BottomRight :
+        rect.yMaxs += displacementY;
+        rect.xMins += displacementX;
+        rect.xMaxs = rect.xMins + getBarWidth();
+        break;
+
+    default :
+        errorF("Bad corner enum in ScrollBarWidget!");
+        break;
+    } // switch (corner)
+
+    onAdjustLayout();
+}
+
+void ScrollBarWidget::onAdjustLayout()
+{
+    if (linesOutOfView > 0)
+    {
+        // 4 seems to be the magic number here, not quite sure why...
+        // If it gets below 4, things start to get, humm, weird...
+        if ((totalLines - linesOutOfView) >= 4)
+        {
+            // map [0,totalLines] to [0,100] range:
+            scrollBarSizeFactor = remap(totalLines - linesOutOfView, 0, totalLines, 0, 100);
+        }
+        else
+        {
+            scrollBarSizeFactor = remap(4, 0, totalLines, 0, 100);
+        }
+    }
+    else
+    {
+        scrollBarSizeFactor   = 0;
+        scrollBarDisplacement = 0;
+    }
+
+    scrollBarOffsetY   = 0;
+    scrollBarThickness = Widget::uiScaleBy(rect.getWidth(), 0.6) / 2;
+
+    upBtnRect    = makeUpButtonRect();
+    downBtnRect  = makeDownButtonRect();
+    scrollStartY = upBtnRect.yMaxs   + Widget::uiScaled(5);
+    scrollEndY   = downBtnRect.yMins - Widget::uiScaled(5);
+
+    if (linesOutOfView > 0)
+    {
+        const int sliderHeight = makeInnerBarRect().getHeight();
+        scrollBarDisplacement  = (scrollEndY - scrollStartY - sliderHeight) / linesOutOfView;
+        scrollBarOffsetY       = scrollBarDisplacement * linesScrolledOut;
+    }
+
+    // Now that we have the correct scrollBarOffsetY, rebuild the slider box:
+    barSliderRect = makeInnerBarRect();
+}
+
+void ScrollBarWidget::updateLineScrollState(int lineCount, int linesOut)
+{
+    totalLines     = lineCount;
+    linesOutOfView = linesOut;
+    onAdjustLayout();
+}
+
+void ScrollBarWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+
+    upBtnRect.moveBy(displacementX, displacementY);
+    downBtnRect.moveBy(displacementX, displacementY);
+    barSliderRect.moveBy(displacementX, displacementY);
+
+    scrollStartY = upBtnRect.yMaxs   + Widget::uiScaled(5);
+    scrollEndY   = downBtnRect.yMins - Widget::uiScaled(5);
+}
+
+Rectangle ScrollBarWidget::makeInnerBarRect() const
+{
+    const int xMins  = rect.xMins + scrollBarThickness;
+    const int xMaxs  = rect.xMaxs - scrollBarThickness;
+    const int yMins  = scrollStartY + scrollBarOffsetY;
+    const int height = scrollEndY - scrollStartY;
+
+    int yMaxs = yMins + Widget::uiScaleBy(height, scrollBarSizeFactor * 0.01); // map [0,100] to [0,1] range
+    if (yMaxs <= yMins)                                                        // So that it doesn't get too small.
+    {
+        yMaxs = yMins + Widget::uiScaled(4);
+    }
+
+    return { xMins, yMins, xMaxs, yMaxs };
+}
+
+Rectangle ScrollBarWidget::makeUpButtonRect() const
+{
+    const int topOffset = Widget::uiScaled(2);
+    const int xMins = rect.xMins + scrollBarThickness;
+    const int xMaxs = rect.xMaxs - scrollBarThickness;
+    const int yMins = rect.yMins + topOffset;
+    const int yMaxs = yMins + scrollBarButtonSize;
+
+    return { xMins, yMins, xMaxs, yMaxs };
+}
+
+Rectangle ScrollBarWidget::makeDownButtonRect() const
+{
+    const int bottomOffset = Widget::uiScaled(18);
+    const int xMins = rect.xMins + scrollBarThickness;
+    const int xMaxs = rect.xMaxs - scrollBarThickness;
+    const int yMins = rect.yMaxs - scrollBarButtonSize - bottomOffset;
+    const int yMaxs = yMins + scrollBarButtonSize;
+
+    return { xMins, yMins, xMaxs, yMaxs };
 }
 
 // ========================================================
@@ -1546,6 +1958,741 @@ void ListWidget::addEntryRect(int entryIndex, int entryLengthInChars)
     for (e = 0; e < entryCount; ++e)
     {
         entries.get<Entry>(e).rect.xMaxs = widest;
+    }
+}
+
+// ========================================================
+// class ColorPickerWidget:
+// ========================================================
+
+ColorPickerWidget::ColorPickerWidget()
+    : selectedColorIndex(None)
+    , colorButtonLinesScrolledUp(0)
+{
+    usableRect.setZero();
+}
+
+void ColorPickerWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+                             int titleBarHeight, int titleBarButtonSize, int scrollBarWidth,
+                             int scrollBarButtonSize, int clrButtonSize)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+    colorButtonSize = clrButtonSize;
+
+    // Vertical scroll bar (right side):
+    Rectangle barRect{ rect.xMaxs - scrollBarWidth, rect.yMins + titleBarHeight + Widget::uiScaled(1), rect.xMaxs, rect.yMaxs };
+    scrollBar.init(myGUI, this, barRect, visible, scrollBarButtonSize);
+
+    // Title bar:
+    barRect.set(rect.xMins, rect.yMins, rect.xMaxs, rect.yMins + titleBarHeight);
+    titleBar.init(myGUI, this, barRect, visible, "Color Picker", true, false, Widget::uiScaled(4), Widget::uiScaled(4), titleBarButtonSize, 0);
+
+    addChild(&scrollBar);
+    addChild(&titleBar);
+    refreshUsableRect();
+
+    // Adjust the scroll bar bar according to the content window size:
+    const int colorButtonCount  = lengthOfArray(detail::g_colorTable);
+    const int gapBetweenButtons = Widget::uiScaled(4);
+    const int maxButtonsPerLine = 7;
+
+    const int btnSize   = colorButtonSize  + gapBetweenButtons;
+    const int lineCount = colorButtonCount / maxButtonsPerLine;
+
+    int linesScrolledOut;
+    if ((lineCount * btnSize) > usableRect.getHeight())
+    {
+        linesScrolledOut = std::ceil(((lineCount * btnSize) - usableRect.getHeight()) / static_cast<Float64>(colorButtonSize));
+    }
+    else
+    {
+        linesScrolledOut = 0;
+    }
+
+    scrollBar.updateLineScrollState(lineCount, linesScrolledOut);
+    colorButtonLinesScrolledUp = 0;
+    selectedColorIndex = None;
+
+    // The color table colors are initially sorted by
+    // name but grouping similar colors together looks
+    // better in the window. This is only done once for
+    // when the first ColorPickerWidget is created. You
+    // can also disable this code completely if you don't
+    // care about that.
+    #if NEO_TWEAK_BAR_SORT_COLORTABLE
+    auto colorSortPredicate = [](const detail::NamedColor a, const detail::NamedColor b) -> bool
+    {
+        UInt8 alpha;
+        UInt8 aR, aG, aB;
+        UInt8 bR, bG, bB;
+        unpackColor(a.value, aR, aG, aB, alpha);
+        unpackColor(b.value, bR, bG, bB, alpha);
+
+        Float32 aH, aL, aS;
+        Float32 bH, bL, bS;
+        RGBToHLS(byteToFloat(aR), byteToFloat(aG), byteToFloat(aB), aH, aL, aS);
+        RGBToHLS(byteToFloat(bR), byteToFloat(bG), byteToFloat(bB), bH, bL, bS);
+
+        // NOTE: Sorting by Hue is not very accurate, but more or less
+        // bunches similar colors together. Combining the other components
+        // doesn't provide much better results either.
+        return aH > bH;
+    };
+    if (!detail::g_colorTableSorted)
+    {
+        std::sort(std::begin(detail::g_colorTable), std::end(detail::g_colorTable), colorSortPredicate);
+        detail::g_colorTableSorted = true;
+    }
+    #endif // NEO_TWEAK_BAR_SORT_COLORTABLE
+}
+
+void ColorPickerWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    if (!isVisible())
+    {
+        return;
+    }
+
+    Widget::onDraw(geoBatch);
+    forEachColorButton(&ColorPickerWidget::drawColorButton, &geoBatch);
+}
+
+void ColorPickerWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+    usableRect.moveBy(displacementX, displacementY);
+}
+
+bool ColorPickerWidget::onButtonDown(ButtonWidget & /*button*/)
+{
+    //TODO handle the close button at the top bar
+    return false;
+}
+
+bool ColorPickerWidget::onMouseButton(MouseButton button, int clicks)
+{
+    if (isMouseIntersecting() && leftClick(button, clicks))
+    {
+        if (forEachColorButton(&ColorPickerWidget::testColorButtonClick, nullptr))
+        {
+            //TODO handle color selection!
+            titleBar.setTitle(detail::g_colorTable[selectedColorIndex].name);
+            return true; // Got a button click.
+        }
+    }
+    return Widget::onMouseButton(button, clicks);
+}
+
+bool ColorPickerWidget::onMouseMotion(int mx, int my)
+{
+    // Prevent it from being dragged out the top of the screen:
+    int clampedY = my;
+    if (isMouseDragEnabled())
+    {
+        const int displacementY = my - lastMousePos.y;
+        if ((rect.yMins + displacementY) < 0)
+        {
+            clampedY = my - (rect.yMins + displacementY);
+        }
+    }
+    return Widget::onMouseMotion(mx, clampedY);
+}
+
+bool ColorPickerWidget::onMouseScroll(int yScroll)
+{
+    // Only scroll if the mouse is hovering this window!
+    if (scrollBar.isVisible() && isMouseIntersecting())
+    {
+        return scrollBar.onMouseScroll(yScroll);
+    }
+    return false;
+}
+
+void ColorPickerWidget::onScrollContentUp()
+{
+    --colorButtonLinesScrolledUp;
+}
+
+void ColorPickerWidget::onScrollContentDown()
+{
+    ++colorButtonLinesScrolledUp;
+}
+
+void ColorPickerWidget::refreshUsableRect()
+{
+    const int offset = Widget::uiScaled(5); // "Magic" offset for the color picker
+
+    usableRect = rect;
+    usableRect.xMins += offset;
+    usableRect.xMaxs -= scrollBar.getRect().getWidth();
+    usableRect.yMins += titleBar.getRect().getHeight() + offset;
+    usableRect.yMaxs -= offset;
+}
+
+bool ColorPickerWidget::drawColorButton(Rectangle colorRect, int colorIndex, GeometryBatch * pGeoBatch) const
+{
+    NTB_ASSERT(pGeoBatch != nullptr);
+    const ColorScheme & myColors = getColors();
+
+    // Optional drop shadow effect under the color button:
+    if (myColors.shadow.dark != 0 && myColors.shadow.offset != 0)
+    {
+        const int shadowOffset = ((colorIndex != selectedColorIndex) ?
+                                   std::max(myColors.shadow.offset - 1, 0) :
+                                   myColors.shadow.offset + 2);
+
+        pGeoBatch->drawRectShadow(colorRect, myColors.shadow.dark,
+                                  myColors.shadow.light, shadowOffset);
+    }
+
+    // The button box:
+    if (detail::g_colorTable[colorIndex].value == 0) // ZeroAlpha (null color), draw an [X]:
+    {
+        if (colorIndex == selectedColorIndex) // Highlight if selected
+        {
+            colorRect = colorRect.expanded(Widget::uiScaled(2), Widget::uiScaled(2));
+        }
+
+        pGeoBatch->drawRectFilled(colorRect, packColor(0, 0, 0));
+
+        const Color32 outlineColor = packColor(255, 255, 255);
+        pGeoBatch->drawLine(colorRect.xMins, colorRect.yMins,
+                            colorRect.xMaxs, colorRect.yMaxs,
+                            outlineColor);
+        pGeoBatch->drawLine(colorRect.xMaxs, colorRect.yMins,
+                            colorRect.xMins, colorRect.yMaxs,
+                            outlineColor);
+        pGeoBatch->drawRectOutline(colorRect, outlineColor);
+    }
+    else // Opaque color, draw filled:
+    {
+        if (colorIndex == selectedColorIndex)
+        {
+            colorRect = colorRect.expanded(Widget::uiScaled(2), Widget::uiScaled(2));
+        }
+        pGeoBatch->drawRectFilled(colorRect, detail::g_colorTable[colorIndex].value);
+    }
+
+    // Continue till the end or window filled with buttons.
+    return false;
+}
+
+bool ColorPickerWidget::testColorButtonClick(Rectangle colorRect, int colorIndex, GeometryBatch * /*pUnused*/) const
+{
+    if (colorRect.containsPoint(lastMousePos))
+    {
+        selectedColorIndex = colorIndex;
+        return true;
+    }
+    return false; // Continue to the next button.
+}
+
+bool ColorPickerWidget::forEachColorButton(ButtonFunc pFunc, GeometryBatch * pGeoBatch) const
+{
+    // We have one small box/button for each color in the table.
+    const int colorButtonCount  = lengthOfArray(detail::g_colorTable);
+    const int gapBetweenButtons = Widget::uiScaled(4);
+    const int maxButtonsPerLine = 7;
+
+    int colorIndex   = colorButtonLinesScrolledUp * maxButtonsPerLine;
+    int colorButtonX = usableRect.xMins;
+    int colorButtonY = usableRect.yMins;
+    int buttonsInCurrLine = 0;
+
+    for (; colorIndex < colorButtonCount; ++colorIndex)
+    {
+        const Rectangle colorRect{ colorButtonX, colorButtonY,
+                                   colorButtonX + colorButtonSize,
+                                   colorButtonY + colorButtonSize };
+
+        const bool shouldStop = (this->*pFunc)(colorRect, colorIndex, pGeoBatch);
+        if (shouldStop)
+        {
+            return true;
+        }
+
+        colorButtonX += colorButtonSize + gapBetweenButtons;
+        ++buttonsInCurrLine;
+
+        if (buttonsInCurrLine == maxButtonsPerLine)
+        {
+            buttonsInCurrLine = 0;
+            colorButtonX = usableRect.xMins;
+            colorButtonY += colorButtonSize + gapBetweenButtons;
+
+            if ((colorButtonY + colorButtonSize) > usableRect.yMaxs)
+            {
+                break; // Already filled the ColorPicker window. Stop.
+            }
+        }
+    }
+
+    return false; // Was not interrupted by the callback.
+}
+
+// ========================================================
+// class View3DWidget:
+// ========================================================
+
+View3DWidget::View3DWidget()
+    : mouseSensitivity(0.5f)
+    , maxMouseDelta(20)
+    , invertMouseY(false)
+    , leftMouseButtonDown(false)
+    , interactiveControls(true)
+    , showXyzLabels(true)
+    , object(Object::None)
+    , updateScrGeometry(true)
+    , resettingAngles(false)
+    , prevFrameTimeMs(0)
+    , scrProjectedVerts(sizeof(VertexPTC))
+    , scrProjectedIndexes(sizeof(UInt16))
+    , projParams()
+{
+    mouseDelta.setZero();
+    rotationDegrees.setZero();
+    resetAnglesBtnRect.setZero();
+}
+
+void View3DWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+                        const char * myTitle, int titleBarHeight, int titleBarButtonSize,
+                        int resetAnglesBtnSize, const ProjectionParameters & proj, Object obj)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+
+    updateScrGeometry = true;
+    projParams = proj;
+    object = obj;
+
+    // Title bar is optional in this widget, so we can also use it as a component attached
+    // to a WindowWidget or as a standalone popup-like window when a title/top-bar is provided.
+    if (myTitle != nullptr)
+    {
+        const Rectangle barRect{ rect.xMins, rect.yMins,
+                                 rect.xMaxs, rect.yMins + titleBarHeight };
+
+        titleBar.init(myGUI, this, barRect, visible, myTitle, true, false,
+                      Widget::uiScaled(4), Widget::uiScaled(4), titleBarButtonSize, Widget::uiScaled(4));
+    }
+    else
+    {
+        titleBar.init(myGUI, this, Rectangle{ 0, 0, 0, 0 }, false, nullptr, false, false, 0, 0, 0, 0);
+    }
+
+    addChild(&titleBar);
+    refreshProjectionViewport();
+
+    // Need to be cached for the click tests.
+    const Float32 chrW = GeometryBatch::getCharWidth()  * textScaling;
+    const Float32 chrH = GeometryBatch::getCharHeight() * textScaling;
+    resetAnglesBtnRect.xMins = projParams.viewport.xMins + resetAnglesBtnSize;
+    resetAnglesBtnRect.yMins = projParams.viewport.yMaxs - resetAnglesBtnSize - chrH;
+    resetAnglesBtnRect.xMaxs = resetAnglesBtnRect.xMins + chrW + resetAnglesBtnSize;
+    resetAnglesBtnRect.yMaxs = resetAnglesBtnRect.yMins + chrH + resetAnglesBtnSize;
+
+    // Preallocate the vertex caches:
+    int vertCount;
+    switch (object)
+    {
+    case Object::Sphere :
+        vertCount  = lengthOfArray(detail::g_sphereVerts);
+        vertCount += lengthOfArray(detail::g_arrowVerts) * 3;
+        scrProjectedVerts.allocateExact(vertCount);
+        scrProjectedIndexes.allocateExact(vertCount);
+        break;
+
+    case Object::Arrow :
+        vertCount = lengthOfArray(detail::g_arrowVerts);
+        scrProjectedVerts.allocateExact(vertCount);
+        scrProjectedIndexes.allocateExact(vertCount);
+        break;
+
+    case Object::Box :
+        scrProjectedVerts.allocateExact(24);
+        scrProjectedIndexes.allocateExact(36);
+        break;
+
+    default:
+        break;
+    } // switch (object)
+}
+
+void View3DWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    const Int64 currentTimeMs = getShellInterface()->getTimeMilliseconds();
+    const Int64 deltaTimeMs   = currentTimeMs - prevFrameTimeMs;
+    prevFrameTimeMs = currentTimeMs;
+
+    if (resettingAngles)
+    {
+        const Float32 resetSpeed = 2.0f;
+        const Float32 deltaTimeSeconds = deltaTimeMs * 0.001;
+
+        rotationDegrees.x = lerpAngles(rotationDegrees.x, 0.0f, resetSpeed * deltaTimeSeconds);
+        rotationDegrees.y = lerpAngles(rotationDegrees.y, 0.0f, resetSpeed * deltaTimeSeconds);
+        rotationDegrees.z = lerpAngles(rotationDegrees.z, 0.0f, resetSpeed * deltaTimeSeconds);
+        updateScrGeometry = true;
+
+        if (angleNearZero(rotationDegrees.x) &&
+            angleNearZero(rotationDegrees.y) &&
+            angleNearZero(rotationDegrees.z))
+        {
+            rotationDegrees.setZero();
+            resettingAngles = false;
+        }
+    }
+
+    if (!isVisible())
+    {
+        return;
+    }
+
+    const Color32 vpOutlineColor = getColors().view3dOutline;
+    const Color32 resetBtnColor  = getColors().text.normal;
+    const Color32 xAxisColor     = packColor(225, 0, 0); // X=red
+    const Color32 yAxisColor     = packColor(0, 225, 0); // Y=green
+    const Color32 zAxisColor     = packColor(0, 0, 225); // Z=blue
+
+    Widget::onDraw(geoBatch);
+    geoBatch.drawRectOutline(projParams.viewport, vpOutlineColor);
+
+    if (interactiveControls)
+    {
+        Rectangle textBox = resetAnglesBtnRect;
+        textBox.moveBy(Widget::uiScaled(2), Widget::uiScaled(-4)); // Better center the "R"
+        geoBatch.drawTextConstrained("R", 1, textBox, textBox, textScaling, resetBtnColor, TextAlign::Left);
+    }
+
+    if (showXyzLabels)
+    {
+        const Float32 chrW = GeometryBatch::getCharWidth()  * textScaling;
+        const Float32 chrH = GeometryBatch::getCharHeight() * textScaling;
+
+        Rectangle textBox;
+        textBox.xMins = projParams.viewport.xMaxs - chrW - Widget::uiScaled(4);
+        textBox.yMins = projParams.viewport.yMaxs - (chrH * 3) - Widget::uiScaled(4);
+        textBox.xMaxs = textBox.xMins + chrW + Widget::uiScaled(2);
+        textBox.yMaxs = textBox.yMins + chrH * 3;
+
+        geoBatch.drawTextConstrained("x", 1, textBox, textBox, textScaling, xAxisColor, TextAlign::Right);
+        textBox = textBox.shrunk(0, chrH);
+        geoBatch.drawTextConstrained("y", 1, textBox, textBox, textScaling, yAxisColor, TextAlign::Right);
+        textBox = textBox.shrunk(0, chrH);
+        geoBatch.drawTextConstrained("z", 1, textBox, textBox, textScaling, zAxisColor, TextAlign::Right);
+    }
+
+    if (updateScrGeometry)
+    {
+        const Mat4x4 matRx = Mat4x4::rotationX(degToRad(rotationDegrees.x));
+        const Mat4x4 matRy = Mat4x4::rotationY(degToRad(rotationDegrees.y));
+        const Mat4x4 matRz = Mat4x4::rotationZ(degToRad(rotationDegrees.z));
+        const Mat4x4 modelToWorldMatrix = Mat4x4::multiply(Mat4x4::multiply(matRz, matRx), matRy);
+
+        clearScreenVertexCaches();
+
+        switch (object)
+        {
+        case Object::Sphere :
+            addScreenProjectedArrow(modelToWorldMatrix,  0.28f, xAxisColor, ArrowDirX);
+            addScreenProjectedArrow(modelToWorldMatrix,  0.28f, yAxisColor, ArrowDirY);
+            addScreenProjectedArrow(modelToWorldMatrix,  0.28f, zAxisColor, ArrowDirZ);
+            addScreenProjectedSphere(modelToWorldMatrix, 0.20f);
+            break;
+
+        case Object::Arrow :
+            addScreenProjectedArrow(modelToWorldMatrix, 0.35f, packColor(255, 255, 0), ArrowDirZ);
+            break;
+
+        case Object::Box :
+            addScreenProjectedBox(modelToWorldMatrix, 0.4f, 0.4f, 0.4f, packColor(0, 128, 128));
+            break;
+
+        default :
+            break;
+        } // switch (object)
+
+        updateScrGeometry = false;
+    }
+
+    submitScreenVertexCaches(geoBatch);
+}
+
+void View3DWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+
+    resetAnglesBtnRect.moveBy(displacementX, displacementY);
+    refreshProjectionViewport();
+}
+
+bool View3DWidget::onMouseButton(MouseButton button, int clicks)
+{
+    const bool eventHandled = Widget::onMouseButton(button, clicks);
+
+    if (interactiveControls && isMouseIntersecting())
+    {
+        if (leftClick(button, clicks))
+        {
+            // Clicking the "R" button resets the angles.
+            if (resetAnglesBtnRect.containsPoint(lastMousePos))
+            {
+                resettingAngles   = true;
+                updateScrGeometry = true;
+            }
+            else
+            {
+                leftMouseButtonDown = true;
+            }
+        }
+        else if (clicks <= 0)
+        {
+            leftMouseButtonDown = false;
+            mouseDelta.setZero();
+        }
+    }
+
+    return eventHandled | leftMouseButtonDown;
+}
+
+bool View3DWidget::onMouseMotion(int mx, int my)
+{
+    mouseDelta.x = mx - lastMousePos.x;
+    mouseDelta.y = my - lastMousePos.y;
+    mouseDelta.x = clamp(mouseDelta.x, -maxMouseDelta, maxMouseDelta);
+    mouseDelta.y = clamp(mouseDelta.y, -maxMouseDelta, maxMouseDelta);
+
+    // Prevent it from being dragged out the top of the screen:
+    int clampedY = my;
+    if (isMouseDragEnabled())
+    {
+        const int displacementY = my - lastMousePos.y;
+        if ((rect.yMins + displacementY) < 0)
+        {
+            clampedY = my - (rect.yMins + displacementY);
+        }
+    }
+
+    bool eventHandled = Widget::onMouseMotion(mx, clampedY);
+
+    if (interactiveControls && leftMouseButtonDown && isMouseIntersecting() && projParams.viewport.containsPoint(mx, my))
+    {
+        const Float32 dirY = invertMouseY ? -1.0f : 1.0f;
+        rotationDegrees.x -= mouseDelta.y * mouseSensitivity * dirY;
+        rotationDegrees.y += mouseDelta.x * mouseSensitivity;
+        rotationDegrees.x  = normalizeAngle360(rotationDegrees.x);
+        rotationDegrees.y  = normalizeAngle360(rotationDegrees.y);
+
+        mouseDelta.setZero();
+        resettingAngles   = false;
+        updateScrGeometry = true;
+        eventHandled      = true;
+    }
+
+    return eventHandled;
+}
+
+bool View3DWidget::onMouseScroll(int yScroll)
+{
+    if (isVisible() && isMouseIntersecting() && interactiveControls && leftMouseButtonDown)
+    {
+        // Zoom
+        resettingAngles   = false;
+        updateScrGeometry = true;
+        rotationDegrees.z = normalizeAngle360(rotationDegrees.z + (yScroll * mouseSensitivity));
+        return true;
+    }
+    return false;
+}
+
+void View3DWidget::setMouseIntersecting(bool intersect)
+{
+    Widget::setMouseIntersecting(intersect);
+
+    if (intersect)
+    {
+        titleBar.setHighlightedColors();
+    }
+    else // If we lost mouse focus just cancel the last button down event.
+    {
+        leftMouseButtonDown = false;
+    }
+}
+
+void View3DWidget::clearScreenVertexCaches() const
+{
+    scrProjectedVerts.clear();
+    scrProjectedIndexes.clear();
+}
+
+void View3DWidget::submitScreenVertexCaches(GeometryBatch & geoBatch) const
+{
+    geoBatch.drawClipped2DTriangles(scrProjectedVerts.getData<VertexPTC>(), scrProjectedVerts.getSize(),
+                                    scrProjectedIndexes.getData<UInt16>(), scrProjectedIndexes.getSize(),
+                                    projParams.viewport, projParams.viewport);
+}
+
+void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, Float32 scaleXYZ) const
+{
+    RenderInterface * renderer = getRenderInterface();
+
+    int vp[4];
+    renderer->getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
+    const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
+
+    const bool highlighted   = isMouseIntersecting();
+    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor = packColor(0, 0, 0, 255);
+    const SphereVert * pVert = detail::g_sphereVerts;
+    const int vertCount      = lengthOfArray(detail::g_sphereVerts);
+    UInt16 nextVertexIndex   = scrProjectedVerts.getSize();
+
+    // Should have been preallocated.
+    NTB_ASSERT(scrProjectedVerts.getCapacity()   >= vertCount);
+    NTB_ASSERT(scrProjectedIndexes.getCapacity() >= vertCount);
+
+    for (int v = 0; v < vertCount; ++v, ++pVert)
+    {
+        const Vec3 wp = Mat4x4::transformPointAffine(pVert->position, modelToWorldMatrix);
+        const Color32 vertColor = blendColors(shadeColor, pVert->color & brightness,
+                                              std::fabs(clamp(wp.z, -1.0f, 1.0f)));
+
+        VertexPTC scrVert = { wp.x * scaleXYZ, wp.y * scaleXYZ, wp.z * scaleXYZ, 0.0f, 0.0f, vertColor };
+        screenProjectionXY(scrVert, scrVert, projParams.viewProjMatrix, scrViewport);
+
+        scrProjectedVerts.pushBack<VertexPTC>(scrVert);
+        scrProjectedIndexes.pushBack<UInt16>(nextVertexIndex++);
+    }
+}
+
+void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, Float32 scaleXYZ, Color32 color, ArrowDir dir) const
+{
+    RenderInterface * renderer = getRenderInterface();
+
+    int vp[4];
+    renderer->getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
+    const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
+
+    const bool highlighted   = isMouseIntersecting();
+    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor = packColor(0, 0, 0, 255);
+    const ArrowVert * pVert  = detail::g_arrowVerts;
+    const int vertCount      = lengthOfArray(detail::g_arrowVerts);
+    UInt16 nextVertexIndex   = scrProjectedVerts.getSize();
+
+    // Should have been preallocated.
+    NTB_ASSERT(scrProjectedVerts.getCapacity()   >= vertCount);
+    NTB_ASSERT(scrProjectedIndexes.getCapacity() >= vertCount);
+
+    for (int v = 0; v < vertCount; ++v, ++pVert)
+    {
+        ArrowVert av = *pVert;
+        switch (dir)
+        {
+        case ArrowDirX :
+            std::swap(av.position.x, av.position.z);
+            std::swap(av.normal.x,   av.normal.z);
+            break;
+
+        case ArrowDirY :
+            std::swap(av.position.y, av.position.z);
+            std::swap(av.normal.y,   av.normal.z);
+            break;
+
+        default :
+            // ArrowDirZ is the default direction.
+            break;
+        } // switch (dir)
+
+        const Vec3 wp = Mat4x4::transformPointAffine(av.position, modelToWorldMatrix);
+        const Vec3 wn = Mat4x4::transformPointAffine(av.normal,   modelToWorldMatrix);
+
+        const Color32 vertColor = blendColors(shadeColor, color & brightness,
+                                              std::fabs(clamp(wn.z, -1.0f, 1.0f)));
+
+        VertexPTC scrVert = { wp.x * scaleXYZ, wp.y * scaleXYZ, wp.z * scaleXYZ, 0.0f, 0.0f, vertColor };
+        screenProjectionXY(scrVert, scrVert, projParams.viewProjMatrix, scrViewport);
+
+        scrProjectedVerts.pushBack<VertexPTC>(scrVert);
+        scrProjectedIndexes.pushBack<UInt16>(nextVertexIndex++);
+    }
+}
+
+void View3DWidget::addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, Float32 w, Float32 h, Float32 d, Color32 color) const
+{
+    RenderInterface * renderer = getRenderInterface();
+
+    int vp[4];
+    renderer->getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
+    const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
+
+    BoxVert tempBoxVerts[24];
+    UInt16  tempBoxIndexes[36];
+
+    const bool highlighted   = isMouseIntersecting();
+    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor = packColor(0, 0, 0, 255);
+    const BoxVert * pVert    = tempBoxVerts;
+    const UInt16  * pIndex   = tempBoxIndexes;
+    const int vertCount      = lengthOfArray(tempBoxVerts);
+    const int indexCount     = lengthOfArray(tempBoxIndexes);
+
+    // Each face could be colored independently, but we aren't using this at the moment.
+    const Color32 tempFaceColors[6] = { color, color, color, color, color, color };
+    makeTexturedBoxGeometry(tempBoxVerts, tempBoxIndexes, tempFaceColors, w, h, d);
+
+    // Should have been preallocated.
+    NTB_ASSERT(scrProjectedVerts.getCapacity()   >= vertCount);
+    NTB_ASSERT(scrProjectedIndexes.getCapacity() >= indexCount);
+
+    for (int v = 0; v < vertCount; ++v, ++pVert)
+    {
+        const Vec3 wp = Mat4x4::transformPointAffine(pVert->position, modelToWorldMatrix);
+        const Vec3 wn = Mat4x4::transformPointAffine(pVert->normal,   modelToWorldMatrix);
+
+        const Color32 vertColor = blendColors(shadeColor, pVert->color & brightness,
+                                              std::fabs(clamp(wn.z, -1.0f, 1.0f)));
+
+        VertexPTC scrVert = { wp.x, wp.y, wp.z, pVert->u, pVert->v, vertColor };
+        screenProjectionXY(scrVert, scrVert, projParams.viewProjMatrix, scrViewport);
+
+        scrProjectedVerts.pushBack<VertexPTC>(scrVert);
+    }
+
+    // Unlike the others, the box geometry is actually indexed!
+    for (int i = 0; i < indexCount; ++i, ++pIndex)
+    {
+        scrProjectedIndexes.pushBack<UInt16>(*pIndex);
+    }
+}
+
+void View3DWidget::refreshProjectionViewport()
+{
+    const int vpOffset = Widget::uiScaled(4);
+    const Float32 oldAspectRatio = projParams.viewport.getAspect();
+
+    // Update the viewport rect:
+    projParams.viewport = rect;
+    projParams.viewport.xMins += vpOffset;
+    projParams.viewport.xMaxs -= vpOffset;
+    projParams.viewport.yMins += titleBar.getRect().getHeight() + vpOffset;
+    projParams.viewport.yMaxs -= vpOffset;
+
+    // Might also have to recompute the projection/view,
+    // since the aspect-ratio might have changed.
+    if (projParams.autoAdjustAspect && oldAspectRatio != projParams.viewport.getAspect())
+    {
+        projParams.aspectRatio = projParams.viewport.getAspect();
+
+        const Mat4x4 projMatrix = Mat4x4::perspective(projParams.fovYRadians,
+                                                      projParams.aspectRatio,
+                                                      projParams.zNear,
+                                                      projParams.zFar);
+
+        const Mat4x4 viewMatrix = Mat4x4::lookAt(Vec3{ 0.0f, 0.0f, +1.0f },
+                                                 Vec3{ 0.0f, 0.0f, -1.0f },
+                                                 Vec3{ 0.0f, 1.0f,  0.0f });
+
+        projParams.viewProjMatrix = Mat4x4::multiply(viewMatrix, projMatrix);
     }
 }
 

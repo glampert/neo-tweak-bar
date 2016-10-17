@@ -234,7 +234,7 @@ public:
     virtual void memFree(void * ptrToFree);
 
     // Get the current time in milliseconds for things like
-    // cursor animation and other UI effects. This methods
+    // cursor animation and other UI effects. This method
     // is required and must be implemented.
     virtual Int64 getTimeMilliseconds() const = 0;
 };
@@ -640,7 +640,7 @@ inline detail::VarCallbacksCFuncPtr<OT, VT> callbacks(OT * obj, void (*getCb)(co
 // struct ColorScheme:
 // ========================================================
 
-struct ColorScheme
+struct ColorScheme final
 {
     // Box/rectangle styles:
     struct Box
@@ -686,6 +686,13 @@ struct ColorScheme
     // Check box buttons:
     Color32 checkMarkFill;
     Color32 checkBoxBorder;
+
+    // Scroll-bar misc:
+    Color32 scrollBarCenterLine1;
+    Color32 scrollBarCenterLine2;
+
+    // Outline of the 3D viewport on a View3DWidget:
+    Color32 view3dOutline;
 };
 
 // ========================================================

@@ -137,6 +137,35 @@ private:
 };
 
 // ========================================================
+// class ValueSlider:
+// ========================================================
+
+// Small helper class that draws and manages a horizontal slider bar.
+class ValueSlider final
+{
+public:
+
+    ValueSlider();
+    void reset();
+
+    void setRange(Float64 min, Float64 max);
+    void setCurrentValue(Float64 v);
+
+    Float64 getCurrentValue() const;
+    Rectangle getSliderRect() const;
+
+    // Also updates the current slider rectangle based on the value.
+    void drawSelf(GeometryBatch & geoBatch, const Rectangle & displayBox, Color32 borderColor, Color32 fillColor);
+
+private:
+
+    Float64   minVal;
+    Float64   maxVal;
+    Float64   currentVal;
+    Rectangle sliderRect;
+};
+
+// ========================================================
 // class Widget:
 // ========================================================
 
@@ -150,13 +179,15 @@ public:
 
     enum Flags
     {
-        FlagVisible           = 1 << 0,
-        FlagMinimized         = 1 << 1,
-        FlagScrolledOutOfView = 1 << 2,
-        FlagMouseIntersecting = 1 << 3,
-        FlagMouseDragEnabled  = 1 << 4,
-        FlagNoRectShadow      = 1 << 5,
-        FlagNeedDeleting      = 1 << 6
+        FlagVisible             = 1 << 0,
+        FlagMinimized           = 1 << 1,
+        FlagScrolledOutOfView   = 1 << 2,
+        FlagMouseIntersecting   = 1 << 3,
+        FlagMouseDragEnabled    = 1 << 4,
+        FlagNoRectShadow        = 1 << 5,
+        FlagNeedDeleting        = 1 << 6,
+        FlagInvertMouseScroll   = 1 << 7,
+        FlagHoldingScrollSlider = 1 << 8
     };
 
     enum Corner
@@ -230,10 +261,10 @@ public:
     int getChildCount() const;
 
     // UI/text scaling:
-    void setTextScaling(Float32 s);
-    Float32 getTextScaling() const;
     void setScaling(Float32 s);
+    void setTextScaling(Float32 s);
     Float32 getScaling() const;
+    Float32 getTextScaling() const;
     int uiScaled(int val) const;
     static int uiScaleBy(Float64 val, Float64 scale);
 
@@ -272,7 +303,7 @@ class ButtonWidget final
 {
 public:
 
-    enum class Icon
+    enum class Icon : UInt8
     {
         None,          // No button. Nothing drawn, no events.
         Plus,          // Plus sign [+].
@@ -363,7 +394,7 @@ private:
                      int buttonOffsX, int buttonOffsY,
                      int buttonSize,  int buttonSpacing);
 
-    enum
+    enum ButtonIds
     {
         BtnMinimize,
         BtnMaximize,
@@ -403,6 +434,71 @@ private:
 
     SmallStr infoText;
     int      initialHeight;
+};
+
+// ========================================================
+// class ScrollBarWidget:
+// ========================================================
+
+class ScrollBarWidget final
+    : public Widget
+{
+public:
+
+    ScrollBarWidget();
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, int buttonSize);
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    void onMove(int displacementX, int displacementY) override;
+    void onResize(int displacementX, int displacementY, Corner corner) override;
+    void onAdjustLayout() override;
+
+    bool onKeyPressed(KeyCode key, KeyModFlags modifiers) override;
+    bool onMouseButton(MouseButton button, int clicks) override;
+    bool onMouseMotion(int mx, int my) override;
+    bool onMouseScroll(int yScroll) override;
+
+    void updateLineScrollState(int lineCount, int linesOut);
+    void setInvertMouseScroll(bool invert);
+    bool isMouseScrollInverted() const;
+    int getBarWidth() const;
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    void doScrollUp();
+    void doScrollDown();
+
+    Rectangle makeInnerBarRect() const;
+    Rectangle makeUpButtonRect() const;
+    Rectangle makeDownButtonRect() const;
+
+    // Scroll slider states:
+    int scrollBarOffsetY;      // Current Y start of slider bar.
+    int scrollBarDisplacement; // Amount to move each click.
+    int scrollBarSizeFactor;   // Slider box scale: [0,100].
+    int scrollBarThickness;    // Thickness of slider bar. A fraction of the bar's box.
+    int scrollBarButtonSize;
+    int initialWidth;
+
+    // Start/end of scroll area (visualized as the line under the slider):
+    int scrollStartY;
+    int scrollEndY;
+
+    // Button boxes and scroll slider box:
+    Rectangle upBtnRect;
+    Rectangle downBtnRect;
+    Rectangle barSliderRect;
+
+    // Misc mouse and slider helpers:
+    Point sliderClickInitialPos;
+    int accumulatedScrollSliderDrag;
+    int totalLines;
+    int linesOutOfView;
+    int linesScrolledOut;
 };
 
 // ========================================================
@@ -454,7 +550,7 @@ private:
     PODArray entries; // [Entry]
 
     // User selection in the list. No selection if < 0.
-    static const int None = -1;
+    static constexpr int None = -1;
     int selectedEntry;
     int hoveredEntry;
 
@@ -462,6 +558,204 @@ private:
     // packed into this string, no spacing in between.
     SmallStr strings;
 };
+
+// ========================================================
+// class ColorPickerWidget:
+// ========================================================
+
+class ColorPickerWidget final
+    : public Widget, public ButtonWidget::EventListener
+{
+public:
+
+    ColorPickerWidget();
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+              int titleBarHeight, int titleBarButtonSize, int scrollBarWidth,
+              int scrollBarButtonSize, int clrButtonSize);
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    void onMove(int displacementX, int displacementY) override;
+
+    bool onButtonDown(ButtonWidget & button) override;
+    bool onMouseButton(MouseButton button, int clicks) override;
+    bool onMouseMotion(int mx, int my) override;
+    bool onMouseScroll(int yScroll) override;
+
+    void onScrollContentUp() override;
+    void onScrollContentDown() override;
+    void setMouseIntersecting(bool intersect) override;
+    void setButtonTextScaling(Float32 s);
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    using ButtonFunc = bool (ColorPickerWidget::*)(Rectangle, int, GeometryBatch *) const;
+
+    void refreshUsableRect();
+    bool drawColorButton(Rectangle colorRect, int colorIndex, GeometryBatch * pGeoBatch) const;
+    bool testColorButtonClick(Rectangle colorRect, int colorIndex, GeometryBatch * pUnused) const;
+    bool forEachColorButton(ButtonFunc pFunc, GeometryBatch * pGeoBatch) const;
+
+    // Discounts the top/side bars
+    Rectangle usableRect;
+
+    static constexpr int None = -1;
+    mutable int selectedColorIndex; // Index into the color table. 'None' (-1) for no selection.
+    int colorButtonLinesScrolledUp; // # of color buttons scrolled out.
+    int colorButtonSize;            // Width & height of each color button.
+
+    TitleBarWidget  titleBar;
+    ScrollBarWidget scrollBar;
+};
+
+// ========================================================
+// class View3DWidget:
+// ========================================================
+
+class View3DWidget final
+    : public Widget
+{
+public:
+
+    struct ProjectionParameters
+    {
+        Rectangle viewport;
+        Float32   fovYRadians;
+        Float32   aspectRatio;
+        Float32   zNear;
+        Float32   zFar;
+        Mat4x4    viewProjMatrix;
+        bool      autoAdjustAspect;
+    };
+
+    enum class Object : UInt8
+    {
+        None,
+        Sphere,
+        Arrow,
+        Box,
+
+        // Number of entries in this enum. Internal use.
+        Count
+    };
+
+    View3DWidget();
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+              const char * myTitle, int titleBarHeight, int titleBarButtonSize,
+              int resetAnglesBtnSize, const ProjectionParameters & proj, Object obj);
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    void onMove(int displacementX, int displacementY) override;
+
+    bool onMouseButton(MouseButton button, int clicks) override;
+    bool onMouseMotion(int mx, int my) override;
+    bool onMouseScroll(int yScroll) override;
+    void setMouseIntersecting(bool intersect) override;
+    void setButtonTextScaling(Float32 s);
+
+    void setInvertMouseY(bool invert);
+    bool isMouseYInverted() const;
+
+    void setMouseSensitivity(Float32 sensitivity);
+    Float32 getMouseSensitivity() const;
+
+    void setMaxMouseDelta(int max);
+    int getMaxMouseDelta() const;
+
+    void setShowXyzLabels(bool show);
+    bool isShowingXyzLabels() const;
+
+    void setInteractive(bool interactive);
+    bool isInteractive() const;
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    enum ArrowDir
+    {
+        ArrowDirX,
+        ArrowDirY,
+        ArrowDirZ
+    };
+
+    void clearScreenVertexCaches() const;
+    void submitScreenVertexCaches(GeometryBatch & geoBatch) const;
+    void addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, Float32 scaleXYZ) const;
+    void addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, Float32 scaleXYZ, Color32 color, ArrowDir dir) const;
+    void addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, Float32 w, Float32 h, Float32 d, Color32 color) const;
+    void refreshProjectionViewport();
+
+    // Local mouse states:
+    Point mouseDelta;                     // XY deltas to compute the mouse rotations.
+    Float32 mouseSensitivity;             // [0,1] range: 0=very low; 1=very high.
+    int maxMouseDelta;                    // Any range; default is 20.
+    bool invertMouseY;                    // Inverts mouse rotation of the object in the Y-axis.
+    bool leftMouseButtonDown;
+
+    // Misc switches:
+    bool interactiveControls;             // Allow mouse input and the reset button. Defaults to true.
+    bool showXyzLabels;                   // Show the XYZ label at the right corner. Defaults to true.
+    Object object;                        // Object geometry that is drawn in the viewport.
+
+    // Rotation angles:
+    mutable bool updateScrGeometry;       // Only update the geometry caches when needed (on input/angles changed).
+    mutable bool resettingAngles;         // True when "R" clicked. New mouse input cancels it.
+    mutable Vec3 rotationDegrees;         // AKA pitch (X), yaw (Y) and roll (Z).
+    mutable Int64 prevFrameTimeMs;        // Needed to compute a delta-time for angle reset lerp.
+    Rectangle resetAnglesBtnRect;         // Tiny reset button in the corner ("R").
+
+    // Screen projected geometry caches:
+    mutable PODArray scrProjectedVerts;   // Cached 3D object vertexes projected to screen, ready for drawing.
+    mutable PODArray scrProjectedIndexes; // Index buffer for the above verts, since RenderInterface requires it.
+    ProjectionParameters projParams;      // Cached projection/viewport settings.
+
+    // The (optional) title bar:
+    TitleBarWidget titleBar;
+};
+
+// ========================================================
+// Inline methods for the ValueSlider class:
+// ========================================================
+
+inline ValueSlider::ValueSlider()
+{
+    reset();
+}
+
+inline void ValueSlider::reset()
+{
+    minVal     = 0.0;
+    maxVal     = 1.0;
+    currentVal = 0.0;
+    sliderRect.setZero();
+}
+
+inline void ValueSlider::setRange(Float64 min, Float64 max)
+{
+    minVal = min;
+    maxVal = max;
+}
+
+inline void ValueSlider::setCurrentValue(Float64 v)
+{
+    currentVal = clamp(v, minVal, maxVal);
+}
+
+inline Float64 ValueSlider::getCurrentValue() const
+{
+    return currentVal;
+}
+
+inline Rectangle ValueSlider::getSliderRect() const
+{
+    return sliderRect;
+}
 
 // ========================================================
 // Inline methods for the Widget class:
@@ -588,24 +882,34 @@ inline int Widget::getChildCount() const
     return children.getSize();
 }
 
-inline void Widget::setTextScaling(Float32 s)
-{
-    textScaling = s;
-}
-
-inline Float32 Widget::getTextScaling() const
-{
-    return textScaling;
-}
-
 inline void Widget::setScaling(Float32 s)
 {
     scaling = s;
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        getChild(c)->setScaling(s);
+    }
+}
+
+inline void Widget::setTextScaling(Float32 s)
+{
+    textScaling = s;
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        getChild(c)->setTextScaling(s);
+    }
 }
 
 inline Float32 Widget::getScaling() const
 {
     return scaling;
+}
+
+inline Float32 Widget::getTextScaling() const
+{
+    return textScaling;
 }
 
 inline int Widget::uiScaled(int val) const
@@ -720,7 +1024,8 @@ inline SmallStr TitleBarWidget::getTypeString() const
 
 inline void InfoBarWidget::setText(const char * newText)
 {
-    infoText = newText;
+    infoText  = " » ";
+    infoText += newText;
 }
 
 inline const char * InfoBarWidget::getText() const
@@ -741,6 +1046,32 @@ inline SmallStr InfoBarWidget::getTypeString() const
 #endif // NEO_TWEAK_BAR_DEBUG
 
 // ========================================================
+// Inline methods for the ScrollBarWidget class:
+// ========================================================
+
+inline void ScrollBarWidget::setInvertMouseScroll(bool invert)
+{
+    setFlag(FlagInvertMouseScroll, invert);
+}
+
+inline bool ScrollBarWidget::isMouseScrollInverted() const
+{
+    return testFlag(FlagInvertMouseScroll);
+}
+
+inline int ScrollBarWidget::getBarWidth() const
+{
+    return initialWidth;
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+inline SmallStr ScrollBarWidget::getTypeString() const
+{
+    return "ScrollBarWidget";
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
 // Inline methods for the ListWidget class:
 // ========================================================
 
@@ -752,7 +1083,7 @@ inline int ListWidget::getNumOfEntries() const
 inline SmallStr ListWidget::getEntryText(int index) const
 {
     const Entry & entry = entries.get<Entry>(index);
-    return SmallStr(strings.c_str() + entry.firstChar, entry.lengthInChars);
+    return { strings.c_str() + entry.firstChar, entry.lengthInChars };
 }
 
 inline int ListWidget::getSelectedEntry() const
@@ -774,6 +1105,100 @@ inline void ListWidget::clearSelectedEntry()
 inline SmallStr ListWidget::getTypeString() const
 {
     return "ListWidget";
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// Inline methods for the ColorPickerWidget class:
+// ========================================================
+
+inline void ColorPickerWidget::setMouseIntersecting(bool intersect)
+{
+    Widget::setMouseIntersecting(intersect);
+
+    // We want to highlight the side/top bars when the parent gains focus.
+    if (intersect)
+    {
+        titleBar.setHighlightedColors();
+        scrollBar.setHighlightedColors();
+    }
+}
+
+inline void ColorPickerWidget::setButtonTextScaling(Float32 s)
+{
+    titleBar.setButtonTextScaling(s);
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+inline SmallStr ColorPickerWidget::getTypeString() const
+{
+    return "ColorPickerWidget";
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// Inline methods for the View3DWidget class:
+// ========================================================
+
+inline void View3DWidget::setButtonTextScaling(Float32 s)
+{
+    titleBar.setButtonTextScaling(s);
+}
+
+inline void View3DWidget::setInvertMouseY(bool invert)
+{
+    invertMouseY = invert;
+}
+
+inline bool View3DWidget::isMouseYInverted() const
+{
+    return invertMouseY;
+}
+
+inline void View3DWidget::setMouseSensitivity(Float32 sensitivity)
+{
+    mouseSensitivity = sensitivity;
+}
+
+inline Float32 View3DWidget::getMouseSensitivity() const
+{
+    return mouseSensitivity;
+}
+
+inline void View3DWidget::setMaxMouseDelta(int max)
+{
+    maxMouseDelta = max;
+}
+
+inline int View3DWidget::getMaxMouseDelta() const
+{
+    return maxMouseDelta;
+}
+
+inline void View3DWidget::setShowXyzLabels(bool show)
+{
+    showXyzLabels = show;
+}
+
+inline bool View3DWidget::isShowingXyzLabels() const
+{
+    return showXyzLabels;
+}
+
+inline void View3DWidget::setInteractive(bool interactive)
+{
+    interactiveControls = interactive;
+}
+
+inline bool View3DWidget::isInteractive() const
+{
+    return interactiveControls;
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+inline SmallStr View3DWidget::getTypeString() const
+{
+    return "View3DWidget";
 }
 #endif // NEO_TWEAK_BAR_DEBUG
 

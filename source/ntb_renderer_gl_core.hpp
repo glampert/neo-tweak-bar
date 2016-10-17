@@ -938,8 +938,8 @@ void RenderInterfaceDefaultGLCore::drawClipped2DTriangles(const VertexPTC * vert
         }
 
         // Issue the draw call:
-        glDrawElements(GL_TRIANGLES, drawInfo[i].indexCount,
-                       GL_UNSIGNED_SHORT, offsetPtr(drawInfo[i].firstIndex));
+        glDrawElements(GL_TRIANGLES, drawInfo[i].indexCount, GL_UNSIGNED_SHORT,
+                       offsetPtr(drawInfo[i].firstIndex * sizeof(UInt16)));
     }
 
     glDisable(GL_SCISSOR_TEST);

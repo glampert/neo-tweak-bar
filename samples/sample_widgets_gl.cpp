@@ -99,7 +99,7 @@ int main(const int argc, const char * argv[])
         ntb::PODArray widgets{ sizeof(ntb::Widget *) };
         ntb::GUI * gui = ntb::createGUI("Sample GUI");
 
-        // Basic widget:
+        // Basic blank widget:
         {
             auto w = new ntb::Widget{};
             w->init(gui, nullptr, ntb::Rectangle{ 20, 20, 300, 300 }, true);
@@ -111,16 +111,16 @@ int main(const int argc, const char * argv[])
             MyButtonEventListener buttonEventListener;
             const int buttonIconCount = static_cast<int>(ntb::ButtonWidget::Icon::Count);
 
-            constexpr float btnScale  = 1.6f;
-            constexpr int   btnSize   = 50;
-            constexpr int   btnStartX = 350;
-            constexpr int   btnStartY = 20;
+            constexpr float btnScale = 1.6f;
+            constexpr int btnSize = 50;
+            constexpr int xStart  = 350;
+            constexpr int yStart  = 20;
 
-            int x = btnStartX;
+            int x = xStart;
             for (int i = 1; i < buttonIconCount; ++i) // Skip fist (Icon::None/0)
             {
                 auto btn = new ntb::ButtonWidget{};
-                btn->init(gui, nullptr, ntb::Rectangle{ x, btnStartY, x + btnSize, btnStartY + btnSize },
+                btn->init(gui, nullptr, ntb::Rectangle{ x, yStart, x + btnSize, yStart + btnSize },
                           true, ntb::ButtonWidget::Icon(i), &buttonEventListener);
 
                 btn->setTextScaling(btnScale);
@@ -167,6 +167,62 @@ int main(const int argc, const char * argv[])
             widgets.pushBack(l);
         }
 
+        // Scrollbar widget:
+        {
+            auto sb = new ntb::ScrollBarWidget{};
+            sb->init(gui, nullptr, ntb::Rectangle{ 550, 300, 600, 600 }, true, 30);
+            sb->updateLineScrollState(10, 5);
+            widgets.pushBack(sb);
+        }
+
+        // Color Picker widget:
+        {
+            constexpr int colorPickerWidth  = 360;
+            constexpr int colorPickerHeight = 500;
+            constexpr int xStart = 20;
+            constexpr int yStart = 600;
+
+            const ntb::Rectangle rect{ xStart, yStart, xStart + colorPickerWidth, yStart + colorPickerHeight };
+
+            auto cp = new ntb::ColorPickerWidget{};
+            cp->init(gui, nullptr, rect, true, 40, 28, 40, 25, 40);
+            cp->setTextScaling(1.5f);
+            cp->setButtonTextScaling(1.0f);
+
+            widgets.pushBack(cp);
+        }
+
+        // 3D view widgets:
+        {
+            constexpr int view3dWidth  = 450;
+            constexpr int view3dHeight = 500;
+            constexpr int xStart = 500;
+            constexpr int yStart = 650;
+
+            ntb::View3DWidget::ProjectionParameters projParams;
+            projParams.fovYRadians      = ntb::degToRad(60.0f);
+            projParams.aspectRatio      = 0.0f; // auto computed
+            projParams.zNear            = 0.5f;
+            projParams.zFar             = 100.0f;
+            projParams.autoAdjustAspect = true;
+
+            const int objCount = static_cast<int>(ntb::View3DWidget::Object::Count);
+
+            int x = xStart;
+            for (int i = 1; i < objCount; ++i)
+            {
+                const ntb::Rectangle rect{ x, yStart, x + view3dWidth, yStart + view3dHeight };
+
+                auto v3d = new ntb::View3DWidget{};
+                v3d->init(gui, nullptr, rect, true, "3D View Widget", 40, 28, 10, projParams, ntb::View3DWidget::Object(i));
+                v3d->setTextScaling(1.5f);
+                v3d->setButtonTextScaling(1.0f);
+                x += view3dWidth + 50;
+
+                widgets.pushBack(v3d);
+            }
+        }
+
         // To forward window input events to the widget list.
         ctx.setAppCallback(&ctx, &myAppEventCallback, &widgets);
 
@@ -175,6 +231,24 @@ int main(const int argc, const char * argv[])
             ctx.frameUpdate(&ctx, &done);
             geoBatch.beginDraw();
 
+            // Slider helper (not an actual widget, but used by some widgets):
+            {
+                static ntb::Float64 sliderPercent = 0.0;
+
+                ntb::ValueSlider slider;
+                slider.setRange(0, 100);
+                slider.setCurrentValue(sliderPercent);
+                slider.drawSelf(geoBatch, ntb::Rectangle{ 650, 350, 950, 400 },
+                                ntb::packColor(255, 255, 255), ntb::packColor(255, 100, 0));
+
+                sliderPercent += 0.2;
+                if (sliderPercent > 100.0)
+                {
+                    sliderPercent = 0.0;
+                }
+            }
+
+            // Render our widgets:
             widgets.forEach<ntb::Widget *>(
                 [](ntb::Widget * widget, ntb::GeometryBatch * batch)
                 {
