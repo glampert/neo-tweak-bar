@@ -19,6 +19,9 @@
 namespace ntb
 {
 
+class Widget;
+class WindowWidget;
+
 // ========================================================
 // Helper structures:
 // ========================================================
@@ -166,6 +169,19 @@ private:
 };
 
 // ========================================================
+// class EditField:
+// ========================================================
+
+class EditField final
+    : public ListNode<EditField>
+{
+public:
+
+    void setActive(bool active) { (void)active; }
+    //TODO
+};
+
+// ========================================================
 // class Widget:
 // ========================================================
 
@@ -179,15 +195,23 @@ public:
 
     enum Flags
     {
-        FlagVisible             = 1 << 0,
-        FlagMinimized           = 1 << 1,
-        FlagScrolledOutOfView   = 1 << 2,
-        FlagMouseIntersecting   = 1 << 3,
-        FlagMouseDragEnabled    = 1 << 4,
-        FlagNoRectShadow        = 1 << 5,
-        FlagNeedDeleting        = 1 << 6,
-        FlagInvertMouseScroll   = 1 << 7,
-        FlagHoldingScrollSlider = 1 << 8
+        // Common to all widgets:
+        Flag_Visible                 = 1 << 0,
+        Flag_Minimized               = 1 << 1,
+        Flag_ScrolledOutOfView       = 1 << 2,
+        Flag_MouseIntersecting       = 1 << 3,
+        Flag_MouseDragEnabled        = 1 << 4,
+        Flag_NoRectShadow            = 1 << 5,
+        Flag_NeedDeleting            = 1 << 6,
+
+        // Scroll bars only:
+        Flag_InvertMouseScroll       = 1 << 7,
+        Flag_HoldingScrollSlider     = 1 << 8,
+
+        // Var display widgets:
+        Flag_WithValueEditButtons    = 1 << 9,
+        Flag_ValueEditButtonsEnabled = 1 << 10,
+        Flag_ValueClickAndHold       = 1 << 11,
     };
 
     enum Corner
@@ -631,7 +655,7 @@ public:
         bool      autoAdjustAspect;
     };
 
-    enum class Object : UInt8
+    enum class ObjectType : UInt8
     {
         None,
         Sphere,
@@ -645,7 +669,7 @@ public:
     View3DWidget();
     void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
               const char * myTitle, int titleBarHeight, int titleBarButtonSize,
-              int resetAnglesBtnSize, const ProjectionParameters & proj, Object obj);
+              int resetAnglesBtnSize, const ProjectionParameters & proj, ObjectType obj);
 
     void onDraw(GeometryBatch & geoBatch) const override;
     void onMove(int displacementX, int displacementY) override;
@@ -701,7 +725,7 @@ private:
     // Misc switches:
     bool interactiveControls;             // Allow mouse input and the reset button. Defaults to true.
     bool showXyzLabels;                   // Show the XYZ label at the right corner. Defaults to true.
-    Object object;                        // Object geometry that is drawn in the viewport.
+    ObjectType object;                    // Object/shape geometry that is drawn in the viewport.
 
     // Rotation angles:
     mutable bool updateScrGeometry;       // Only update the geometry caches when needed (on input/angles changed).
@@ -717,6 +741,173 @@ private:
 
     // The (optional) title bar:
     TitleBarWidget titleBar;
+};
+
+// ========================================================
+// class VarDisplayWidget:
+// ========================================================
+
+class VarDisplayWidget
+    : public Widget, public ButtonWidget::EventListener
+{
+public:
+
+    VarDisplayWidget();
+    virtual ~VarDisplayWidget();
+
+    void init(GUI * myGUI, VarDisplayWidget * myParent, const Rectangle & myRect,
+              bool visible, WindowWidget * myWindow, const char * name);
+
+    virtual void onDraw(GeometryBatch & geoBatch) const override;
+    virtual void onMove(int displacementX, int displacementY) override;
+    virtual void onResize(int displacementX, int displacementY, Corner corner) override;
+
+    virtual void onAdjustLayout() override;
+    virtual void onDisableEditing() override;
+    virtual void setVisible(bool visible) override;
+
+    virtual bool onMouseButton(MouseButton button, int clicks) override;
+    virtual bool onMouseMotion(int mx, int my) override;
+    virtual bool onMouseScroll(int yScroll) override;
+    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers) override;
+    virtual bool onButtonDown(ButtonWidget & button) override;
+
+    void setButtonTextScaling(Float32 s);
+    int getExpandCollapseButtonSize() const;
+    Rectangle getExpandCollapseButtonRect() const;
+    void addExpandCollapseButton();
+    bool hasExpandCollapseButton() const;
+    bool isHierarchyCollapsed() const;
+
+    void setCustomTextColor(Color32 newColor);
+    Color32 getCustomTextColor() const;
+
+    const Rectangle & getDataDisplayRect() const;
+    void setDataDisplayRect(const Rectangle & newRect);
+
+    const WindowWidget * getParentWindow() const;
+    WindowWidget * getParentWindow();
+
+    const SmallStr & getVarName() const;
+    void setVarName(const SmallStr & name);
+    void setVarName(const char * name);
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+protected:
+
+    virtual void drawVarName(GeometryBatch & geoBatch)  const;
+    virtual void drawVarValue(GeometryBatch & geoBatch) const; // Unimplemented in the base
+    virtual void drawValueEditButtons(GeometryBatch & geoBatch) const;
+
+private:
+
+    void setHierarchyVisibility(VarDisplayWidget * child, bool visible) const;
+    void setExpandCollapseState(bool expanded);
+
+    int getMinDataDisplayRectWidth() const;
+    Rectangle makeDataDisplayAndButtonRects(bool editButtons);
+
+private:
+
+    // Need the extra reference to the parent window because the
+    // 'parent' field of a VarDisplayWidget might be another
+    // VarDisplayWidget, for nested var instances.
+    WindowWidget * parentWindow;
+
+    // Allows setting a custom color for the variable value text of this particular instance.
+    Color32 customTextColor;
+
+    // Cached rectangles:
+    Rectangle incrButton;
+    Rectangle decrButton;
+    Rectangle editPopupButton;
+    Rectangle dataDisplayRect;
+    int initialHeight;
+
+    // Button state true if hierarchy open, false if collapsed.
+    // Note that the button will be made a child of the parent widget (Window), so the
+    // VarDisplayWidget::children list only containers nested child VarDisplayWidgets.
+    ButtonWidget expandCollapseButton;
+
+    // Mutable because EditField::drawSelf() needs to update some internal state.
+    mutable EditField editField;
+
+    // Name displayed in the UI.
+    // Can contain any ASCII character, including spaces.
+    SmallStr varName;
+};
+
+// ========================================================
+// class WindowWidget:
+// ========================================================
+
+class WindowWidget
+    : public Widget
+{
+public:
+
+    WindowWidget();
+    virtual ~WindowWidget();
+
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, const char * title,
+              int titleBarH, int titleBarBtnSize, int scrollBarW, int scrollBarBtnSize);
+
+    virtual void onDraw(GeometryBatch & geoBatch) const override;
+    virtual void onMove(int displacementX, int displacementY) override;
+    virtual void onAdjustLayout() override;
+    virtual void onDisableEditing() override;
+    virtual void setMouseIntersecting(bool intersect) override;
+
+    virtual bool onMouseButton(MouseButton button, int clicks) override;
+    virtual bool onMouseMotion(int mx, int my) override;
+    virtual bool onMouseScroll(int yScroll) override;
+    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers) override;
+
+    const Rectangle & getUsableRect() const;
+    void setUsableRect(const Rectangle & newRect);
+
+    ScrollBarWidget & getScrollBar();
+    IntrusiveList<EditField> & getEditFieldList();
+
+    void addEditField(EditField * editField);
+    void removeEditField(EditField * editField);
+
+    int getMinWindowWidthScaled()  const;
+    int getMinWindowHeightScaled() const;
+
+    void setButtonTextScaling(Float32 s);
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    void drawResizeHandles(GeometryBatch & geoBatch) const;
+    void resizeWithMin(Corner corner, int & x, int & y, int offsetX, int offsetY);
+    void refreshBarRects(const char * newTitle, const char * newInfoString);
+    void refreshUsableRect();
+
+    Rectangle usableRect;     // Size discounting the top/side bars.
+    Corner    resizingCorner; // Which corner being resized by user input.
+    Widget *  popupWidget;    // Each window can have one open popup at a time. Popups are always window children.
+
+    // Global list of EditFields attached to this window for easy access.
+    IntrusiveList<EditField> editFieldsList;
+
+    // These are always present in a window, so we can avoid a mem alloc and declare them inline.
+    ScrollBarWidget scrollBar;
+    TitleBarWidget  titleBar;
+    InfoBarWidget   infoBar;
+
+    // No need for full 31-bits for these.
+    Int16 titleBarButtonSize;
+    Int16 titleBarHeight;
+    Int16 scrollBarButtonSize;
+    Int16 scrollBarWidth;
 };
 
 // ========================================================
@@ -763,47 +954,47 @@ inline Rectangle ValueSlider::getSliderRect() const
 
 inline bool Widget::isVisible() const
 {
-    return testFlag(FlagVisible);
+    return testFlag(Flag_Visible);
 }
 
 inline bool Widget::isMinimized() const
 {
-    return testFlag(FlagMinimized);
+    return testFlag(Flag_Minimized);
 }
 
 inline bool Widget::isScrolledOutOfView() const
 {
-    return testFlag(FlagScrolledOutOfView);
+    return testFlag(Flag_ScrolledOutOfView);
 }
 
 inline bool Widget::isMouseIntersecting() const
 {
-    return testFlag(FlagMouseIntersecting);
+    return testFlag(Flag_MouseIntersecting);
 }
 
 inline bool Widget::isMouseDragEnabled() const
 {
-    return testFlag(FlagMouseDragEnabled);
+    return testFlag(Flag_MouseDragEnabled);
 }
 
 inline void Widget::setVisible(bool visible)
 {
-    setFlag(FlagVisible, visible);
+    setFlag(Flag_Visible, visible);
 }
 
 inline void Widget::setMouseIntersecting(bool intersect)
 {
-    setFlag(FlagMouseIntersecting, intersect);
+    setFlag(Flag_MouseIntersecting, intersect);
 }
 
 inline void Widget::setMinimized(bool minimized)
 {
-    setFlag(FlagMinimized, minimized);
+    setFlag(Flag_Minimized, minimized);
 }
 
 inline void Widget::setScrolledOutOfView(bool outOfView)
 {
-    setFlag(FlagScrolledOutOfView, outOfView);
+    setFlag(Flag_ScrolledOutOfView, outOfView);
 }
 
 inline void Widget::setGUI(GUI * newGUI)
@@ -930,6 +1121,7 @@ inline bool Widget::testFlag(UInt32 mask) const
 inline void Widget::setFlag(UInt32 mask, int f)
 {
     // Using one of the Standford bit-hacks:
+    // (Conditionally set or clear bit without branching)
     // http://graphics.stanford.edu/~seander/bithacks.html
     flags = (flags & ~mask) | (-f & mask);
 }
@@ -1051,12 +1243,12 @@ inline SmallStr InfoBarWidget::getTypeString() const
 
 inline void ScrollBarWidget::setInvertMouseScroll(bool invert)
 {
-    setFlag(FlagInvertMouseScroll, invert);
+    setFlag(Flag_InvertMouseScroll, invert);
 }
 
 inline bool ScrollBarWidget::isMouseScrollInverted() const
 {
-    return testFlag(FlagInvertMouseScroll);
+    return testFlag(Flag_InvertMouseScroll);
 }
 
 inline int ScrollBarWidget::getBarWidth() const
@@ -1201,6 +1393,124 @@ inline SmallStr View3DWidget::getTypeString() const
     return "View3DWidget";
 }
 #endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// Inline methods for the VarDisplayWidget class:
+// ========================================================
+
+inline void VarDisplayWidget::setButtonTextScaling(Float32 s)
+{
+    expandCollapseButton.setTextScaling(s);
+}
+
+inline int VarDisplayWidget::getExpandCollapseButtonSize() const
+{
+    return Widget::uiScaleBy(initialHeight, 0.8);
+}
+
+inline bool VarDisplayWidget::hasExpandCollapseButton() const
+{
+    return expandCollapseButton.getIcon() != ButtonWidget::Icon::None;
+}
+
+inline bool VarDisplayWidget::isHierarchyCollapsed() const
+{
+    return hasExpandCollapseButton() && (expandCollapseButton.getState() == false);
+}
+
+inline void VarDisplayWidget::setCustomTextColor(const Color32 newColor)
+{
+    customTextColor = newColor;
+}
+
+inline Color32 VarDisplayWidget::getCustomTextColor() const
+{
+    return customTextColor;
+}
+
+inline const Rectangle & VarDisplayWidget::getDataDisplayRect() const
+{
+    return dataDisplayRect;
+}
+
+inline void VarDisplayWidget::setDataDisplayRect(const Rectangle & newRect)
+{
+    dataDisplayRect = newRect;
+}
+
+inline const WindowWidget * VarDisplayWidget::getParentWindow() const
+{
+    return parentWindow;
+}
+
+inline WindowWidget * VarDisplayWidget::getParentWindow()
+{
+    return parentWindow;
+}
+
+inline const SmallStr & VarDisplayWidget::getVarName() const
+{
+    return varName;
+}
+
+inline void VarDisplayWidget::setVarName(const SmallStr & name)
+{
+    varName = name;
+}
+
+inline void VarDisplayWidget::setVarName(const char * name)
+{
+    varName = name;
+}
+
+// ========================================================
+// Inline methods for the WindowWidget class:
+// ========================================================
+
+inline const Rectangle & WindowWidget::getUsableRect() const
+{
+    return usableRect;
+}
+
+inline void WindowWidget::setUsableRect(const Rectangle & newRect)
+{
+    usableRect = newRect;
+}
+
+inline ScrollBarWidget & WindowWidget::getScrollBar()
+{
+    return scrollBar;
+}
+
+inline IntrusiveList<EditField> & WindowWidget::getEditFieldList()
+{
+    return editFieldsList;
+}
+
+inline void WindowWidget::addEditField(EditField * editField)
+{
+    editFieldsList.pushBack(editField);
+}
+
+inline void WindowWidget::removeEditField(EditField * editField)
+{
+    editFieldsList.unlink(editField);
+}
+
+inline int WindowWidget::getMinWindowWidthScaled() const
+{
+    return Widget::uiScaled(145);
+}
+
+inline int WindowWidget::getMinWindowHeightScaled() const
+{
+    return Widget::uiScaled(120);
+}
+
+inline void WindowWidget::setButtonTextScaling(Float32 s)
+{
+    titleBar.setButtonTextScaling(s);
+}
 
 } // namespace ntb {}
 

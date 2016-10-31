@@ -251,14 +251,16 @@ void shutdown()
     g_pRenderInterface = nullptr;
 }
 
-ShellInterface * getShellInterface()
+ShellInterface & getShellInterface()
 {
-    return g_pShellInterface;
+    NTB_ASSERT(g_pShellInterface != nullptr);
+    return *g_pShellInterface;
 }
 
-RenderInterface * getRenderInterface()
+RenderInterface & getRenderInterface()
 {
-    return g_pRenderInterface;
+    NTB_ASSERT(g_pRenderInterface != nullptr);
+    return *g_pRenderInterface;
 }
 
 // ========================================================

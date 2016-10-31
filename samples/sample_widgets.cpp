@@ -1,10 +1,16 @@
 
 // ================================================================================================
 // -*- C++ -*-
-// File: sample_widgets_gl.cpp
+// File: sample_widgets.cpp
 // Author: Guilherme R. Lampert
 // Created on: 02/10/16
-// Brief: Sample and testbed for the internal Widget types used by NTB.
+//
+// Brief:
+//  Sample and testbed for the internal Widget types used by NTB.
+//  Arguments:
+//   --gl-core:   Runs in OpenGL Core Profile mode (GL 3+);
+//   --gl-legacy: Runs in Legacy mode (OpenGL 2.0 or lower);
+//  If no command line arguments are given, defaults to legacy mode.
 // ================================================================================================
 
 #include "ntb.hpp"
@@ -86,7 +92,7 @@ bool MyButtonEventListener::onButtonDown(ntb::ButtonWidget & button)
 int main(const int argc, const char * argv[])
 {
     AppContext ctx;
-    if (!appInit(argc, argv, "NTB Widgets Tests", 1024, 768, &ctx))
+    if (!appInit(argc, argv, "NTB Widgets Test", 1024, 768, &ctx))
     {
         std::fprintf(stderr, "[APP_ERROR]: Failed to initialize sample app!\n");
         return EXIT_FAILURE;
@@ -206,7 +212,7 @@ int main(const int argc, const char * argv[])
             projParams.zFar             = 100.0f;
             projParams.autoAdjustAspect = true;
 
-            const int objCount = static_cast<int>(ntb::View3DWidget::Object::Count);
+            const int objCount = static_cast<int>(ntb::View3DWidget::ObjectType::Count);
 
             int x = xStart;
             for (int i = 1; i < objCount; ++i)
@@ -214,13 +220,88 @@ int main(const int argc, const char * argv[])
                 const ntb::Rectangle rect{ x, yStart, x + view3dWidth, yStart + view3dHeight };
 
                 auto v3d = new ntb::View3DWidget{};
-                v3d->init(gui, nullptr, rect, true, "3D View Widget", 40, 28, 10, projParams, ntb::View3DWidget::Object(i));
+                v3d->init(gui, nullptr, rect, true, "3D View Widget", 40, 28, 10, projParams, ntb::View3DWidget::ObjectType(i));
                 v3d->setTextScaling(1.5f);
                 v3d->setButtonTextScaling(1.0f);
                 x += view3dWidth + 50;
 
                 widgets.pushBack(v3d);
             }
+        }
+
+        // Var data display widgets inside a window/panel:
+        {
+            auto varWindow = new ntb::WindowWidget{};
+            varWindow->init(gui, nullptr, ntb::Rectangle{ 1000, 20, 1500, 600 }, true, "Variables Test", 40, 28, 40, 25);
+            varWindow->setTextScaling(1.5f);
+            varWindow->setButtonTextScaling(1.0f);
+
+            constexpr int varStartX = 1100;
+            constexpr int varStartY = 90;
+            constexpr int varWidth  = 300;
+            constexpr int varHeight = 50;
+            constexpr int varOffsY  = 8;
+
+            ntb::Rectangle rect;
+            int y = varStartY;
+
+            auto var0 = new ntb::VarDisplayWidget{};
+            rect.set(varStartX, y, varStartX + varWidth, y + varHeight); y += varHeight + varOffsY;
+            var0->init(gui, nullptr, rect, true, varWindow, "Var 0");
+            var0->setTextScaling(1.5f);
+            var0->setButtonTextScaling(1.5f);
+
+            auto var1 = new ntb::VarDisplayWidget{};
+            rect.set(varStartX, y, varStartX + varWidth, y + varHeight); y += varHeight + varOffsY;
+            var1->init(gui, var0, rect, true, varWindow, "Var 1");
+            var1->setTextScaling(1.5f);
+
+            auto var2 = new ntb::VarDisplayWidget{};
+            rect.set(varStartX, y, varStartX + varWidth, y + varHeight); y += varHeight + varOffsY;
+            var2->init(gui, var0, rect, true, varWindow, "Var 2");
+            var2->setTextScaling(1.5f);
+
+            // Change sizes so child vars look nested under the parent
+            int cX = varStartX + var0->getExpandCollapseButtonSize();
+            int cW = varWidth  - var0->getExpandCollapseButtonSize();
+
+            auto var3 = new ntb::VarDisplayWidget{};
+            rect.set(cX, y, cX + cW, y + varHeight); y += varHeight + varOffsY;
+            var3->init(gui, var0, rect, true, varWindow, "Var 3");
+            var3->setTextScaling(1.5f);
+            var3->setButtonTextScaling(1.5f);
+
+            auto var4 = new ntb::VarDisplayWidget{};
+            rect.set(cX, y, cX + cW, y + varHeight); y += varHeight + varOffsY;
+            var4->init(gui, var3, rect, true, varWindow, "Var 4");
+            var4->setTextScaling(1.5f);
+
+            cX += var0->getExpandCollapseButtonSize();
+            cW -= var0->getExpandCollapseButtonSize();
+
+            auto var5 = new ntb::VarDisplayWidget{};
+            rect.set(cX, y, cX + cW, y + varHeight); y += varHeight + varOffsY;
+            var5->init(gui, var3, rect, true, varWindow, "Var 5");
+            var5->setTextScaling(1.5f);
+            var5->setButtonTextScaling(1.5f);
+
+            auto var6 = new ntb::VarDisplayWidget{};
+            rect.set(cX, y, cX + cW, y + varHeight); y += varHeight + varOffsY;
+            var6->init(gui, var5, rect, true, varWindow, "Var 6");
+            var6->setTextScaling(1.5f);
+
+            auto var7 = new ntb::VarDisplayWidget{};
+            rect.set(cX, y, cX + cW, y + varHeight); y += varHeight + varOffsY;
+            var7->init(gui, var5, rect, true, varWindow, "Var 7");
+            var7->setTextScaling(1.5f);
+
+            #if NEO_TWEAK_BAR_DEBUG
+            varWindow->printHierarchy();
+            std::cout << "\n";
+            #endif // NEO_TWEAK_BAR_DEBUG
+
+            // Only have to add the window, since each var widget is a child, directly or indirectly.
+            widgets.pushBack(varWindow);
         }
 
         // To forward window input events to the widget list.
@@ -238,8 +319,12 @@ int main(const int argc, const char * argv[])
                 ntb::ValueSlider slider;
                 slider.setRange(0, 100);
                 slider.setCurrentValue(sliderPercent);
+
                 slider.drawSelf(geoBatch, ntb::Rectangle{ 650, 350, 950, 400 },
                                 ntb::packColor(255, 255, 255), ntb::packColor(255, 100, 0));
+
+                slider.drawSelf(geoBatch, ntb::Rectangle{ 650, 450, 950, 500 },
+                                ntb::packColor(255, 255, 255), ntb::packColor(0, 200, 200));
 
                 sliderPercent += 0.2;
                 if (sliderPercent > 100.0)

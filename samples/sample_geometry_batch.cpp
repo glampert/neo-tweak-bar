@@ -1,7 +1,7 @@
 
 // ================================================================================================
 // -*- C++ -*-
-// File: sample_geometry_batch_gl.cpp
+// File: sample_geometry_batch.cpp
 // Author: Guilherme R. Lampert
 // Created on: 29/08/16
 //
@@ -36,8 +36,8 @@ static void makeScreenProjectedBox(ntb::PODArray * scrProjectedVerts, ntb::PODAr
     int viewport[4];
     ntb::Rectangle scrViewport;
 
-    ntb::RenderInterface * renderer = ntb::getRenderInterface();
-    renderer->getViewport(&viewport[0], &viewport[1], &viewport[2], &viewport[3]);
+    const ntb::RenderInterface & renderer = ntb::getRenderInterface();
+    renderer.getViewport(&viewport[0], &viewport[1], &viewport[2], &viewport[3]);
     scrViewport.set(viewport);
 
     const ntb::Float32 w          = 0.4f;

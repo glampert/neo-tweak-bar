@@ -42,7 +42,7 @@ GeometryBatch::~GeometryBatch()
 {
     if (glyphTex != nullptr)
     {
-        getRenderInterface()->destroyTexture(glyphTex);
+        getRenderInterface().destroyTexture(glyphTex);
         glyphTex = nullptr;
     }
 }
@@ -76,26 +76,26 @@ void GeometryBatch::beginDraw()
     NTB_ASSERT(vertsClippedBatch.isEmpty());
     NTB_ASSERT(trisClippedBatch.isEmpty());
 
-    RenderInterface * renderer = getRenderInterface();
-    renderer->beginDraw();
+    RenderInterface & renderer = getRenderInterface();
+    renderer.beginDraw();
     currentZ = 0;
 }
 
 void GeometryBatch::endDraw()
 {
-    RenderInterface * renderer = getRenderInterface();
+    RenderInterface & renderer = getRenderInterface();
 
     // Continue anyway if exceeded (assuming the error handled doesn't throw).
     // The result might be a glitchy draw with overlapping elements.
-    if (++currentZ >= renderer->getMaxZ())
+    if (++currentZ >= renderer.getMaxZ())
     {
         errorF("Max frame Z index exceeded! Provide a custom RenderInterface::getMaxZ()!");
-        currentZ = renderer->getMaxZ() - 1;
+        currentZ = renderer.getMaxZ() - 1;
     }
 
     if (!verts2DBatch.isEmpty() && !tris2DBatch.isEmpty())
     {
-        renderer->draw2DTriangles(
+        renderer.draw2DTriangles(
             verts2DBatch.getData<VertexPTC>(), verts2DBatch.getSize(),
             tris2DBatch.getData<UInt16>(), tris2DBatch.getSize(),
             nullptr, currentZ); // untextured
@@ -103,7 +103,7 @@ void GeometryBatch::endDraw()
 
     if (!drawClippedInfos.isEmpty() && !vertsClippedBatch.isEmpty() && !trisClippedBatch.isEmpty())
     {
-        renderer->drawClipped2DTriangles(
+        renderer.drawClipped2DTriangles(
             vertsClippedBatch.getData<VertexPTC>(), vertsClippedBatch.getSize(),
             trisClippedBatch.getData<UInt16>(), trisClippedBatch.getSize(),
             drawClippedInfos.getData<DrawClippedInfo>(), drawClippedInfos.getSize(), currentZ);
@@ -111,7 +111,7 @@ void GeometryBatch::endDraw()
 
     if (!textVertsBatch.isEmpty() && !textTrisBatch.isEmpty())
     {
-        renderer->draw2DTriangles(
+        renderer.draw2DTriangles(
             textVertsBatch.getData<VertexPTC>(), textVertsBatch.getSize(),
             textTrisBatch.getData<UInt16>(), textTrisBatch.getSize(),
             glyphTex, currentZ); // textured
@@ -119,7 +119,7 @@ void GeometryBatch::endDraw()
 
     if (!linesBatch.isEmpty())
     {
-        renderer->draw2DLines(linesBatch.getData<VertexPC>(), linesBatch.getSize(), currentZ);
+        renderer.draw2DLines(linesBatch.getData<VertexPC>(), linesBatch.getSize(), currentZ);
     }
 
     // Reset the batches:
@@ -137,7 +137,7 @@ void GeometryBatch::endDraw()
     baseVertexText    = 0;
     baseVertexClipped = 0;
 
-    renderer->endDraw();
+    renderer.endDraw();
 }
 
 void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int vertCount,
@@ -384,7 +384,7 @@ void GeometryBatch::createGlyphTexture()
         return;
     }
 
-    glyphTex = getRenderInterface()->createTexture(
+    glyphTex = getRenderInterface().createTexture(
                      detail::getFontCharSet().bitmapWidth,
                      detail::getFontCharSet().bitmapHeight,
                      detail::getFontCharSet().bitmapColorChannels,
@@ -722,7 +722,7 @@ Widget::~Widget()
     children.forEach<Widget *>(
         [](Widget * widget, void * /*unused*/)
         {
-            if (widget->testFlag(FlagNeedDeleting))
+            if (widget->testFlag(Flag_NeedDeleting))
             {
                 destroy(widget);
                 implFree(widget);
@@ -740,7 +740,7 @@ void Widget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool
     rect   = myRect;
 
     lastMousePos.setZero();
-    setFlag(FlagVisible, visible);
+    setFlag(Flag_Visible, visible);
     setNormalColors();
 }
 
@@ -862,7 +862,7 @@ void Widget::onDisableEditing()
 
 void Widget::setMouseDragEnabled(bool enabled)
 {
-    setFlag(FlagMouseDragEnabled, enabled);
+    setFlag(Flag_MouseDragEnabled, enabled);
 
     // Child elements move with the parent.
     const int childCount = getChildCount();
@@ -915,7 +915,12 @@ void Widget::setNormalColors()
         packColor(50, 50, 50),
         packColor(80, 80, 80),
 
-        // view3d outline:
+        // view3d outline / arrow,box:
+        packColor(255, 255, 255),
+        packColor(255, 255, 0),
+        packColor(0, 128, 128),
+
+        //resizeHandle
         packColor(255, 255, 255),
     };
     colors = &test_colors_normal;
@@ -966,6 +971,11 @@ void Widget::setHighlightedColors()
 
         // view3d outline:
         packColor(255, 255, 255),
+        packColor(255, 255, 0),
+        packColor(0, 128, 128),
+
+        //resizeHandle
+        packColor(255, 255, 255),
     };
     colors = &test_colors_mousehover;
 }
@@ -999,7 +1009,7 @@ void Widget::drawSelf(GeometryBatch & geoBatch) const
     const ColorScheme & myColors = getColors();
 
     // Optional drop shadow effect under the element.
-    if (myColors.shadow.dark != 0 && myColors.shadow.offset != 0 && !testFlag(FlagNoRectShadow))
+    if (myColors.shadow.dark != 0 && myColors.shadow.offset != 0 && !testFlag(Flag_NoRectShadow))
     {
         geoBatch.drawRectShadow(rect, myColors.shadow.dark,
                                       myColors.shadow.light,
@@ -1358,7 +1368,7 @@ void InfoBarWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRec
     }
 
     // Should not cast a shadow because the parent window already does so.
-    setFlag(FlagNoRectShadow, true);
+    setFlag(Flag_NoRectShadow, true);
 }
 
 void InfoBarWidget::onDraw(GeometryBatch & geoBatch) const
@@ -1446,7 +1456,7 @@ void ScrollBarWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myR
     onAdjustLayout();
 
     // Should not cast a shadow because the parent window already does so.
-    setFlag(FlagNoRectShadow, true);
+    setFlag(Flag_NoRectShadow, true);
 }
 
 void ScrollBarWidget::onDraw(GeometryBatch & geoBatch) const
@@ -1512,14 +1522,14 @@ bool ScrollBarWidget::onMouseButton(MouseButton button, int clicks)
         return false;
     }
 
-    setFlag(FlagHoldingScrollSlider, false);
+    setFlag(Flag_HoldingScrollSlider, false);
 
     if ((scrollBarSizeFactor > 0) && isMouseIntersecting() && leftClick(button, clicks))
     {
         if (barSliderRect.containsPoint(lastMousePos)) // Click, hold and move the slider.
         {
             sliderClickInitialPos = lastMousePos;
-            setFlag(FlagHoldingScrollSlider, true);
+            setFlag(Flag_HoldingScrollSlider, true);
         }
         else if (upBtnRect.containsPoint(lastMousePos)) // Scroll up (-Y)
         {
@@ -1538,7 +1548,7 @@ bool ScrollBarWidget::onMouseMotion(int mx, int my)
 {
     bool eventHandled = Widget::onMouseMotion(mx, my);
 
-    if (testFlag(FlagHoldingScrollSlider))
+    if (testFlag(Flag_HoldingScrollSlider))
     {
         // Lower threshold and the scroll bar slider moves faster, but less precise.
         // Higher value makes it much "harder" to move, but gains precision.
@@ -2241,7 +2251,7 @@ View3DWidget::View3DWidget()
     , leftMouseButtonDown(false)
     , interactiveControls(true)
     , showXyzLabels(true)
-    , object(Object::None)
+    , object(ObjectType::None)
     , updateScrGeometry(true)
     , resettingAngles(false)
     , prevFrameTimeMs(0)
@@ -2256,7 +2266,7 @@ View3DWidget::View3DWidget()
 
 void View3DWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
                         const char * myTitle, int titleBarHeight, int titleBarButtonSize,
-                        int resetAnglesBtnSize, const ProjectionParameters & proj, Object obj)
+                        int resetAnglesBtnSize, const ProjectionParameters & proj, ObjectType obj)
 {
     Widget::init(myGUI, myParent, myRect, visible);
 
@@ -2294,20 +2304,20 @@ void View3DWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect
     int vertCount;
     switch (object)
     {
-    case Object::Sphere :
+    case ObjectType::Sphere :
         vertCount  = lengthOfArray(detail::g_sphereVerts);
         vertCount += lengthOfArray(detail::g_arrowVerts) * 3;
         scrProjectedVerts.allocateExact(vertCount);
         scrProjectedIndexes.allocateExact(vertCount);
         break;
 
-    case Object::Arrow :
+    case ObjectType::Arrow :
         vertCount = lengthOfArray(detail::g_arrowVerts);
         scrProjectedVerts.allocateExact(vertCount);
         scrProjectedIndexes.allocateExact(vertCount);
         break;
 
-    case Object::Box :
+    case ObjectType::Box :
         scrProjectedVerts.allocateExact(24);
         scrProjectedIndexes.allocateExact(36);
         break;
@@ -2319,7 +2329,7 @@ void View3DWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect
 
 void View3DWidget::onDraw(GeometryBatch & geoBatch) const
 {
-    const Int64 currentTimeMs = getShellInterface()->getTimeMilliseconds();
+    const Int64 currentTimeMs = getShellInterface().getTimeMilliseconds();
     const Int64 deltaTimeMs   = currentTimeMs - prevFrameTimeMs;
     prevFrameTimeMs = currentTimeMs;
 
@@ -2392,19 +2402,19 @@ void View3DWidget::onDraw(GeometryBatch & geoBatch) const
 
         switch (object)
         {
-        case Object::Sphere :
+        case ObjectType::Sphere :
             addScreenProjectedArrow(modelToWorldMatrix,  0.28f, xAxisColor, ArrowDirX);
             addScreenProjectedArrow(modelToWorldMatrix,  0.28f, yAxisColor, ArrowDirY);
             addScreenProjectedArrow(modelToWorldMatrix,  0.28f, zAxisColor, ArrowDirZ);
             addScreenProjectedSphere(modelToWorldMatrix, 0.20f);
             break;
 
-        case Object::Arrow :
-            addScreenProjectedArrow(modelToWorldMatrix, 0.35f, packColor(255, 255, 0), ArrowDirZ);
+        case ObjectType::Arrow :
+            addScreenProjectedArrow(modelToWorldMatrix, 0.35f, getColors().view3dArrowObj, ArrowDirZ);
             break;
 
-        case Object::Box :
-            addScreenProjectedBox(modelToWorldMatrix, 0.4f, 0.4f, 0.4f, packColor(0, 128, 128));
+        case ObjectType::Box :
+            addScreenProjectedBox(modelToWorldMatrix, 0.4f, 0.4f, 0.4f, getColors().view3dBoxObj);
             break;
 
         default :
@@ -2533,10 +2543,10 @@ void View3DWidget::submitScreenVertexCaches(GeometryBatch & geoBatch) const
 
 void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, Float32 scaleXYZ) const
 {
-    RenderInterface * renderer = getRenderInterface();
+    const RenderInterface & renderer = getRenderInterface();
 
     int vp[4];
-    renderer->getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
+    renderer.getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
     const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
 
     const bool highlighted   = isMouseIntersecting();
@@ -2566,10 +2576,10 @@ void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, F
 
 void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, Float32 scaleXYZ, Color32 color, ArrowDir dir) const
 {
-    RenderInterface * renderer = getRenderInterface();
+    const RenderInterface & renderer = getRenderInterface();
 
     int vp[4];
-    renderer->getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
+    renderer.getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
     const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
 
     const bool highlighted   = isMouseIntersecting();
@@ -2619,10 +2629,10 @@ void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, Fl
 
 void View3DWidget::addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, Float32 w, Float32 h, Float32 d, Color32 color) const
 {
-    RenderInterface * renderer = getRenderInterface();
+    const RenderInterface & renderer = getRenderInterface();
 
     int vp[4];
-    renderer->getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
+    renderer.getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
     const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
 
     BoxVert tempBoxVerts[24];
@@ -2695,5 +2705,819 @@ void View3DWidget::refreshProjectionViewport()
         projParams.viewProjMatrix = Mat4x4::multiply(viewMatrix, projMatrix);
     }
 }
+
+// ========================================================
+// class VarDisplayWidget:
+// ========================================================
+
+VarDisplayWidget::VarDisplayWidget()
+    : parentWindow(nullptr)
+    , customTextColor(0)
+    , initialHeight(0)
+{
+    incrButton.setZero();
+    decrButton.setZero();
+    editPopupButton.setZero();
+    dataDisplayRect.setZero();
+}
+
+VarDisplayWidget::~VarDisplayWidget()
+{
+    // In case we are being deleted before the parent WindowWidget.
+    if (parentWindow != nullptr && editField.isLinked())
+    {
+        parentWindow->removeEditField(&editField);
+    }
+}
+
+void VarDisplayWidget::init(GUI * myGUI, VarDisplayWidget * myParent, const Rectangle & myRect,
+                            bool visible, WindowWidget * myWindow, const char * name)
+{
+    auto parentWidget = (myParent != nullptr) ? static_cast<Widget *>(myParent) : static_cast<Widget *>(myWindow);
+    Widget::init(myGUI, parentWidget, myRect, visible);
+
+    parentWindow  = myWindow;
+    initialHeight = myRect.getHeight();
+
+    if (name != nullptr && *name != '\0')
+    {
+        varName = name;
+    }
+
+    if (myParent != nullptr)
+    {
+        // Parent VarDisplayWidget gets an expand collapse button [+]/[-]
+        myParent->addExpandCollapseButton();
+        myParent->addChild(this);
+    }
+    else if (myWindow != nullptr)
+    {
+        // Direct child of the window/panel.
+        myWindow->addChild(this);
+    }
+
+    dataDisplayRect = makeDataDisplayAndButtonRects(false);
+
+    if (parentWindow != nullptr)
+    {
+        parentWindow->addEditField(&editField);
+    }
+}
+
+void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    if (isVisible())
+    {
+        drawSelf(geoBatch);             // Border rectangle
+        drawVarName(geoBatch);          // Var name drawing (left side)
+        drawVarValue(geoBatch);         // Displayed value (right side)
+        drawValueEditButtons(geoBatch); // [+],[-] buttons (if enabled)
+    }
+
+    // Still go over the children even if this is not visible.
+    // The var might be scrolled out, but its children might
+    // still be visible.
+
+    if (!isHierarchyCollapsed())
+    {
+        drawChildren(geoBatch);
+    }
+}
+
+void VarDisplayWidget::drawVarName(GeometryBatch & geoBatch) const
+{
+    Rectangle textBox{ rect };
+
+    // Top/center offset
+    const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+    const Float32 boxMid = textBox.getHeight() * 0.5f;
+    textBox.moveBy(Widget::uiScaled(2), boxMid - chrMid); // Also move slightly on the X to avoid touching the border.
+
+    geoBatch.drawTextConstrained(varName.c_str(), varName.getLength(), textBox, textBox,
+                                 textScaling, getColors().text.informational, TextAlign::Left);
+}
+
+void VarDisplayWidget::drawVarValue(GeometryBatch & /*geoBatch*/) const
+{
+    // Unimplemented in the base class.
+}
+
+void VarDisplayWidget::drawValueEditButtons(GeometryBatch & geoBatch) const
+{
+    //TODO
+    (void)geoBatch;
+}
+
+void VarDisplayWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+
+    incrButton.moveBy(displacementX, displacementY);
+    decrButton.moveBy(displacementX, displacementY);
+    editPopupButton.moveBy(displacementX, displacementY);
+    dataDisplayRect.moveBy(displacementX, displacementY);
+}
+
+void VarDisplayWidget::onResize(int displacementX, int displacementY, Corner corner)
+{
+    switch (corner)
+    {
+    case TopLeft :
+        rect.xMins += displacementX;
+        rect.yMins += displacementY;
+        rect.yMaxs = rect.yMins + initialHeight;
+        dataDisplayRect.xMins += displacementX;
+        break;
+
+    case BottomLeft :
+        rect.xMins += displacementX;
+        dataDisplayRect.xMins += displacementX;
+        break;
+
+    case TopRight :
+        rect.xMaxs += displacementX;
+        rect.yMins += displacementY;
+        rect.yMaxs = rect.yMins + initialHeight;
+        break;
+
+    case BottomRight :
+        rect.xMaxs += displacementX;
+        break;
+
+    default :
+        errorF("Bad corner enum in VarDisplayWidget!");
+        break;
+    } // switch (corner)
+
+    // Propagate to the var hierarchy:
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        getChild(c)->onResize(displacementX, displacementY, corner);
+    }
+}
+
+void VarDisplayWidget::onAdjustLayout()
+{
+    dataDisplayRect = makeDataDisplayAndButtonRects(testFlag(Flag_ValueEditButtonsEnabled));
+
+    // Only if edit buttons are allowed for this variable type.
+    if (testFlag(Flag_WithValueEditButtons))
+    {
+        // See if we need to disable the value edit buttons and reset the data display rect:
+        if (dataDisplayRect.getWidth() <= getMinDataDisplayRectWidth())
+        {
+            setFlag(Flag_ValueEditButtonsEnabled, false);
+            dataDisplayRect = makeDataDisplayAndButtonRects(false);
+        }
+        // Or if the width is now big enough, restore the buttons:
+        else if (!testFlag(Flag_ValueEditButtonsEnabled))
+        {
+            setFlag(Flag_ValueEditButtonsEnabled, true);
+            const Rectangle newRect = makeDataDisplayAndButtonRects(true);
+
+            // If re-enabling the buttons violates the min width. Don't do it.
+            if (newRect.getWidth() <= getMinDataDisplayRectWidth())
+            {
+                setFlag(Flag_ValueEditButtonsEnabled, false);
+            }
+            else
+            {
+                dataDisplayRect = newRect;
+            }
+        }
+    }
+
+    // This button is only present on variable hierarchies.
+    if (hasExpandCollapseButton())
+    {
+        expandCollapseButton.setRect(getExpandCollapseButtonRect());
+    }
+}
+
+void VarDisplayWidget::onDisableEditing()
+{
+    // Sine we have EditFields, do nothing.
+    // Only WindowWidgets should handle this event.
+}
+
+void VarDisplayWidget::setVisible(bool visible)
+{
+    Widget::setVisible(visible);
+    expandCollapseButton.setVisible(visible);
+}
+
+bool VarDisplayWidget::onMouseButton(MouseButton button, int clicks)
+{
+    //TODO
+    return Widget::onMouseButton(button, clicks);
+}
+
+bool VarDisplayWidget::onMouseMotion(int mx, int my)
+{
+    //TODO
+    return Widget::onMouseMotion(mx, my);
+}
+
+bool VarDisplayWidget::onMouseScroll(int yScroll)
+{
+    //TODO
+    return Widget::onMouseScroll(yScroll);
+}
+
+bool VarDisplayWidget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
+{
+    //TODO
+    return Widget::onKeyPressed(key, modifiers);
+}
+
+bool VarDisplayWidget::onButtonDown(ButtonWidget & button)
+{
+    if (hasExpandCollapseButton() && (&expandCollapseButton == &button))
+    {
+        setExpandCollapseState(expandCollapseButton.getState());
+        return true;
+    }
+    return false;
+}
+
+void VarDisplayWidget::addExpandCollapseButton()
+{
+    if (hasExpandCollapseButton())
+    {
+        return; // Already has it.
+    }
+
+    const Rectangle btnRect = getExpandCollapseButtonRect();
+    expandCollapseButton.init(getGUI(), this, btnRect, isVisible(), ButtonWidget::Icon::Minus, this);
+    expandCollapseButton.setState(true); // Hierarchy initially open.
+
+    // Note: Button is a child of the parent widget (WindowWidget), so that we
+    // keep this widget's children list reserved for nested VarDisplayWidgets.
+    if (parentWindow != nullptr)
+    {
+        parentWindow->addChild(&expandCollapseButton);
+    }
+}
+
+void VarDisplayWidget::setHierarchyVisibility(VarDisplayWidget * child, bool visible) const
+{
+    NTB_ASSERT(child != nullptr);
+
+    child->setVisible(visible);
+    child->setMinimized(!visible);
+
+    const int childCount = child->getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        if (!child->isHierarchyCollapsed())
+        {
+            setHierarchyVisibility(static_cast<VarDisplayWidget *>(child->getChild(c)), visible);
+        }
+    }
+}
+
+void VarDisplayWidget::setExpandCollapseState(bool expanded)
+{
+    // Mark each child as hidden or visible, recursively:
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        // Children of VarDisplayWidget should only be other VarDisplayWidgets.
+        // The button is a child of the parent WindowWidget/Panel.
+        setHierarchyVisibility(static_cast<VarDisplayWidget *>(getChild(c)), expanded);
+    }
+
+    // Change the icon appropriately:
+    expandCollapseButton.setIcon(expanded ? ButtonWidget::Icon::Minus : ButtonWidget::Icon::Plus);
+    expandCollapseButton.setState(expanded);
+
+    // Collapse the hidden variables in the window to fill the gaps.
+    if (parentWindow != nullptr)
+    {
+        parentWindow->onAdjustLayout();
+    }
+}
+
+int VarDisplayWidget::getMinDataDisplayRectWidth() const
+{
+    // Reserve space for about 3 characters plus some arbitrary extra...
+    return (GeometryBatch::getCharWidth() * 3 * textScaling) + Widget::uiScaled(4);
+}
+
+Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(bool editButtons)
+{
+    const int buttonWidth = Widget::uiScaled(8);
+    int xMins = rect.xMins + (rect.getWidth() / 2) + Widget::uiScaled(10);
+    int yMins = rect.yMins;
+    int xMaxs = rect.xMaxs;
+    int yMaxs = rect.yMaxs;
+
+    // The offsets are really just one pixel, I didn't forget to use uiScaled()!
+    editPopupButton.xMins = xMaxs - buttonWidth;
+    editPopupButton.yMins = yMins + 1;
+    editPopupButton.xMaxs = xMaxs - 1;
+    editPopupButton.yMaxs = yMaxs - 1;
+
+    decrButton = editPopupButton;
+    decrButton.xMins -= buttonWidth + 1;
+    decrButton.xMaxs -= buttonWidth + 1;
+
+    incrButton = decrButton;
+    incrButton.xMins -= buttonWidth + 1;
+    incrButton.xMaxs -= buttonWidth + 1;
+
+    if (editButtons)
+    {
+        const int buttonsWidthTotal = incrButton.getWidth() +
+                                      decrButton.getWidth() +
+                                      editPopupButton.getWidth();
+        xMaxs -= buttonsWidthTotal;
+        xMaxs -= Widget::uiScaled(4);
+    }
+
+    return { xMins, yMins, xMaxs, yMaxs };
+}
+
+Rectangle VarDisplayWidget::getExpandCollapseButtonRect() const
+{
+    const int buttonSize = getExpandCollapseButtonSize();
+    const int gapX = Widget::uiScaleBy(buttonSize, 0.2);
+    const int gapY = Widget::uiScaleBy(buttonSize, 0.1);
+
+    const int xMins = rect.xMins - buttonSize - gapX;
+    const int yMins = rect.yMins + gapY;
+    const int xMaxs = xMins + buttonSize;
+    const int yMaxs = yMins + buttonSize;
+
+    return { xMins, yMins, xMaxs, yMaxs };
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+SmallStr VarDisplayWidget::getTypeString() const
+{
+    SmallStr varStr = "VarDisplayWidget ";
+    varStr += "\'";
+    varStr += varName;
+    varStr += "\'";
+    return varStr;
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// class WindowWidget:
+// ========================================================
+
+WindowWidget::WindowWidget()
+    : resizingCorner(CornerNone)
+    , popupWidget(nullptr)
+    , titleBarButtonSize(0)
+    , titleBarHeight(0)
+    , scrollBarButtonSize(0)
+    , scrollBarWidth(0)
+{
+    usableRect.setZero();
+}
+
+WindowWidget::~WindowWidget()
+{
+    //TODO might need to flag dynamic elements for deletion! (like the popupWidget)
+
+    // Edit fields are never dynamically allocated. So just unlink.
+    editFieldsList.unlinkAll();
+}
+
+void WindowWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, const char * title,
+                        int titleBarH, int titleBarBtnSize, int scrollBarW, int scrollBarBtnSize)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+
+    titleBarButtonSize  = static_cast<Int16>(titleBarBtnSize);
+    titleBarHeight      = static_cast<Int16>(titleBarH);
+    scrollBarButtonSize = static_cast<Int16>(scrollBarBtnSize);
+    scrollBarWidth      = static_cast<Int16>(scrollBarW);
+
+    refreshBarRects(title, nullptr);
+    addChild(&scrollBar);
+    addChild(&titleBar);
+    addChild(&infoBar);
+    refreshUsableRect();
+}
+
+void WindowWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    if (!isVisible())
+    {
+        return;
+    }
+
+    // First draw the window itself:
+    drawSelf(geoBatch);
+
+    // If we have an open popup, it must draw last, at the top.
+    // We have to override Widget::onDraw to draw the children
+    // first and them the popup (which is also a window child).
+    if (popupWidget != nullptr)
+    {
+        const int childCount = getChildCount();
+        for (int c = 0; c < childCount; ++c)
+        {
+            const Widget * child = getChild(c);
+            if (child != popupWidget)
+            {
+                child->onDraw(geoBatch);
+            }
+        }
+    }
+    else // Same logic of Widget::onDraw
+    {
+        drawChildren(geoBatch);
+    }
+
+    // Has to be on top of everything...
+    drawResizeHandles(geoBatch);
+
+    // The popup still has to be above the resize handles.
+    if (popupWidget != nullptr)
+    {
+        popupWidget->onDraw(geoBatch);
+    }
+}
+
+void WindowWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+    refreshUsableRect(); // Keep the effective usable area up-to-date.
+}
+
+void WindowWidget::onAdjustLayout()
+{
+    // Keep the sub-rects up-to-date.
+    refreshBarRects(nullptr, nullptr);
+    refreshUsableRect();
+}
+
+void WindowWidget::onDisableEditing()
+{
+    EditField * pEdit = editFieldsList.getFirst();
+    if (pEdit != nullptr)
+    {
+        pEdit->setActive(false);
+    }
+}
+
+void WindowWidget::setMouseIntersecting(bool intersect)
+{
+    Widget::setMouseIntersecting(intersect);
+
+    // We want to highlight these when the parent window gains focus.
+    if (intersect)
+    {
+        scrollBar.setHighlightedColors();
+        titleBar.setHighlightedColors();
+        infoBar.setHighlightedColors();
+    }
+}
+
+bool WindowWidget::onMouseButton(MouseButton button, int clicks)
+{
+    if (!isVisible())
+    {
+        return false;
+    }
+
+    resizingCorner = CornerNone;
+
+    // Check for intersection with the resize handles in the corners.
+    // We can resize the window if there's a left click over one.
+    if (isMouseIntersecting() && leftClick(button, clicks))
+    {
+        const int xMins = rect.xMins;
+        const int xMaxs = rect.xMaxs;
+        const int yMins = rect.yMins;
+        const int yMaxs = rect.yMaxs;
+        const int handleSize = Widget::uiScaleBy(titleBarButtonSize, 0.8);
+
+        Rectangle resizeHandles[CornerCount];
+        resizeHandles[ TopLeft     ].set(xMins, yMins, xMins + handleSize, yMins + handleSize); // top-left
+        resizeHandles[ BottomLeft  ].set(xMins, yMaxs - handleSize, xMins + handleSize, yMaxs); // bottom-left
+        resizeHandles[ TopRight    ].set(xMaxs - handleSize, yMins, xMaxs, yMins + handleSize); // top-right
+        resizeHandles[ BottomRight ].set(xMaxs - handleSize, yMaxs - handleSize, xMaxs, yMaxs); // bottom-right
+
+        for (int c = 0; c < CornerCount; ++c)
+        {
+            if (resizeHandles[c].containsPoint(lastMousePos))
+            {
+                resizingCorner = Corner(c); // Save for onMouseMotion()
+                onDisableEditing();         // All edit fields lose focus
+                setMouseDragEnabled(false); // Cancel any mouse drag
+                return true;
+            }
+        }
+    }
+
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        Widget * child = getChild(c);
+        if (child->onMouseButton(button, clicks))
+        {
+            // Bubble this message up to the parent (this)
+            // or break the chain if one of the Widgets is
+            // the active/focused edit field. Simply calling
+            // onDisableEditing() wouldn't work.
+            child->onDisableEditing();
+            return true;
+        }
+    }
+
+    // If the cursor is intersecting this element or any
+    // of its children, we consume the mouse click, even
+    // if it has no input effect in the UI.
+    if (isMouseIntersecting())
+    {
+        onDisableEditing();
+        return true;
+    }
+    return false;
+}
+
+bool WindowWidget::onMouseMotion(int mx, int my)
+{
+    if (!isVisible())
+    {
+        return false;
+    }
+
+    // Window can go out from the sides and bottom, but not
+    // out the top of the screen. We preempt movement at the
+    // window level if that's the case.
+    int clampedY = my;
+    if (isMouseDragEnabled())
+    {
+        const int displacementY = my - lastMousePos.y;
+        if ((rect.yMins + displacementY) < 0)
+        {
+            clampedY = my - (rect.yMins + displacementY);
+        }
+    }
+
+    // Handle resizing each corner:
+    switch (resizingCorner)
+    {
+    case TopLeft :
+        resizeWithMin(resizingCorner, rect.xMins, rect.yMins,
+                      mx - lastMousePos.x, clampedY - lastMousePos.y);
+        break;
+
+    case BottomLeft :
+        resizeWithMin(resizingCorner, rect.xMins, rect.yMaxs,
+                      mx - lastMousePos.x, clampedY - lastMousePos.y);
+        break;
+
+    case TopRight :
+        resizeWithMin(resizingCorner, rect.xMaxs, rect.yMins,
+                      mx - lastMousePos.x, clampedY - lastMousePos.y);
+        break;
+
+    case BottomRight :
+        resizeWithMin(resizingCorner, rect.xMaxs, rect.yMaxs,
+                      mx - lastMousePos.x, clampedY - lastMousePos.y);
+        break;
+
+    default :
+        // Not an error, just means we are not resizing.
+        break;
+    } // switch (resizingCorner)
+
+    return Widget::onMouseMotion(mx, clampedY);
+}
+
+bool WindowWidget::onMouseScroll(int yScroll)
+{
+    // Allow child element to respond the event first (like a ColorPicker window)
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        if (getChild(c)->isMouseIntersecting() &&
+            getChild(c)->onMouseScroll(yScroll))
+        {
+            return true;
+        }
+    }
+
+    // Only scroll if the mouse is hovering this window!
+    if (isMouseIntersecting())
+    {
+        return scrollBar.onMouseScroll(yScroll);
+    }
+
+    return false;
+}
+
+bool WindowWidget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
+{
+    if (!isVisible())
+    {
+        return false;
+    }
+
+    const int childCount = getChildCount();
+    for (int c = 0; c < childCount; ++c)
+    {
+        if (getChild(c)->onKeyPressed(key, modifiers))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void WindowWidget::drawResizeHandles(GeometryBatch & geoBatch) const
+{
+    // This messy block of code draws the wedges in each
+    // corner of the window to indicate it is resizeable.
+    //
+    // Each wedge is a main colored line and
+    // a shade line offset by one pixel.
+
+    const Color32 wedgeColor      = getColors().resizeHandle;
+    const Color32 shadeColor      = packColor(0, 0, 0);
+    const int cornerWedgeLineSize = Widget::uiScaleBy(titleBarButtonSize, 0.8);
+    const int cornerWedgeLineOffs = Widget::uiScaled(4);
+
+    const int xMins = rect.xMins;
+    const int xMaxs = rect.xMaxs;
+    const int yMins = rect.yMins;
+    const int yMaxs = rect.yMaxs;
+    int xFrom, yFrom, xTo, yTo;
+
+    // Top-left corner, horizontal line width shade:
+    xFrom = xMins + cornerWedgeLineOffs;
+    yFrom = yMins + cornerWedgeLineOffs;
+    xTo = xMins + cornerWedgeLineSize;
+    yTo = yFrom;
+    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
+    geoBatch.drawLine(xFrom, yFrom + 1, xTo, yTo + 1, shadeColor);
+
+    // Top-left corner, vertical line with shade:
+    xFrom = xMins + cornerWedgeLineOffs;
+    yFrom = yMins + cornerWedgeLineOffs;
+    xTo = xFrom;
+    yTo = yMins + cornerWedgeLineSize;
+    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
+    geoBatch.drawLine(xFrom + 1, yFrom + 1, xTo + 1, yTo, shadeColor);
+
+    // Top-right corner, horizontal line width shade:
+    xFrom = xMaxs - cornerWedgeLineSize;
+    yFrom = yMins + cornerWedgeLineOffs;
+    xTo = xMaxs - cornerWedgeLineOffs;
+    yTo = yFrom;
+    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
+    geoBatch.drawLine(xFrom, yFrom + 1, xTo, yTo + 1, shadeColor);
+
+    // Top-right corner, vertical line with shade:
+    xFrom = xMaxs - cornerWedgeLineOffs;
+    yFrom = yMins + cornerWedgeLineOffs;
+    xTo = xFrom;
+    yTo = yMins + cornerWedgeLineSize;
+    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
+    geoBatch.drawLine(xFrom + 1, yFrom + 1, xTo + 1, yTo, shadeColor);
+
+    // Bottom-left corner, horizontal line width shade:
+    xFrom = xMins + cornerWedgeLineOffs;
+    yFrom = yMaxs - cornerWedgeLineOffs;
+    xTo = xFrom + cornerWedgeLineSize;
+    yTo = yFrom;
+    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
+    geoBatch.drawLine(xFrom, yFrom + 1, xTo, yTo + 1, shadeColor);
+
+    // Bottom-left corner, vertical line with shade:
+    xFrom = xMins + cornerWedgeLineOffs;
+    yFrom = yMaxs - cornerWedgeLineOffs;
+    xTo = xFrom;
+    yTo = yFrom - cornerWedgeLineSize;
+    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
+    geoBatch.drawLine(xFrom + 1, yFrom, xTo + 1, yTo, shadeColor);
+
+    // Bottom-right corner, horizontal line width shade:
+    xFrom = xMaxs - cornerWedgeLineOffs;
+    yFrom = yMaxs - cornerWedgeLineOffs;
+    xTo = xMaxs - cornerWedgeLineSize;
+    yTo = yFrom;
+    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
+    geoBatch.drawLine(xFrom + 1, yFrom + 1, xTo, yTo + 1, shadeColor);
+
+    // Bottom-right corner, vertical line with shade:
+    xFrom = xMaxs - cornerWedgeLineOffs;
+    yFrom = yMaxs - cornerWedgeLineOffs;
+    xTo = xFrom;
+    yTo = yMaxs - cornerWedgeLineSize;
+    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
+    geoBatch.drawLine(xFrom + 1, yFrom + 1, xTo + 1, yTo, shadeColor);
+}
+
+void WindowWidget::resizeWithMin(Corner corner, int & x, int & y, int offsetX, int offsetY)
+{
+    const int minWindowWidth  = getMinWindowWidthScaled();
+    const int minWindowHeight = getMinWindowHeightScaled();
+    const Rectangle old = rect;
+
+    // x/y are refs to 'this->rect'.
+    x += offsetX;
+    y += offsetY;
+
+    // Rollback if we are below the size minimum.
+    if (rect.getWidth() < minWindowWidth)
+    {
+        rect.xMins = old.xMins;
+        rect.xMaxs = old.xMaxs;
+        offsetX = 0;
+    }
+    if (rect.getHeight() < minWindowHeight)
+    {
+        rect.yMins = old.yMins;
+        rect.yMaxs = old.yMaxs;
+        offsetY = 0;
+    }
+
+    // Never go out the top of the screen.
+    if (rect.yMins < 0)
+    {
+        rect.yMins = old.yMins;
+        offsetY = 0;
+    }
+
+    // Only notify the children and perform adjustments if there's a change in size.
+    // We might have snapped them to zero if already at the min size.
+    if (offsetX != 0 || offsetY != 0)
+    {
+        const int childCount = getChildCount();
+        for (int c = 0; c < childCount; ++c)
+        {
+            getChild(c)->onResize(offsetX, offsetY, corner);
+        }
+        onAdjustLayout();
+    }
+}
+
+void WindowWidget::refreshBarRects(const char * newTitle, const char * newInfoString)
+{
+    // Title bar stuff:
+    const int  gapBetweenButtons = Widget::uiScaled(10);
+    const int  btnOffsX          = titleBarButtonSize + Widget::uiScaled(2);
+    const int  btnOffsY          = Widget::uiScaled(4);
+    const bool minimizeBtn       = true;
+    const bool maximizeBtn       = true;
+
+    // Vertical scroll bar (right-hand side):
+    const Rectangle scrollBarRect{ rect.xMaxs - scrollBarWidth,
+                                   rect.yMins + titleBarHeight + Widget::uiScaled(1),
+                                   rect.xMaxs,
+                                   rect.yMaxs };
+    // Title bar (top):
+    const Rectangle titleBarRect{ rect.xMins,
+                                  rect.yMins,
+                                  rect.xMaxs,
+                                  rect.yMins + titleBarHeight };
+    // Info bar at the bottom:
+    const Rectangle infoBarRect{ rect.xMins + scrollBarWidth,
+                                 rect.yMaxs - titleBarHeight,
+                                 rect.xMaxs - scrollBarWidth - Widget::uiScaled(1),
+                                 rect.yMaxs };
+
+    infoBar.init(gui, this, infoBarRect, isVisible(), newInfoString);
+    scrollBar.init(gui, this, scrollBarRect, isVisible(), scrollBarButtonSize);
+    titleBar.init(gui, this, titleBarRect, isVisible(), newTitle, minimizeBtn, maximizeBtn,
+                  btnOffsX, btnOffsY, titleBarButtonSize, gapBetweenButtons);
+
+    // This is necessary to make sure we keep the highlighted colors on the bars.
+    // init() will always reset to the normal colors.
+    setMouseIntersecting(isMouseIntersecting());
+}
+
+void WindowWidget::refreshUsableRect()
+{
+    // Need to refresh the usable sub-rect taking into account
+    // the space occupied by the top/bottom/side bars.
+    usableRect = rect;
+
+    // Add a small hand-tuned offset to the top/bottom.
+    const int offset = Widget::uiScaled(4);
+    usableRect.xMaxs -= scrollBar.getRect().getWidth();
+    usableRect.yMins += titleBar.getRect().getHeight() + offset;
+    usableRect.yMaxs -= infoBar.getRect().getHeight()  + offset;
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+SmallStr WindowWidget::getTypeString() const
+{
+    SmallStr windowStr = "WindowWidget ";
+    windowStr += "\'";
+    windowStr += titleBar.getTitle();
+    windowStr += "\'";
+    return windowStr;
+}
+#endif // NEO_TWEAK_BAR_DEBUG
 
 } // namespace ntb {}

@@ -79,16 +79,14 @@ template<typename T>
 inline T * implAllocT(const UInt32 countInItems = 1)
 {
     NTB_ASSERT(countInItems != 0);
-    NTB_ASSERT(getShellInterface() != nullptr);
-    return static_cast<T *>(getShellInterface()->memAlloc(countInItems * sizeof(T)));
+    return static_cast<T *>(getShellInterface().memAlloc(countInItems * sizeof(T)));
 }
 
 inline void implFree(void * ptrToFree)
 {
     if (ptrToFree != nullptr)
     {
-        NTB_ASSERT(getShellInterface() != nullptr);
-        getShellInterface()->memFree(ptrToFree);
+        getShellInterface().memFree(ptrToFree);
     }
 }
 

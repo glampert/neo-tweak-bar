@@ -693,6 +693,13 @@ struct ColorScheme final
 
     // Outline of the 3D viewport on a View3DWidget:
     Color32 view3dOutline;
+
+    // View3DWidget objects:
+    Color32 view3dArrowObj;
+    Color32 view3dBoxObj;
+
+    // Resize handles in a window/panel, if it has any.
+    Color32 resizeHandle;
 };
 
 // ========================================================
@@ -1063,8 +1070,9 @@ bool initialize(ShellInterface * shell, RenderInterface * renderer);
 void shutdown();
 
 // Retrieve the user pointers set on initialization.
-ShellInterface  * getShellInterface();
-RenderInterface * getRenderInterface();
+// These will assert if the library was never initialized.
+ShellInterface  & getShellInterface();
+RenderInterface & getRenderInterface();
 
 // Find existing GUI by name. Returns null if not found.
 // If more than one GUI with the same name exits, the
