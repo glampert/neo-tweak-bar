@@ -232,7 +232,7 @@ int main(const int argc, const char * argv[])
         // Var data display widgets inside a window/panel:
         {
             auto varWindow = new ntb::WindowWidget{};
-            varWindow->init(gui, nullptr, ntb::Rectangle{ 1000, 20, 1500, 600 }, true, "Variables Test", 40, 28, 40, 25);
+            varWindow->init(gui, nullptr, ntb::Rectangle{ 1000, 20, 1500, 600 }, true, false, "Variables Test", 40, 28, 40, 25);
             varWindow->setTextScaling(1.5f);
             varWindow->setButtonTextScaling(1.0f);
 
@@ -302,6 +302,30 @@ int main(const int argc, const char * argv[])
 
             // Only have to add the window, since each var widget is a child, directly or indirectly.
             widgets.pushBack(varWindow);
+        }
+
+        // Console/terminal window:
+        {
+            constexpr int maxLines   = 1024;
+            constexpr int bufferSize = 2048;
+
+            auto con = new ntb::ConsoleWindowWidget{};
+            con->init(gui, nullptr, ntb::Rectangle{ 1550, 20, 2000, 420 }, true, true,
+                      "Console Window", 40, 28, 40, 25, maxLines, bufferSize);
+
+            con->setTextScaling(1.3f);
+            con->setButtonTextScaling(1.0f);
+
+            ntb::SmallStr line;
+            for (ntb::Int64 i = 0; i < 15; ++i)
+            {
+                line = "Test line ";
+                line += ntb::SmallStr::fromNumber(i);
+                con->pushLine(line.c_str(), line.getLength());
+            }
+            con->onAdjustLayout(); // Update the scroll bar for lines out of view
+
+            widgets.pushBack(con);
         }
 
         // To forward window input events to the widget list.

@@ -363,18 +363,20 @@ void silenceErrors(const bool trueIfShouldSilence)
 }
 
 // ========================================================
-// Enum to string helpers:
+// Enum to string debugging helpers:
 // ========================================================
+
+#if NEO_TWEAK_BAR_DEBUG
 
 const char * mouseButtonToString(const MouseButton button)
 {
     static char str[16];
     switch (button)
     {
-    case MouseButton::Left   : copyString(str, sizeof(str), "Left");    break;
-    case MouseButton::Right  : copyString(str, sizeof(str), "Right");   break;
-    case MouseButton::Middle : copyString(str, sizeof(str), "Middle");  break;
-    default                  : copyString(str, sizeof(str), "Unknown"); break;
+    case MouseButton::Left   : copyString(str, "Left");    break;
+    case MouseButton::Right  : copyString(str, "Right");   break;
+    case MouseButton::Middle : copyString(str, "Middle");  break;
+    default                  : copyString(str, "Unknown"); break;
     } // switch (button)
     return str;
 }
@@ -389,36 +391,36 @@ const char * keyCodeToString(const KeyCode keyCode)
     }
     else
     {
-        switch (static_cast<SpecialKeys>(keyCode))
+        switch (keyCode)
         {
-        case SpecialKeys::Null       : copyString(str, sizeof(str), "No key");     break;
-        case SpecialKeys::Return     : copyString(str, sizeof(str), "Return");     break;
-        case SpecialKeys::Escape     : copyString(str, sizeof(str), "Escape");     break;
-        case SpecialKeys::Backspace  : copyString(str, sizeof(str), "Backspace");  break;
-        case SpecialKeys::Delete     : copyString(str, sizeof(str), "Delete");     break;
-        case SpecialKeys::Tab        : copyString(str, sizeof(str), "Tab");        break;
-        case SpecialKeys::Home       : copyString(str, sizeof(str), "Home");       break;
-        case SpecialKeys::End        : copyString(str, sizeof(str), "End");        break;
-        case SpecialKeys::PageUp     : copyString(str, sizeof(str), "PageUp");     break;
-        case SpecialKeys::PageDown   : copyString(str, sizeof(str), "PageDown");   break;
-        case SpecialKeys::UpArrow    : copyString(str, sizeof(str), "UpArrow");    break;
-        case SpecialKeys::DownArrow  : copyString(str, sizeof(str), "DownArrow");  break;
-        case SpecialKeys::RightArrow : copyString(str, sizeof(str), "RightArrow"); break;
-        case SpecialKeys::LeftArrow  : copyString(str, sizeof(str), "LeftArrow");  break;
-        case SpecialKeys::Insert     : copyString(str, sizeof(str), "Insert");     break;
-        case SpecialKeys::F1         : copyString(str, sizeof(str), "F1");         break;
-        case SpecialKeys::F2         : copyString(str, sizeof(str), "F2");         break;
-        case SpecialKeys::F3         : copyString(str, sizeof(str), "F3");         break;
-        case SpecialKeys::F4         : copyString(str, sizeof(str), "F4");         break;
-        case SpecialKeys::F5         : copyString(str, sizeof(str), "F5");         break;
-        case SpecialKeys::F6         : copyString(str, sizeof(str), "F6");         break;
-        case SpecialKeys::F7         : copyString(str, sizeof(str), "F7");         break;
-        case SpecialKeys::F8         : copyString(str, sizeof(str), "F8");         break;
-        case SpecialKeys::F9         : copyString(str, sizeof(str), "F9");         break;
-        case SpecialKeys::F10        : copyString(str, sizeof(str), "F10");        break;
-        case SpecialKeys::F11        : copyString(str, sizeof(str), "F11");        break;
-        case SpecialKeys::F12        : copyString(str, sizeof(str), "F12");        break;
-        default                      : copyString(str, sizeof(str), "Unknown");    break;
+        case SpecialKeys::Null       : copyString(str, "No key");     break;
+        case SpecialKeys::Return     : copyString(str, "Return");     break;
+        case SpecialKeys::Escape     : copyString(str, "Escape");     break;
+        case SpecialKeys::Backspace  : copyString(str, "Backspace");  break;
+        case SpecialKeys::Delete     : copyString(str, "Delete");     break;
+        case SpecialKeys::Tab        : copyString(str, "Tab");        break;
+        case SpecialKeys::Home       : copyString(str, "Home");       break;
+        case SpecialKeys::End        : copyString(str, "End");        break;
+        case SpecialKeys::PageUp     : copyString(str, "PageUp");     break;
+        case SpecialKeys::PageDown   : copyString(str, "PageDown");   break;
+        case SpecialKeys::UpArrow    : copyString(str, "UpArrow");    break;
+        case SpecialKeys::DownArrow  : copyString(str, "DownArrow");  break;
+        case SpecialKeys::RightArrow : copyString(str, "RightArrow"); break;
+        case SpecialKeys::LeftArrow  : copyString(str, "LeftArrow");  break;
+        case SpecialKeys::Insert     : copyString(str, "Insert");     break;
+        case SpecialKeys::F1         : copyString(str, "F1");         break;
+        case SpecialKeys::F2         : copyString(str, "F2");         break;
+        case SpecialKeys::F3         : copyString(str, "F3");         break;
+        case SpecialKeys::F4         : copyString(str, "F4");         break;
+        case SpecialKeys::F5         : copyString(str, "F5");         break;
+        case SpecialKeys::F6         : copyString(str, "F6");         break;
+        case SpecialKeys::F7         : copyString(str, "F7");         break;
+        case SpecialKeys::F8         : copyString(str, "F8");         break;
+        case SpecialKeys::F9         : copyString(str, "F9");         break;
+        case SpecialKeys::F10        : copyString(str, "F10");        break;
+        case SpecialKeys::F11        : copyString(str, "F11");        break;
+        case SpecialKeys::F12        : copyString(str, "F12");        break;
+        default                      : copyString(str, "Unknown");    break;
         } // switch (keyCode)
     }
     return str;
@@ -449,5 +451,7 @@ const char * keyModFlagsToString(const KeyModFlags modifiers)
 
     return str;
 }
+
+#endif // NEO_TWEAK_BAR_DEBUG
 
 } // namespace ntb {}

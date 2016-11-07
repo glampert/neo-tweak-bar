@@ -44,6 +44,12 @@ int copyString(char * dest, int destSizeInChars, const char * source);
 bool intToString(UInt64 number, char * dest, int destSizeInChars, int numBase, bool isNegative);
 int decodeUtf8(const char * encodedBuffer, int * outCharLength);
 
+template<int Size>
+inline int copyString(char (&dest)[Size], const char * const source)
+{
+    return copyString(dest, Size, source);
+}
+
 inline bool stringsEqual(const char * const a, const char * const b)
 {
     NTB_ASSERT(a != nullptr && b != nullptr);
@@ -663,6 +669,13 @@ public:
             implFree(tmp);
         }
         head = nullptr;
+    }
+
+    // Resets the list without unlinking the items. Use with caution!
+    void reset()
+    {
+        head = nullptr;
+        size = 0;
     }
 
     // Allows iterating the list using a callback or lambda.

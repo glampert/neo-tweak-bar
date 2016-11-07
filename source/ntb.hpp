@@ -74,18 +74,24 @@ inline void unpackColor(const Color32 color, UInt8 & r, UInt8 & g, UInt8 & b, UI
     a = static_cast<UInt8>((color & 0xFF000000) >> 24);
 }
 
-// Byte in [0,255] range to Float32 in [0,1] range.
-// Used for color space conversions.
-constexpr Float32 byteToFloat(const UInt8 b)
+// Set alpha channel of the color. Other channel values are not changed.
+constexpr Color32 setAlphaChannel(const Color32 color, const UInt8 alpha)
 {
-    return static_cast<Float32>(b) * (1.0f / 255.0f);
+    return ((alpha << 24) | (color & 0x00FFFFFF));
+}
+
+// Byte in [0,255] range to floating-point in [0,1] range.
+// Used for color space conversions.
+constexpr Float64 byteToFloat(const UInt8 b)
+{
+    return static_cast<Float64>(b) * (1.0 / 255.0);
 }
 
 // Float in [0,1] range to byte in [0,255] range.
 // Used for color space conversions. Note that 'f' is not clamped!
-constexpr UInt8 floatToByte(const Float32 f)
+constexpr UInt8 floatToByte(const Float64 f)
 {
-    return static_cast<UInt8>(f * 255.0f);
+    return static_cast<UInt8>(f * 255.0);
 }
 
 //
@@ -157,43 +163,46 @@ enum class MouseButton
     Middle
 };
 
-enum class SpecialKeys
+struct SpecialKeys
 {
-    // Zero is reserved as a flag for "no key pressed".
-    Null = 0,
+    enum
+    {
+        // Zero is reserved as a flag for "no key pressed".
+        Null = 0,
 
-    // First 0-255 keys are reserved for the ASCII characters.
-    Return = 256,
-    Escape,
-    Backspace,
-    Delete,
-    Tab,
-    Home,
-    End,
-    PageUp,
-    PageDown,
-    UpArrow,
-    DownArrow,
-    RightArrow,
-    LeftArrow,
-    Insert,
+        // First 0-255 keys are reserved for the ASCII characters.
+        Return = 256,
+        Escape,
+        Backspace,
+        Delete,
+        Tab,
+        Home,
+        End,
+        PageUp,
+        PageDown,
+        UpArrow,
+        DownArrow,
+        RightArrow,
+        LeftArrow,
+        Insert,
 
-    // These are not used and free for user-defined bindings.
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
+        // These are not used and free for user-defined bindings.
+        F1,
+        F2,
+        F3,
+        F4,
+        F5,
+        F6,
+        F7,
+        F8,
+        F9,
+        F10,
+        F11,
+        F12,
 
-    // Sentinel value; Used internally.
-    LastKey
+        // Sentinel value; Used internally.
+        LastKey
+    };
 };
 
 struct KeyModifiers
@@ -212,9 +221,11 @@ using KeyModFlags = UInt32;
 using KeyCode = UInt32;
 
 // Debug printing helpers:
+#if NEO_TWEAK_BAR_DEBUG
 const char * mouseButtonToString(MouseButton button);
 const char * keyCodeToString(KeyCode keyCode);
 const char * keyModFlagsToString(KeyModFlags modifiers);
+#endif // NEO_TWEAK_BAR_DEBUG
 
 // ========================================================
 // class ShellInterface:
@@ -672,6 +683,8 @@ struct ColorScheme final
         Color32 normal;
         Color32 alternate;
         Color32 informational;
+        Color32 selection;
+        Color32 cursor;
     } text;
 
     // List widget entries:

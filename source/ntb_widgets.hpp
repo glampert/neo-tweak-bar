@@ -177,8 +177,91 @@ class EditField final
 {
 public:
 
-    void setActive(bool active) { (void)active; }
-    //TODO
+    // EditField stores some state related to editing a string of
+    // text with a cursor/caret via keyboard or mouse input. It also
+    // stores additional state about a selected range inside the text.
+    //
+    // EditFields are capable of drawing the text string, selected
+    // region and the cursor/caret, but it does not keep a pointer
+    // to the text. Instead, the text and its containing rectangle
+    // must always be passed as parameters.
+    //
+    // The total length of the text string is saved by drawSelf(),
+    // so they should always be kept in sync. When a char is removed
+    // by a key command the cursor position and text length are
+    // updated so you should update the string to match.
+    //
+    // handleSpecialKey() will reposition the cursor accordingly
+    // and will return an EditCommand for keys that are not handled
+    // directly here, like TAB and PAGE-UP/DOWN. ENTER/RETURN and
+    // ESCAPE will return the DoneEditing command.
+    //
+    // Each VarDisplayWidget has an EditField and they are also added to
+    // a linked list in the var parent WindowWidget for ease of access.
+    //
+    // Most fields use a very short integer range, so we ca use Int16s to save some space.
+    // Each UI Variable has an EditField, so to scale, we can have a nice gain there.
+    //
+    Int64     cursorBlinkTimeMs;    // Keeps track of time to switch the cursor draw on and off each frame
+    Rectangle cursorRect;           // Rect of the cursor indicator. Updated by updateCursorPos()
+    Rectangle prevCursorRect;       // Text selection requires one level of cursor history
+    Rectangle selectionRect;        // Rect to draw the current text selection (if any)
+    Int16     textLength;           // Updated by drawSelf()
+    Int16     selectionStart;       // Char where a text selection starts (zero-based)
+    Int16     selectionEnd;         // Where it ends
+    Int16     prevSelectionStart;   // Used to estimate the selection direction when selecting via mouse
+    Int16     prevSelectionEnd;     // Ditto
+    Int16     cursorPos;            // Position within the line for input
+    Int16     prevCursorPos;        // Used during text selection navigation
+    UInt16    selectionDir;         // Set to LeftArrow or RightArrow to indicate selection direction
+    UInt8     isActive         : 1; // When active the cursor and selection are drawn
+    UInt8     isInInsertMode   : 1; // User hit the [INSERT] key (cursor draws as a full char overlay)
+    UInt8     shouldDrawCursor : 1; // "Ping Pong" flag to switch cursor draw between frames
+    UInt8     endKeySel        : 1; // Set when [SHIFT]+[END]  is hit to select all the way to the end
+    UInt8     homeKeySel       : 1; // Set when [SHIFT]+[HOME] is hit to select all the way to the beginning
+
+    // Cursor bar draw once every this many milliseconds.
+    static constexpr Int64 CursorBlinkIntervalMs = 500;
+
+    // Input commands for the edit field.
+    enum class EditCommand
+    {
+        None,
+        DoneEditing,
+        InsertChar,
+        PushChar,
+        EraseChar,
+        JumpNextField,
+        ScrollWindowUp,
+        ScrollWindowDown
+    };
+
+    EditField();
+    void reset();
+
+    bool hasTextSelection() const;
+    void clearSelection();
+
+    void setActive(bool trueIfActive);
+    void setDrawCursor(bool trueIfShouldDraw);
+
+    void drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const char * inText, int inTextLength,
+                  Color32 textColor, Color32 selectionColor, Color32 cursorColor, Color32 bgColor, Float32 textScaling, Float32 uiScaling);
+
+    EditCommand handleSpecialKey(const Rectangle & displayBox, KeyCode key, KeyModFlags modifiers, Float32 textScaling, Float32 uiScaling);
+
+    void updateCursorPos(const Rectangle & displayBox, Point pos, Float32 textScaling, Float32 uiScaling);
+    void updateSelection(const Rectangle & displayBox, Point pos, Float32 textScaling, Float32 uiScaling);
+    void charInserted(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling);
+
+    void saveCursorPos();
+    void restoreCursorPos(Float32 textScaling, Float32 uiScaling);
+
+    void moveCursorRight(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling);
+    void moveCursorLeft(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling);
+    void moveCursorHome(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling);
+    void moveCursorEnd(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling);
+    Rectangle moveCursor(const Rectangle & displayBox, Float32 newPos, Float32 textScaling, Float32 uiScaling);
 };
 
 // ========================================================
@@ -212,6 +295,10 @@ public:
         Flag_WithValueEditButtons    = 1 << 9,
         Flag_ValueEditButtonsEnabled = 1 << 10,
         Flag_ValueClickAndHold       = 1 << 11,
+
+        // Windows:
+        Flag_NoResizing              = 1 << 12,
+        Flag_NoInfoBar               = 1 << 13,
     };
 
     enum Corner
@@ -483,6 +570,7 @@ public:
     bool onMouseScroll(int yScroll) override;
 
     void updateLineScrollState(int lineCount, int linesOut);
+    void updateLineScrollState(int lineCount, int linesOut, int barPosition);
     void setInvertMouseScroll(bool invert);
     bool isMouseScrollInverted() const;
     int getBarWidth() const;
@@ -814,7 +902,7 @@ private:
 
     // Need the extra reference to the parent window because the
     // 'parent' field of a VarDisplayWidget might be another
-    // VarDisplayWidget, for nested var instances.
+    // VarDisplayWidget for nested var instances.
     WindowWidget * parentWindow;
 
     // Allows setting a custom color for the variable value text of this particular instance.
@@ -836,7 +924,7 @@ private:
     mutable EditField editField;
 
     // Name displayed in the UI.
-    // Can contain any ASCII character, including spaces.
+    // Can contain any ASCII character, including whitespace.
     SmallStr varName;
 };
 
@@ -852,8 +940,8 @@ public:
     WindowWidget();
     virtual ~WindowWidget();
 
-    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, const char * title,
-              int titleBarH, int titleBarBtnSize, int scrollBarW, int scrollBarBtnSize);
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, bool resizeable,
+              const char * title, int titleBarH, int titleBarBtnSize, int scrollBarW, int scrollBarBtnSize);
 
     virtual void onDraw(GeometryBatch & geoBatch) const override;
     virtual void onMove(int displacementX, int displacementY) override;
@@ -869,16 +957,21 @@ public:
     const Rectangle & getUsableRect() const;
     void setUsableRect(const Rectangle & newRect);
 
+    const char * getTitle() const;
     ScrollBarWidget & getScrollBar();
     IntrusiveList<EditField> & getEditFieldList();
 
     void addEditField(EditField * editField);
     void removeEditField(EditField * editField);
 
-    int getMinWindowWidthScaled()  const;
-    int getMinWindowHeightScaled() const;
+    int getMinWindowWidth() const;
+    int getMinWindowHeight() const;
+    void setMinWindowWidth(int w);
+    void setMinWindowHeight(int h);
 
     void setButtonTextScaling(Float32 s);
+    void setResizeable(bool resizeable);
+    bool isResizeable() const;
 
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const override;
@@ -903,11 +996,62 @@ private:
     TitleBarWidget  titleBar;
     InfoBarWidget   infoBar;
 
-    // No need for full 31-bits for these.
+    // No need for a full 32-bits for these; save the space.
     Int16 titleBarButtonSize;
     Int16 titleBarHeight;
     Int16 scrollBarButtonSize;
     Int16 scrollBarWidth;
+    Int16 minWindowWidth;
+    Int16 minWindowHeight;
+};
+
+// ========================================================
+// class ConsoleWindowWidget:
+// ========================================================
+
+class ConsoleWindowWidget
+    : public WindowWidget
+{
+public:
+
+    ConsoleWindowWidget();
+    virtual ~ConsoleWindowWidget();
+
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, bool resizeable,
+              const char * title, int titleBarH, int titleBarBtnSize, int scrollBarW, int scrollBarBtnSize,
+              int maxLineCount, int maxBufferSize);
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    void onScrollContentUp() override;
+    void onScrollContentDown() override;
+    void onAdjustLayout() override;
+
+    void pushLine(const char * text);
+    void pushLine(const char * text, int length);
+
+    #if NEO_TWEAK_BAR_DEBUG
+    SmallStr getTypeString() const override;
+    #endif // NEO_TWEAK_BAR_DEBUG
+
+private:
+
+    struct Line
+    {
+        EditField edit;  // Edit Field to allow selecting and copying the console lines.
+        Int32     start; // Line text start in the console buffer.
+        Int32     end;   // Line text end in the console buffer.
+    };
+
+    const char * getTextForLine(const Line & line) const;
+    int getTextLengthForLine(const Line & line) const;
+
+    Int32  linesUsed;
+    Int32  maxLines;
+    Int32  firstLineDrawn;
+    Int32  bufferUsed;
+    Int32  bufferSize;
+    Line * lines;
+    char * buffer;
 };
 
 // ========================================================
@@ -1477,6 +1621,11 @@ inline void WindowWidget::setUsableRect(const Rectangle & newRect)
     usableRect = newRect;
 }
 
+inline const char * WindowWidget::getTitle() const
+{
+    return titleBar.getTitle();
+}
+
 inline ScrollBarWidget & WindowWidget::getScrollBar()
 {
     return scrollBar;
@@ -1497,19 +1646,39 @@ inline void WindowWidget::removeEditField(EditField * editField)
     editFieldsList.unlink(editField);
 }
 
-inline int WindowWidget::getMinWindowWidthScaled() const
+inline int WindowWidget::getMinWindowWidth() const
 {
-    return Widget::uiScaled(145);
+    return minWindowWidth;
 }
 
-inline int WindowWidget::getMinWindowHeightScaled() const
+inline int WindowWidget::getMinWindowHeight() const
 {
-    return Widget::uiScaled(120);
+    return minWindowHeight;
+}
+
+inline void WindowWidget::setMinWindowWidth(int w)
+{
+    minWindowWidth = static_cast<Int16>(w);
+}
+
+inline void WindowWidget::setMinWindowHeight(int h)
+{
+    minWindowHeight = static_cast<Int16>(h);
 }
 
 inline void WindowWidget::setButtonTextScaling(Float32 s)
 {
     titleBar.setButtonTextScaling(s);
+}
+
+inline void WindowWidget::setResizeable(bool resizeable)
+{
+    setFlag(Flag_NoResizing, !resizeable);
+}
+
+inline bool WindowWidget::isResizeable() const
+{
+    return !testFlag(Flag_NoResizing);
 }
 
 } // namespace ntb {}

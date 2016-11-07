@@ -679,6 +679,9 @@ static inline bool leftClick(const MouseButton button, const int clicks)
     return clicks > 0 && button == MouseButton::Left;
 }
 
+static inline Int16 min_i16(const Int16 a, const Int16 b) { return (a < b) ? a : b; }
+static inline Int16 max_i16(const Int16 a, const Int16 b) { return (a > b) ? a : b; }
+
 // ========================================================
 // class ValueSlider:
 // ========================================================
@@ -698,6 +701,595 @@ void ValueSlider::drawSelf(GeometryBatch & geoBatch, const Rectangle & displayBo
         geoBatch.drawRectOutline(displayBox, borderColor);
         geoBatch.drawLine(sliderRect.xMaxs, sliderRect.yMins, sliderRect.xMaxs, sliderRect.yMaxs, borderColor);
     }
+}
+
+// ========================================================
+// class EditField:
+// ========================================================
+
+EditField::EditField()
+{
+    reset();
+}
+
+void EditField::reset()
+{
+    cursorBlinkTimeMs  = 0;
+    textLength         = 0;
+    selectionStart     = 0;
+    selectionEnd       = 0;
+    prevSelectionStart = 0;
+    prevSelectionEnd   = 0;
+    cursorPos          = 0;
+    prevCursorPos      = 0;
+    selectionDir       = 0;
+    isActive           = false;
+    isInInsertMode     = false;
+    shouldDrawCursor   = false;
+    endKeySel          = false;
+    homeKeySel         = false;
+
+    cursorRect.setZero();
+    prevCursorRect.setZero();
+    selectionRect.setZero();
+}
+
+bool EditField::hasTextSelection() const
+{
+    return selectionStart != selectionEnd;
+}
+
+void EditField::clearSelection()
+{
+    selectionRect      = cursorRect;
+    selectionStart     = cursorPos;
+    selectionEnd       = cursorPos;
+    prevSelectionStart = cursorPos;
+    prevSelectionEnd   = cursorPos;
+    setDrawCursor(true);
+}
+
+void EditField::setActive(bool trueIfActive)
+{
+    isActive = trueIfActive;
+    if (!isActive)
+    {
+        reset();
+    }
+}
+
+void EditField::setDrawCursor(bool trueIfShouldDraw)
+{
+    shouldDrawCursor  = trueIfShouldDraw;
+    cursorBlinkTimeMs = getShellInterface().getTimeMilliseconds() + CursorBlinkIntervalMs;
+}
+
+void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const char * inText, int inTextLength,
+                         Color32 textColor, Color32 selectionColor, Color32 cursorColor, Color32 bgColor, Float32 textScaling, Float32 uiScaling)
+{
+    //TODO debugging: draws a box under each character
+    /*
+    {
+        const int x0 = displayBox.xMins + Widget::uiScaleBy(2, uiScaling);
+        const int length = inTextLength;
+
+        const Float32 charWidth = GeometryBatch::getCharWidth() * textScaling;
+        Float32 xMins = x0;
+        Float32 xMaxs = x0;
+
+        for (int i = 0; i < length; ++i)
+        {
+            xMaxs += charWidth;
+            geoBatch.drawRectFilled(Rectangle{ xMins, displayBox.yMins, xMaxs, displayBox.yMaxs },
+                    (i & 1) ? packColor(255, 255, 255, 100) : packColor(0, 0, 255, 100));
+            xMins += charWidth;
+        }
+    }
+    //*/
+
+    // Saved for other operations. Text is expected to remain unchanged until next update at least.
+    textLength = inTextLength;
+
+    // Background text-box:
+    displayBox = displayBox.shrunk(Widget::uiScaleBy(1, uiScaling), Widget::uiScaleBy(1, uiScaling));
+    if (bgColor != 0)
+    {
+        geoBatch.drawRectFilled(displayBox, (isActive ? lighthenRGB(bgColor, 40) : bgColor));
+    }
+
+    // Active means mouse click on the EditField.
+    if (isActive)
+    {
+        // Selected range of characters:
+        if (hasTextSelection())
+        {
+            geoBatch.drawRectFilled(selectionRect.shrunk(0, Widget::uiScaleBy(1, uiScaling)), selectionColor);
+
+            /*//TODO DEBUG visualize the selected text:
+            SmallStr selText;
+            selText.setCString(inText + selectionStart, min_i16(selectionEnd - selectionStart, inTextLength - selectionStart));
+            Rectangle r = displayBox;
+            r.xMins -= 200;
+            r.xMaxs -= 200;
+            geoBatch.drawTextConstrained(selText.c_str(), selText.getLength(), r, r, 1.0f, packColor(255, 255, 255), TextAlign::Left);
+            //*/
+        }
+
+        // Cursor when active:
+        if (shouldDrawCursor)
+        {
+            const UInt8 alpha = (isInInsertMode ? 128 : 255);
+            geoBatch.drawRectFilled(cursorRect.shrunk(0, Widget::uiScaleBy(1, uiScaling)), setAlphaChannel(cursorColor, alpha));
+        }
+
+        // Update cursor blinking times:
+        ShellInterface & shell = getShellInterface();
+        if (shell.getTimeMilliseconds() >= cursorBlinkTimeMs)
+        {
+            cursorBlinkTimeMs = shell.getTimeMilliseconds() + CursorBlinkIntervalMs;
+            shouldDrawCursor  = !shouldDrawCursor;
+        }
+    }
+
+    // The text string itself (centered in the box):
+    const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+    const Float32 boxMid = displayBox.getHeight() * 0.5f;
+    displayBox.moveBy(0, boxMid - chrMid);
+    geoBatch.drawTextConstrained(inText, inTextLength, displayBox, displayBox, textScaling, textColor, TextAlign::Left);
+}
+
+EditField::EditCommand EditField::handleSpecialKey(const Rectangle & displayBox, KeyCode key, KeyModFlags modifiers,
+                                                   Float32 textScaling, Float32 uiScaling)
+{
+//TODO
+//- delete selected range with Backspace/Delete
+//- insert replacing selected range
+//- copy-paste commands: Ctl+C/Cmd+C, Ctl+V/Cmd+V
+//- single backup undo operation (Ctl+Z/Ctl+Y win or Cmd+Z/Cmd+Shift+Z on mac)
+//- text scrolling when the edit box is full
+//- double-click selects text up till the first whitespace
+//- more tests and bugfixes (probably)
+//FIXME: Text selection won't scroll with the window contents!!!
+
+    EditCommand cmd = EditCommand::None;
+
+    if (!(modifiers & KeyModifiers::Shift) && hasTextSelection())
+    {
+        clearSelection();
+        homeKeySel = endKeySel = false;
+
+        // When [SHIFT] is released during selection the cursor will not
+        // jump to the next character if navigating with the arrows.
+        if (key == SpecialKeys::LeftArrow || key == SpecialKeys::RightArrow)
+        {
+            // If you hit the opposing key after releasing [SHIFT],
+            // the cursor resets to its previous position.
+            if (selectionDir != key)
+            {
+                restoreCursorPos(textScaling, uiScaling);
+            }
+            selectionDir = 0;
+            return cmd;
+        }
+
+        selectionDir = 0;
+    }
+
+    switch (key)
+    {
+    case SpecialKeys::Return :
+    case SpecialKeys::Escape :
+        {
+            // [RETURN|ESCAPE] finish editing and clear edit field focus.
+            cmd = EditCommand::DoneEditing;
+            break;
+        }
+    case SpecialKeys::Backspace :
+        {
+            if (textLength > 0 && cursorPos > 0)
+            {
+                --textLength;
+                moveCursorLeft(displayBox, textScaling, uiScaling);
+                cmd = EditCommand::EraseChar;
+            }
+            break;
+        }
+    case SpecialKeys::Delete :
+        {
+            if (textLength > 0 && cursorPos < textLength)
+            {
+                --textLength;
+                cmd = EditCommand::EraseChar;
+                setDrawCursor(true);
+            }
+            break;
+        }
+    case SpecialKeys::Tab :
+        {
+            // [TAB] moves focus to the next edit field in the parent window.
+            cmd = EditCommand::JumpNextField;
+            break;
+        }
+    case SpecialKeys::UpArrow :
+    case SpecialKeys::Home :
+        {
+            // [UP|HOME] both move the cursor to the beginning of the
+            // text carrying the selection with it if there's one.
+            if (endKeySel)
+            {
+                endKeySel = false;
+                restoreCursorPos(textScaling, uiScaling);
+                clearSelection();
+            }
+            else
+            {
+                if (modifiers & KeyModifiers::Shift)
+                {
+                    if (!hasTextSelection())
+                    {
+                        saveCursorPos();
+                        clearSelection();
+                        selectionDir = SpecialKeys::LeftArrow;
+                    }
+                    else if (selectionDir != SpecialKeys::LeftArrow)
+                    {
+                        restoreCursorPos(textScaling, uiScaling);
+                        clearSelection();
+                        selectionDir = 0;
+                        return cmd; // Same as canceling the selection.
+                    }
+                    homeKeySel = true;
+                }
+
+                moveCursorHome(displayBox, textScaling, uiScaling);
+
+                if (modifiers & KeyModifiers::Shift)
+                {
+                    selectionRect.xMins = cursorRect.xMins;
+                    selectionRect.xMaxs = prevCursorRect.xMaxs;
+                    selectionStart = 0;
+                }
+            }
+            break;
+        }
+    case SpecialKeys::DownArrow :
+    case SpecialKeys::End :
+        {
+            // [DOWN|END] both move the cursor to the end of the text
+            // carrying the selection with it if there's one.
+            if (homeKeySel)
+            {
+                homeKeySel = false;
+                restoreCursorPos(textScaling, uiScaling);
+                clearSelection();
+            }
+            else
+            {
+                if (modifiers & KeyModifiers::Shift)
+                {
+                    if (!hasTextSelection())
+                    {
+                        saveCursorPos();
+                        clearSelection();
+                        selectionDir = SpecialKeys::RightArrow;
+                    }
+                    else if (selectionDir != SpecialKeys::RightArrow)
+                    {
+                        restoreCursorPos(textScaling, uiScaling);
+                        clearSelection();
+                        selectionDir = 0;
+                        return cmd; // Same as canceling the selection.
+                    }
+                    endKeySel = true;
+                }
+
+                moveCursorEnd(displayBox, textScaling, uiScaling);
+
+                if (modifiers & KeyModifiers::Shift)
+                {
+                    selectionRect.xMaxs = cursorRect.xMaxs;
+                    selectionEnd = textLength;
+                }
+            }
+            break;
+        }
+    case SpecialKeys::PageUp :
+        {
+            // [PAGE_UP] should scroll up the window if there's any scroll available.
+            cmd = EditCommand::ScrollWindowUp;
+            break;
+        }
+    case SpecialKeys::PageDown :
+        {
+            // [PAGE_DOWN] should scroll down the window if there's any scroll available.
+            cmd = EditCommand::ScrollWindowDown;
+            break;
+        }
+    case SpecialKeys::RightArrow :
+        {
+            if ((modifiers & KeyModifiers::Shift) && !hasTextSelection())
+            {
+                saveCursorPos();
+                clearSelection();
+                selectionDir = SpecialKeys::RightArrow;
+            }
+
+            moveCursorRight(displayBox, textScaling, uiScaling);
+
+            if (modifiers & KeyModifiers::Shift)
+            {
+                if (selectionDir == SpecialKeys::RightArrow)
+                {
+                    selectionEnd = min_i16(textLength, selectionEnd + 1);
+                    selectionRect.xMaxs = cursorRect.xMaxs;
+                }
+                else
+                {
+                    selectionStart = min_i16(textLength, selectionStart + 1);
+                    selectionRect.xMins = cursorRect.xMins;
+                }
+                homeKeySel = endKeySel = false;
+            }
+            break;
+        }
+    case SpecialKeys::LeftArrow :
+        {
+            if ((modifiers & KeyModifiers::Shift) && !hasTextSelection())
+            {
+                saveCursorPos();
+                clearSelection();
+                selectionDir = SpecialKeys::LeftArrow;
+            }
+
+            moveCursorLeft(displayBox, textScaling, uiScaling);
+
+            if (modifiers & KeyModifiers::Shift)
+            {
+                if (selectionDir == SpecialKeys::LeftArrow)
+                {
+                    selectionStart = max_i16(0, selectionStart - 1);
+                    selectionRect.xMins = cursorRect.xMins;
+                }
+                else
+                {
+                    selectionEnd = max_i16(0, selectionEnd - 1);
+                    selectionRect.xMaxs = cursorRect.xMaxs;
+                }
+                homeKeySel = endKeySel = false;
+            }
+            break;
+        }
+    case SpecialKeys::Insert :
+        {
+            isInInsertMode = !isInInsertMode;
+            setDrawCursor(true);
+            break;
+        }
+    default :
+        break;
+    } // switch (key)
+
+    return cmd;
+}
+
+void EditField::updateCursorPos(const Rectangle & displayBox, Point pos, Float32 textScaling, Float32 uiScaling)
+{
+    const int yMins = displayBox.yMins;
+    const int yMaxs = displayBox.yMaxs;
+    const Float32 xStart = displayBox.xMins + Widget::uiScaleBy(1, uiScaling);
+    const Float32 charWidth = GeometryBatch::getCharWidth() * textScaling;
+
+    bool hit = false;
+    Float32 xMins = xStart;
+    Float32 xMaxs = xStart;
+
+    // NOTE: We must use floating point here because integers would
+    // round incorrectly and the glyph rects would be mispositioned.
+    // Since we have to go through the trouble of doing that, we might
+    // as well store the generated cursor rectangle for later drawing.
+    for (int i = 0; i < textLength; ++i)
+    {
+        xMaxs += charWidth;
+        Rectangle rect;
+        rect.set(xMins, yMins, xMaxs, yMaxs);
+        if (rect.containsPoint(pos))
+        {
+            cursorPos  = i;
+            cursorRect = rect;
+            hit        = true;
+            break;
+        }
+        xMins += charWidth;
+    }
+
+    if (!hit)
+    {
+        // Not clicking on the text, position the cursor at the end of the current string.
+        cursorPos = textLength;
+        if (!isInInsertMode)
+        {
+            cursorRect.set(xMins, yMins, xMins + Widget::uiScaleBy(1, uiScaling), yMaxs); // Cursor width is one point
+        }
+        else
+        {
+            if (cursorPos > 0)
+            {
+                cursorPos--;
+                xMins -= charWidth;
+            }
+            cursorRect.set(xMins, yMins, xMins + charWidth, yMaxs); // Width of a char
+        }
+    }
+    else
+    {
+        if (!isInInsertMode)
+        {
+            cursorRect.xMaxs = cursorRect.xMins + Widget::uiScaleBy(1, uiScaling); // Cursor width is one point
+        }
+        else
+        {
+            cursorRect.xMaxs = cursorRect.xMins + charWidth; // Width of a char
+        }
+    }
+
+    saveCursorPos();
+    clearSelection();
+}
+
+void EditField::updateSelection(const Rectangle & displayBox, Point pos, Float32 textScaling, Float32 uiScaling)
+{
+    const int yMins = displayBox.yMins;
+    const int yMaxs = displayBox.yMaxs;
+    const Float32 xStart = displayBox.xMins + Widget::uiScaleBy(1, uiScaling);
+    const Float32 charWidth = GeometryBatch::getCharWidth() * textScaling;
+
+    // Same of what is done above with the cursorRect:
+    Float32 xMins = xStart;
+    Float32 xMaxs = xStart;
+    for (int i = 0; i < textLength; ++i)
+    {
+        xMaxs += charWidth;
+        Rectangle rect;
+        rect.set(xMins, yMins, xMaxs, yMaxs);
+        if (rect.containsPoint(pos))
+        {
+            selectionRect.expandWidth(rect);
+            selectionStart = min_i16(selectionStart, i);
+            selectionEnd   = max_i16(selectionEnd, i + 1);
+            break;
+        }
+        xMins += charWidth;
+    }
+
+    if (!hasTextSelection())
+    {
+        saveCursorPos();
+        clearSelection();
+    }
+
+    // Put the cursor at one of the ends of the selection:
+    if (selectionStart < prevSelectionStart)
+    {
+        cursorRect       = selectionRect;
+        cursorRect.xMaxs = cursorRect.xMins + (isInInsertMode ? charWidth : Widget::uiScaleBy(1, uiScaling));
+        cursorPos        = selectionStart;
+        selectionDir     = SpecialKeys::LeftArrow;
+    }
+    else if (selectionEnd > prevSelectionEnd)
+    {
+        cursorRect       = selectionRect;
+        cursorRect.xMins = cursorRect.xMaxs - (isInInsertMode ? charWidth : Widget::uiScaleBy(1, uiScaling));
+        cursorPos        = selectionEnd;
+        selectionDir     = SpecialKeys::RightArrow;
+
+        // This is necessary to compensate the selection rect when expanding it
+        // with [HOME] key. The user might have added more chars to the right that
+        // where not under the initial cursorPos we saved in prevCursorPos when
+        // this selection started.
+        prevCursorRect.xMaxs = std::max(prevCursorRect.xMaxs, cursorRect.xMaxs);
+    }
+
+    prevSelectionStart = selectionStart;
+    prevSelectionEnd   = selectionEnd;
+    setDrawCursor(true);
+}
+
+void EditField::charInserted(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling)
+{
+    textLength++;
+    moveCursorRight(displayBox, textScaling, uiScaling);
+}
+
+void EditField::saveCursorPos()
+{
+    prevCursorPos  = cursorPos;
+    prevCursorRect = cursorRect;
+}
+
+void EditField::restoreCursorPos(Float32 textScaling, Float32 uiScaling)
+{
+    cursorPos  = prevCursorPos;
+    cursorRect = prevCursorRect;
+
+    // Ensure the cursor width is clamped:
+    if (!isInInsertMode)
+    {
+        cursorRect.xMaxs = cursorRect.xMins + Widget::uiScaleBy(1, uiScaling);
+    }
+    else
+    {
+        const Float32 charWidth = GeometryBatch::getCharWidth() * textScaling;
+        cursorRect.xMaxs = cursorRect.xMins + charWidth;
+    }
+}
+
+void EditField::moveCursorRight(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling)
+{
+    if (cursorPos >= textLength)
+    {
+        return;
+    }
+
+    const Rectangle newCursRect = moveCursor(displayBox, cursorPos + 1, textScaling, uiScaling);
+    if (newCursRect.xMaxs >= displayBox.xMaxs)
+    {
+        return; // Would move out of the edit box.
+    }
+
+    ++cursorPos;
+    cursorRect = newCursRect;
+}
+
+void EditField::moveCursorLeft(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling)
+{
+    if (cursorPos == 0)
+    {
+        return;
+    }
+
+    cursorRect = moveCursor(displayBox, --cursorPos, textScaling, uiScaling);
+}
+
+void EditField::moveCursorHome(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling)
+{
+    if (cursorPos == 0)
+    {
+        return;
+    }
+
+    cursorPos  = 0;
+    cursorRect = moveCursor(displayBox, 0, textScaling, uiScaling);
+}
+
+void EditField::moveCursorEnd(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling)
+{
+    const Int16 posMax = textLength - (isInInsertMode ? 1 : 0);
+    if (cursorPos >= posMax)
+    {
+        return;
+    }
+
+    cursorPos  = posMax;
+    cursorRect = moveCursor(displayBox, cursorPos, textScaling, uiScaling);
+}
+
+Rectangle EditField::moveCursor(const Rectangle & displayBox, Float32 newPos, Float32 textScaling, Float32 uiScaling)
+{
+    // Keep the cursor from blinking when moving & receiving input.
+    setDrawCursor(true);
+
+    // Full width of a char when in insertion mode, 1 unit otherwise.
+    const Float32 charWidth = GeometryBatch::getCharWidth() * textScaling;
+    const Float32 cursWidth = (isInInsertMode ? charWidth : Widget::uiScaleBy(1, uiScaling));
+
+    // Need to go the long route to ensure we don't loose precision with int<=>float conversions.
+    const Float32 xStart = displayBox.xMins + Widget::uiScaleBy(1, uiScaling);
+    const Float32 xMins  = xStart + (newPos * charWidth);
+    const Float32 xMaxs  = xStart + (newPos * charWidth) + cursWidth;
+
+    Rectangle rect;
+    rect.set(xMins, cursorRect.yMins, xMaxs, cursorRect.yMaxs);
+    return rect;
 }
 
 // ========================================================
@@ -898,6 +1490,8 @@ void Widget::setNormalColors()
         packColor(255, 255, 255, 255),
         packColor(255, 255, 255, 255),
         packColor(255, 255, 128, 255),
+        packColor(0, 0, 255, 100),
+        packColor(0, 255, 0, 255),
         },
         // listItem
         {
@@ -952,6 +1546,8 @@ void Widget::setHighlightedColors()
         packColor(255, 255, 255, 255),
         packColor(255, 255, 255, 255),
         packColor(255, 255, 128, 255),
+        packColor(0, 0, 255, 100),
+        packColor(0, 255, 0, 255),
         },
         // listItem
         {
@@ -1469,13 +2065,8 @@ void ScrollBarWidget::onDraw(GeometryBatch & geoBatch) const
     // No child elements attached.
     drawSelf(geoBatch);
 
-    // Window contents are not scrollable. Don't draw a bar slider or buttons.
-    if (scrollBarSizeFactor <= 0)
-    {
-        return;
-    }
-
     const ColorScheme & myColors = getColors();
+    const bool isScrollable = (scrollBarSizeFactor > 0);
 
     // Center lines taking the whole length of the scroll bar slider:
     const int lineX = rect.xMins + (rect.getWidth() / 2);
@@ -1483,28 +2074,34 @@ void ScrollBarWidget::onDraw(GeometryBatch & geoBatch) const
     geoBatch.drawLine(lineX,     scrollStartY, lineX,     scrollEndY, myColors.scrollBarCenterLine2);
     geoBatch.drawLine(lineX + 1, scrollStartY, lineX + 1, scrollEndY, myColors.scrollBarCenterLine1);
 
-    // Bar body/slider (50% lighter than the background):
-    geoBatch.drawRectFilled(barSliderRect,
-                            lighthenRGB(myColors.box.bgTopLeft,     50),
-                            lighthenRGB(myColors.box.bgBottomLeft,  50),
-                            lighthenRGB(myColors.box.bgTopRight,    50),
-                            lighthenRGB(myColors.box.bgBottomRight, 50));
+    // If window contents are not scrollable. Don't draw a bar slider.
+    if (isScrollable)
+    {
+        // Bar body/slider (50% lighter than the background):
+        geoBatch.drawRectFilled(barSliderRect,
+                                lighthenRGB(myColors.box.bgTopLeft,     50),
+                                lighthenRGB(myColors.box.bgBottomLeft,  50),
+                                lighthenRGB(myColors.box.bgTopRight,    50),
+                                lighthenRGB(myColors.box.bgBottomRight, 50));
 
-    // Bar outline/border (50% darker than the background's):
-    geoBatch.drawRectOutline(barSliderRect,
-                             darkenRGB(myColors.box.outlineLeft,   50),
-                             darkenRGB(myColors.box.outlineBottom, 50),
-                             darkenRGB(myColors.box.outlineRight,  50),
-                             darkenRGB(myColors.box.outlineTop,    50));
+        // Bar outline/border (50% darker than the background's):
+        geoBatch.drawRectOutline(barSliderRect,
+                                 darkenRGB(myColors.box.outlineLeft,   50),
+                                 darkenRGB(myColors.box.outlineBottom, 50),
+                                 darkenRGB(myColors.box.outlineRight,  50),
+                                 darkenRGB(myColors.box.outlineTop,    50));
+    }
+
+    const Float32 btnColorFactor = (isScrollable ? 80.0f : 20.0f);
 
     // Up and down arrow buttons:
     geoBatch.drawArrowFilled(upBtnRect,
-                             lighthenRGB(myColors.box.bgTopLeft, 80),
-                             darkenRGB(myColors.box.outlineTop,  80), 1); // up
+                             lighthenRGB(myColors.box.bgTopLeft, btnColorFactor),
+                             darkenRGB(myColors.box.outlineTop,  btnColorFactor), 1); // up
 
     geoBatch.drawArrowFilled(downBtnRect,
-                             lighthenRGB(myColors.box.bgBottomLeft, 80),
-                             darkenRGB(myColors.box.outlineBottom,  80), -1); // down
+                             lighthenRGB(myColors.box.bgBottomLeft, btnColorFactor),
+                             darkenRGB(myColors.box.outlineBottom,  btnColorFactor), -1); // down
 }
 
 bool ScrollBarWidget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
@@ -1744,6 +2341,14 @@ void ScrollBarWidget::updateLineScrollState(int lineCount, int linesOut)
 {
     totalLines     = lineCount;
     linesOutOfView = linesOut;
+    onAdjustLayout();
+}
+
+void ScrollBarWidget::updateLineScrollState(int lineCount, int linesOut, int barPosition)
+{
+    totalLines       = lineCount;
+    linesOutOfView   = linesOut;
+    linesScrolledOut = barPosition;
     onAdjustLayout();
 }
 
@@ -3075,6 +3680,8 @@ WindowWidget::WindowWidget()
     , titleBarHeight(0)
     , scrollBarButtonSize(0)
     , scrollBarWidth(0)
+    , minWindowWidth(0)
+    , minWindowHeight(0)
 {
     usableRect.setZero();
 }
@@ -3083,24 +3690,32 @@ WindowWidget::~WindowWidget()
 {
     //TODO might need to flag dynamic elements for deletion! (like the popupWidget)
 
-    // Edit fields are never dynamically allocated. So just unlink.
-    editFieldsList.unlinkAll();
+    // Edit fields are never dynamically allocated. So just reset.
+    editFieldsList.reset();
 }
 
-void WindowWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, const char * title,
-                        int titleBarH, int titleBarBtnSize, int scrollBarW, int scrollBarBtnSize)
+void WindowWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, bool resizeable,
+                        const char * title, int titleBarH, int titleBarBtnSize, int scrollBarW, int scrollBarBtnSize)
 {
     Widget::init(myGUI, myParent, myRect, visible);
+    setResizeable(resizeable);
 
     titleBarButtonSize  = static_cast<Int16>(titleBarBtnSize);
     titleBarHeight      = static_cast<Int16>(titleBarH);
     scrollBarButtonSize = static_cast<Int16>(scrollBarBtnSize);
     scrollBarWidth      = static_cast<Int16>(scrollBarW);
+    minWindowWidth      = static_cast<Int16>(Widget::uiScaled(145)); // Defaults
+    minWindowHeight     = static_cast<Int16>(Widget::uiScaled(145));
 
     refreshBarRects(title, nullptr);
+
     addChild(&scrollBar);
     addChild(&titleBar);
-    addChild(&infoBar);
+    if (!testFlag(Flag_NoInfoBar))
+    {
+        addChild(&infoBar);
+    }
+
     refreshUsableRect();
 }
 
@@ -3134,8 +3749,11 @@ void WindowWidget::onDraw(GeometryBatch & geoBatch) const
         drawChildren(geoBatch);
     }
 
-    // Has to be on top of everything...
-    drawResizeHandles(geoBatch);
+    // Has to be on top of everything else...
+    if (isResizeable())
+    {
+        drawResizeHandles(geoBatch);
+    }
 
     // The popup still has to be above the resize handles.
     if (popupWidget != nullptr)
@@ -3175,7 +3793,10 @@ void WindowWidget::setMouseIntersecting(bool intersect)
     {
         scrollBar.setHighlightedColors();
         titleBar.setHighlightedColors();
-        infoBar.setHighlightedColors();
+        if (!testFlag(Flag_NoInfoBar))
+        {
+            infoBar.setHighlightedColors();
+        }
     }
 }
 
@@ -3190,7 +3811,7 @@ bool WindowWidget::onMouseButton(MouseButton button, int clicks)
 
     // Check for intersection with the resize handles in the corners.
     // We can resize the window if there's a left click over one.
-    if (isMouseIntersecting() && leftClick(button, clicks))
+    if (isResizeable() && isMouseIntersecting() && leftClick(button, clicks))
     {
         const int xMins = rect.xMins;
         const int xMaxs = rect.xMaxs;
@@ -3335,92 +3956,41 @@ bool WindowWidget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
 
 void WindowWidget::drawResizeHandles(GeometryBatch & geoBatch) const
 {
-    // This messy block of code draws the wedges in each
-    // corner of the window to indicate it is resizeable.
-    //
-    // Each wedge is a main colored line and
-    // a shade line offset by one pixel.
+    // Each wedge is a main colored line and a shade line offset by one pixel.
 
-    const Color32 wedgeColor      = getColors().resizeHandle;
-    const Color32 shadeColor      = packColor(0, 0, 0);
-    const int cornerWedgeLineSize = Widget::uiScaleBy(titleBarButtonSize, 0.8);
-    const int cornerWedgeLineOffs = Widget::uiScaled(4);
+    const Color32 wedgeColor = getColors().resizeHandle;
+    const Color32 shadeColor = packColor(0, 0, 0);
 
-    const int xMins = rect.xMins;
-    const int xMaxs = rect.xMaxs;
-    const int yMins = rect.yMins;
-    const int yMaxs = rect.yMaxs;
-    int xFrom, yFrom, xTo, yTo;
+    const int size   = Widget::uiScaleBy(titleBarButtonSize, 0.8);
+    const int offset = Widget::uiScaled(4); // Offset from border of window
+    const int xMins  = rect.xMins;
+    const int xMaxs  = rect.xMaxs;
+    const int yMins  = rect.yMins;
+    const int yMaxs  = rect.yMaxs;
 
-    // Top-left corner, horizontal line width shade:
-    xFrom = xMins + cornerWedgeLineOffs;
-    yFrom = yMins + cornerWedgeLineOffs;
-    xTo = xMins + cornerWedgeLineSize;
-    yTo = yFrom;
-    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
-    geoBatch.drawLine(xFrom, yFrom + 1, xTo, yTo + 1, shadeColor);
+    // Shade lines:
+    geoBatch.drawLine(xMins + offset, yMins + offset + 1, xMins + offset + size, yMins + offset + 1, shadeColor); // Top-left corner, horizontal
+    geoBatch.drawLine(xMins + offset + 1, yMins + offset, xMins + offset + 1, yMins + offset + size, shadeColor); // Top-left corner, vertical
+    geoBatch.drawLine(xMaxs - offset - size, yMins + offset + 1, xMaxs - offset, yMins + offset + 1, shadeColor); // Top-right corner, horizontal
+    geoBatch.drawLine(xMaxs - offset - 1, yMins + offset, xMaxs - offset - 1, yMins + offset + size, shadeColor); // Top-right corner, vertical
+    geoBatch.drawLine(xMins + offset, yMaxs - offset - 1, xMins + offset + size, yMaxs - offset - 1, shadeColor); // Bottom-left corner, horizontal
+    geoBatch.drawLine(xMins + offset + 1, yMaxs - offset, xMins + offset + 1, yMaxs - offset - size, shadeColor); // Bottom-left corner, vertical
+    geoBatch.drawLine(xMaxs - offset - size, yMaxs - offset - 1, xMaxs - offset, yMaxs - offset - 1, shadeColor); // Bottom-right corner, horizontal
+    geoBatch.drawLine(xMaxs - offset - 1, yMaxs - offset, xMaxs - offset - 1, yMaxs - offset - size, shadeColor); // Bottom-right corner, vertical
 
-    // Top-left corner, vertical line with shade:
-    xFrom = xMins + cornerWedgeLineOffs;
-    yFrom = yMins + cornerWedgeLineOffs;
-    xTo = xFrom;
-    yTo = yMins + cornerWedgeLineSize;
-    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
-    geoBatch.drawLine(xFrom + 1, yFrom + 1, xTo + 1, yTo, shadeColor);
-
-    // Top-right corner, horizontal line width shade:
-    xFrom = xMaxs - cornerWedgeLineSize;
-    yFrom = yMins + cornerWedgeLineOffs;
-    xTo = xMaxs - cornerWedgeLineOffs;
-    yTo = yFrom;
-    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
-    geoBatch.drawLine(xFrom, yFrom + 1, xTo, yTo + 1, shadeColor);
-
-    // Top-right corner, vertical line with shade:
-    xFrom = xMaxs - cornerWedgeLineOffs;
-    yFrom = yMins + cornerWedgeLineOffs;
-    xTo = xFrom;
-    yTo = yMins + cornerWedgeLineSize;
-    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
-    geoBatch.drawLine(xFrom + 1, yFrom + 1, xTo + 1, yTo, shadeColor);
-
-    // Bottom-left corner, horizontal line width shade:
-    xFrom = xMins + cornerWedgeLineOffs;
-    yFrom = yMaxs - cornerWedgeLineOffs;
-    xTo = xFrom + cornerWedgeLineSize;
-    yTo = yFrom;
-    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
-    geoBatch.drawLine(xFrom, yFrom + 1, xTo, yTo + 1, shadeColor);
-
-    // Bottom-left corner, vertical line with shade:
-    xFrom = xMins + cornerWedgeLineOffs;
-    yFrom = yMaxs - cornerWedgeLineOffs;
-    xTo = xFrom;
-    yTo = yFrom - cornerWedgeLineSize;
-    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
-    geoBatch.drawLine(xFrom + 1, yFrom, xTo + 1, yTo, shadeColor);
-
-    // Bottom-right corner, horizontal line width shade:
-    xFrom = xMaxs - cornerWedgeLineOffs;
-    yFrom = yMaxs - cornerWedgeLineOffs;
-    xTo = xMaxs - cornerWedgeLineSize;
-    yTo = yFrom;
-    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
-    geoBatch.drawLine(xFrom + 1, yFrom + 1, xTo, yTo + 1, shadeColor);
-
-    // Bottom-right corner, vertical line with shade:
-    xFrom = xMaxs - cornerWedgeLineOffs;
-    yFrom = yMaxs - cornerWedgeLineOffs;
-    xTo = xFrom;
-    yTo = yMaxs - cornerWedgeLineSize;
-    geoBatch.drawLine(xFrom, yFrom, xTo, yTo, wedgeColor);
-    geoBatch.drawLine(xFrom + 1, yFrom + 1, xTo + 1, yTo, shadeColor);
+    // Main wedge lines:
+    geoBatch.drawLine(xMins + offset, yMins + offset, xMins + offset + size, yMins + offset, wedgeColor); // Top-left corner, horizontal
+    geoBatch.drawLine(xMins + offset, yMins + offset, xMins + offset, yMins + offset + size, wedgeColor); // Top-left corner, vertical
+    geoBatch.drawLine(xMaxs - offset - size, yMins + offset, xMaxs - offset, yMins + offset, wedgeColor); // Top-right corner, horizontal
+    geoBatch.drawLine(xMaxs - offset, yMins + offset, xMaxs - offset, yMins + offset + size, wedgeColor); // Top-right corner, vertical
+    geoBatch.drawLine(xMins + offset, yMaxs - offset, xMins + offset + size, yMaxs - offset, wedgeColor); // Bottom-left corner, horizontal
+    geoBatch.drawLine(xMins + offset, yMaxs - offset, xMins + offset, yMaxs - offset - size, wedgeColor); // Bottom-left corner, vertical
+    geoBatch.drawLine(xMaxs - offset - size, yMaxs - offset, xMaxs - offset, yMaxs - offset, wedgeColor); // Bottom-right corner, horizontal
+    geoBatch.drawLine(xMaxs - offset, yMaxs - offset, xMaxs - offset, yMaxs - offset - size, wedgeColor); // Bottom-right corner, vertical
 }
 
 void WindowWidget::resizeWithMin(Corner corner, int & x, int & y, int offsetX, int offsetY)
 {
-    const int minWindowWidth  = getMinWindowWidthScaled();
-    const int minWindowHeight = getMinWindowHeightScaled();
     const Rectangle old = rect;
 
     // x/y are refs to 'this->rect'.
@@ -3465,7 +4035,7 @@ void WindowWidget::refreshBarRects(const char * newTitle, const char * newInfoSt
 {
     // Title bar stuff:
     const int  gapBetweenButtons = Widget::uiScaled(10);
-    const int  btnOffsX          = titleBarButtonSize + Widget::uiScaled(2);
+    const int  btnOffsX          = (isResizeable() ? titleBarButtonSize : 0) + Widget::uiScaled(4);
     const int  btnOffsY          = Widget::uiScaled(4);
     const bool minimizeBtn       = true;
     const bool maximizeBtn       = true;
@@ -3486,7 +4056,11 @@ void WindowWidget::refreshBarRects(const char * newTitle, const char * newInfoSt
                                  rect.xMaxs - scrollBarWidth - Widget::uiScaled(1),
                                  rect.yMaxs };
 
-    infoBar.init(gui, this, infoBarRect, isVisible(), newInfoString);
+    if (!testFlag(Flag_NoInfoBar))
+    {
+        infoBar.init(gui, this, infoBarRect, isVisible(), newInfoString);
+    }
+
     scrollBar.init(gui, this, scrollBarRect, isVisible(), scrollBarButtonSize);
     titleBar.init(gui, this, titleBarRect, isVisible(), newTitle, minimizeBtn, maximizeBtn,
                   btnOffsX, btnOffsY, titleBarButtonSize, gapBetweenButtons);
@@ -3506,7 +4080,7 @@ void WindowWidget::refreshUsableRect()
     const int offset = Widget::uiScaled(4);
     usableRect.xMaxs -= scrollBar.getRect().getWidth();
     usableRect.yMins += titleBar.getRect().getHeight() + offset;
-    usableRect.yMaxs -= infoBar.getRect().getHeight()  + offset;
+    usableRect.yMaxs -= (testFlag(Flag_NoInfoBar) ? 0 : infoBar.getRect().getHeight()) + offset;
 }
 
 #if NEO_TWEAK_BAR_DEBUG
@@ -3515,6 +4089,170 @@ SmallStr WindowWidget::getTypeString() const
     SmallStr windowStr = "WindowWidget ";
     windowStr += "\'";
     windowStr += titleBar.getTitle();
+    windowStr += "\'";
+    return windowStr;
+}
+#endif // NEO_TWEAK_BAR_DEBUG
+
+// ========================================================
+// class ConsoleWindowWidget:
+// ========================================================
+
+ConsoleWindowWidget::ConsoleWindowWidget()
+    : linesUsed(0)
+    , maxLines(0)
+    , firstLineDrawn(0)
+    , bufferUsed(0)
+    , bufferSize(0)
+    , lines(nullptr)
+    , buffer(nullptr)
+{
+}
+
+ConsoleWindowWidget::~ConsoleWindowWidget()
+{
+    implFree(lines);
+    implFree(buffer);
+}
+
+void ConsoleWindowWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, bool resizeable,
+                               const char * title, int titleBarH, int titleBarBtnSize, int scrollBarW, int scrollBarBtnSize,
+                               int maxLineCount, int maxBufferSize)
+{
+    // No double init!
+    NTB_ASSERT(lines  == nullptr);
+    NTB_ASSERT(buffer == nullptr);
+    NTB_ASSERT(maxLineCount  > 0);
+    NTB_ASSERT(maxBufferSize > 0);
+
+    setFlag(Flag_NoInfoBar, true);
+    WindowWidget::init(myGUI, myParent, myRect, visible, resizeable, title,
+                       titleBarH, titleBarBtnSize, scrollBarW, scrollBarBtnSize);
+
+    linesUsed  = 0;
+    maxLines   = maxLineCount;
+    bufferUsed = 0;
+    bufferSize = maxBufferSize;
+    lines      = implAllocT<Line>(maxLineCount);
+    buffer     = implAllocT<char>(maxBufferSize);
+}
+
+void ConsoleWindowWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    WindowWidget::onDraw(geoBatch);
+
+    const Rectangle usableRect   = getUsableRect();
+    const ColorScheme & myColors = getColors();
+
+    const Float32 charH = GeometryBatch::getCharHeight() * textScaling;
+    const int xOffset   = Widget::uiScaled(4);
+
+    const int maxLinesInWindow = std::floor(static_cast<Float32>(usableRect.getHeight()) / charH);
+    const int linesToRender    = std::min(maxLinesInWindow, linesUsed);
+
+    for (int l = 0; l < linesToRender; ++l)
+    {
+        int startingLine = l;
+        if (linesUsed > maxLinesInWindow)
+        {
+            startingLine += (linesUsed - maxLinesInWindow) + firstLineDrawn;
+        }
+
+        NTB_ASSERT(startingLine < maxLines);
+        Line & line = lines[startingLine];
+
+        const char * text = getTextForLine(line);
+        const int length  = getTextLengthForLine(line);
+
+        const Float32 y0  = (l * charH) + usableRect.yMins;
+        const Float32 y1  = y0 + charH;
+
+        Rectangle textBox;
+        textBox.set(usableRect.xMins + xOffset, y0, usableRect.xMaxs - xOffset, y1);
+
+        line.edit.drawSelf(geoBatch, textBox, text, length, myColors.text.normal,
+                           myColors.text.selection, myColors.text.cursor, 0, textScaling, scaling);
+
+        geoBatch.drawRectOutline(textBox, packColor(255,255,255));//TODO debug only | remove
+    }
+}
+
+void ConsoleWindowWidget::onAdjustLayout()
+{
+    WindowWidget::onAdjustLayout();
+
+    const Float32 charH        = GeometryBatch::getCharHeight() * textScaling;
+    const int maxLinesInWindow = std::floor(static_cast<Float32>(getUsableRect().getHeight()) / charH);
+    const int linesOut         = (linesUsed > maxLinesInWindow ? linesUsed - maxLinesInWindow : 0);
+
+    getScrollBar().updateLineScrollState(linesUsed, linesOut, linesOut);
+    //TODO still a few bugs when scrolling a tiny window!
+}
+
+void ConsoleWindowWidget::onScrollContentUp()
+{
+    WindowWidget::onScrollContentUp();
+    --firstLineDrawn;
+}
+
+void ConsoleWindowWidget::onScrollContentDown()
+{
+    WindowWidget::onScrollContentDown();
+    ++firstLineDrawn;
+}
+
+void ConsoleWindowWidget::pushLine(const char * text)
+{
+    pushLine(text, lengthOfString(text));
+}
+
+void ConsoleWindowWidget::pushLine(const char * text, int length)
+{
+    NTB_ASSERT(text != nullptr);
+
+    if (linesUsed == maxLines)
+    {
+        //TODO recycle a line
+    }
+
+    if (bufferUsed == bufferSize)
+    {
+        //TODO make room in the buffer
+    }
+
+    lines[linesUsed].edit.reset();
+    lines[linesUsed].start = bufferUsed;
+    lines[linesUsed].end   = bufferUsed + length;
+
+    std::memcpy(buffer + bufferUsed, text, length);
+
+    linesUsed  += 1;
+    bufferUsed += length;
+}
+
+const char * ConsoleWindowWidget::getTextForLine(const Line & line) const
+{
+    NTB_ASSERT(line.start >= 0);
+    NTB_ASSERT(line.start < bufferUsed);
+    return &buffer[line.start];
+}
+
+int ConsoleWindowWidget::getTextLengthForLine(const Line & line) const
+{
+    NTB_ASSERT(line.start >= 0);
+    NTB_ASSERT(line.start <= line.end);
+
+    const int len = line.end - line.start;
+    NTB_ASSERT(len < bufferUsed);
+    return len;
+}
+
+#if NEO_TWEAK_BAR_DEBUG
+SmallStr ConsoleWindowWidget::getTypeString() const
+{
+    SmallStr windowStr = "ConsoleWindowWidget ";
+    windowStr += "\'";
+    windowStr += getTitle();
     windowStr += "\'";
     return windowStr;
 }
