@@ -24,7 +24,7 @@ class MyNTBShellInterfaceNull : public ntb::ShellInterface
 {
 public:
     ~MyNTBShellInterfaceNull();
-    ntb::Int64 getTimeMilliseconds() const override { return 0; }
+    std::int64_t getTimeMilliseconds() const override { return 0; }
 };
 MyNTBShellInterfaceNull::~MyNTBShellInterfaceNull()
 { }

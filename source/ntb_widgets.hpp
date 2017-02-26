@@ -59,11 +59,11 @@ public:
 
     // Filled triangles with clipping (used by the 3D widgets).
     void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
-                                const UInt16 * indexes, int indexCount,
+                                const std::uint16_t * indexes, int indexCount,
                                 const Rectangle & viewport, const Rectangle & clipBox);
 
     // Filled indexed triangles, without texture:
-    void draw2DTriangles(const VertexPTC * verts, int vertCount, const UInt16 * indexes, int indexCount);
+    void draw2DTriangles(const VertexPTC * verts, int vertCount, const std::uint16_t * indexes, int indexCount);
 
     // Lines:
     void drawLine(int xFrom, int yFrom, int xTo, int yTo, Color32 color);
@@ -117,26 +117,26 @@ private:
     int currentZ;
 
     // Current offsets for the 2D/text index buffers.
-    UInt16 baseVertex2D;
-    UInt16 baseVertexText;
-    UInt16 baseVertexClipped;
+    std::uint16_t baseVertex2D;
+    std::uint16_t baseVertexText;
+    std::uint16_t baseVertexClipped;
 
     // Batch for 2D colored lines.
     PODArray linesBatch;        // [VertexPC]
 
     // Batch for all untextured 2D triangles (indexed).
     PODArray verts2DBatch;      // [VertexPTC] Miscellaneous 2D elements.
-    PODArray tris2DBatch;       // [UInt16]    Triangle indexes for the 2D elements.
+    PODArray tris2DBatch;       // [std::uint16_t] Triangle indexes for the 2D elements.
 
     // Batch for all 2D text glyphs (indexed).
     PODArray textVertsBatch;    // [VertexPTC] Vertexes for 2D text glyphs.
-    PODArray textTrisBatch;     // [UInt16]    Indexes for the 2D text triangles.
+    PODArray textTrisBatch;     // [std::uint16_t] Indexes for the 2D text triangles.
 
     // Separate batch for the clipped 2D vertexes
     // (normally sent from the 3D widgets).
     PODArray drawClippedInfos;  // [DrawClippedInfo]
     PODArray vertsClippedBatch; // [VertexPTC]
-    PODArray trisClippedBatch;  // [UInt16]
+    PODArray trisClippedBatch;  // [std::uint16_t]
 };
 
 // ========================================================
@@ -202,26 +202,26 @@ public:
     // Most fields use a very short integer range, so we ca use Int16s to save some space.
     // Each UI Variable has an EditField, so to scale, we can have a nice gain there.
     //
-    Int64     cursorBlinkTimeMs;    // Keeps track of time to switch the cursor draw on and off each frame
-    Rectangle cursorRect;           // Rect of the cursor indicator. Updated by updateCursorPos()
-    Rectangle prevCursorRect;       // Text selection requires one level of cursor history
-    Rectangle selectionRect;        // Rect to draw the current text selection (if any)
-    Int16     textLength;           // Updated by drawSelf()
-    Int16     selectionStart;       // Char where a text selection starts (zero-based)
-    Int16     selectionEnd;         // Where it ends
-    Int16     prevSelectionStart;   // Used to estimate the selection direction when selecting via mouse
-    Int16     prevSelectionEnd;     // Ditto
-    Int16     cursorPos;            // Position within the line for input
-    Int16     prevCursorPos;        // Used during text selection navigation
-    UInt16    selectionDir;         // Set to LeftArrow or RightArrow to indicate selection direction
-    UInt8     isActive         : 1; // When active the cursor and selection are drawn
-    UInt8     isInInsertMode   : 1; // User hit the [INSERT] key (cursor draws as a full char overlay)
-    UInt8     shouldDrawCursor : 1; // "Ping Pong" flag to switch cursor draw between frames
-    UInt8     endKeySel        : 1; // Set when [SHIFT]+[END]  is hit to select all the way to the end
-    UInt8     homeKeySel       : 1; // Set when [SHIFT]+[HOME] is hit to select all the way to the beginning
+    std::int64_t  cursorBlinkTimeMs;    // Keeps track of time to switch the cursor draw on and off each frame
+    Rectangle     cursorRect;           // Rect of the cursor indicator. Updated by updateCursorPos()
+    Rectangle     prevCursorRect;       // Text selection requires one level of cursor history
+    Rectangle     selectionRect;        // Rect to draw the current text selection (if any)
+    std::int16_t  textLength;           // Updated by drawSelf()
+    std::int16_t  selectionStart;       // Char where a text selection starts (zero-based)
+    std::int16_t  selectionEnd;         // Where it ends
+    std::int16_t  prevSelectionStart;   // Used to estimate the selection direction when selecting via mouse
+    std::int16_t  prevSelectionEnd;     // Ditto
+    std::int16_t  cursorPos;            // Position within the line for input
+    std::int16_t  prevCursorPos;        // Used during text selection navigation
+    std::uint16_t selectionDir;         // Set to LeftArrow or RightArrow to indicate selection direction
+    std::uint8_t  isActive         : 1; // When active the cursor and selection are drawn
+    std::uint8_t  isInInsertMode   : 1; // User hit the [INSERT] key (cursor draws as a full char overlay)
+    std::uint8_t  shouldDrawCursor : 1; // "Ping Pong" flag to switch cursor draw between frames
+    std::uint8_t  endKeySel        : 1; // Set when [SHIFT]+[END]  is hit to select all the way to the end
+    std::uint8_t  homeKeySel       : 1; // Set when [SHIFT]+[HOME] is hit to select all the way to the beginning
 
     // Cursor bar draw once every this many milliseconds.
-    static constexpr Int64 CursorBlinkIntervalMs = 500;
+    static constexpr std::int64_t CursorBlinkIntervalMs = 500;
 
     // Input commands for the edit field.
     enum class EditCommand
@@ -380,8 +380,8 @@ public:
     static int uiScaleBy(Float64 val, Float64 scale);
 
     // State flags:
-    bool testFlag(UInt32 mask) const;
-    void setFlag(UInt32 mask, int f);
+    bool testFlag(std::uint32_t mask) const;
+    void setFlag(std::uint32_t mask, int f);
 
     // Debug printing helpers:
     #if NEO_TWEAK_BAR_DEBUG
@@ -400,7 +400,7 @@ protected:
     PODArray            children;     // List of pointers to the child widgets, if any.
     Float32             scaling;      // Scaling factor applied to the UI geometry.
     Float32             textScaling;  // Scaling applied to the text only.
-    UInt32              flags;        // Miscellaneous state flags (from the Flags enum).
+    std::uint32_t       flags;        // Miscellaneous state flags (from the Flags enum).
     Rectangle           rect;         // Drawable rectangle.
     Point               lastMousePos; // Saved from last time onMouseMotion() was called.
 };
@@ -414,7 +414,7 @@ class ButtonWidget final
 {
 public:
 
-    enum class Icon : UInt8
+    enum class Icon : std::uint8_t
     {
         None,          // No button. Nothing drawn, no events.
         Plus,          // Plus sign [+].
@@ -743,7 +743,7 @@ public:
         bool      autoAdjustAspect;
     };
 
-    enum class ObjectType : UInt8
+    enum class ObjectType : std::uint8_t
     {
         None,
         Sphere,
@@ -819,7 +819,7 @@ private:
     mutable bool updateScrGeometry;       // Only update the geometry caches when needed (on input/angles changed).
     mutable bool resettingAngles;         // True when "R" clicked. New mouse input cancels it.
     mutable Vec3 rotationDegrees;         // AKA pitch (X), yaw (Y) and roll (Z).
-    mutable Int64 prevFrameTimeMs;        // Needed to compute a delta-time for angle reset lerp.
+    mutable std::int64_t prevFrameTimeMs; // Needed to compute a delta-time for angle reset lerp.
     Rectangle resetAnglesBtnRect;         // Tiny reset button in the corner ("R").
 
     // Screen projected geometry caches:
@@ -997,12 +997,12 @@ private:
     InfoBarWidget   infoBar;
 
     // No need for a full 32-bits for these; save the space.
-    Int16 titleBarButtonSize;
-    Int16 titleBarHeight;
-    Int16 scrollBarButtonSize;
-    Int16 scrollBarWidth;
-    Int16 minWindowWidth;
-    Int16 minWindowHeight;
+    std::int16_t titleBarButtonSize;
+    std::int16_t titleBarHeight;
+    std::int16_t scrollBarButtonSize;
+    std::int16_t scrollBarWidth;
+    std::int16_t minWindowWidth;
+    std::int16_t minWindowHeight;
 };
 
 // ========================================================
@@ -1037,21 +1037,21 @@ private:
 
     struct Line
     {
-        EditField edit;  // Edit Field to allow selecting and copying the console lines.
-        Int32     start; // Line text start in the console buffer.
-        Int32     end;   // Line text end in the console buffer.
+        EditField    edit;  // Edit Field to allow selecting and copying the console lines.
+        std::int32_t start; // Line text start in the console buffer.
+        std::int32_t end;   // Line text end in the console buffer.
     };
 
     const char * getTextForLine(const Line & line) const;
     int getTextLengthForLine(const Line & line) const;
 
-    Int32  linesUsed;
-    Int32  maxLines;
-    Int32  firstLineDrawn;
-    Int32  bufferUsed;
-    Int32  bufferSize;
-    Line * lines;
-    char * buffer;
+    std::int32_t linesUsed;
+    std::int32_t maxLines;
+    std::int32_t firstLineDrawn;
+    std::int32_t bufferUsed;
+    std::int32_t bufferSize;
+    Line *       lines;
+    char *       buffer;
 };
 
 // ========================================================
@@ -1257,12 +1257,12 @@ inline int Widget::uiScaleBy(Float64 val, Float64 scale)
     return static_cast<int>(val * scale);
 }
 
-inline bool Widget::testFlag(UInt32 mask) const
+inline bool Widget::testFlag(std::uint32_t mask) const
 {
     return !!(flags & mask);
 }
 
-inline void Widget::setFlag(UInt32 mask, int f)
+inline void Widget::setFlag(std::uint32_t mask, int f)
 {
     // Using one of the Standford bit-hacks:
     // (Conditionally set or clear bit without branching)
@@ -1658,12 +1658,12 @@ inline int WindowWidget::getMinWindowHeight() const
 
 inline void WindowWidget::setMinWindowWidth(int w)
 {
-    minWindowWidth = static_cast<Int16>(w);
+    minWindowWidth = static_cast<std::int16_t>(w);
 }
 
 inline void WindowWidget::setMinWindowHeight(int h)
 {
-    minWindowHeight = static_cast<Int16>(h);
+    minWindowHeight = static_cast<std::int16_t>(h);
 }
 
 inline void WindowWidget::setButtonTextScaling(Float32 s)

@@ -28,16 +28,16 @@ class MyNTBShellInterfaceGLFW : public ntb::ShellInterface
 public:
 
     ~MyNTBShellInterfaceGLFW();
-    ntb::Int64 getTimeMilliseconds() const override;
+    std::int64_t getTimeMilliseconds() const override;
 };
 
 MyNTBShellInterfaceGLFW::~MyNTBShellInterfaceGLFW()
 { }
 
-ntb::Int64 MyNTBShellInterfaceGLFW::getTimeMilliseconds() const
+std::int64_t MyNTBShellInterfaceGLFW::getTimeMilliseconds() const
 {
     const ntb::Float64 seconds = glfwGetTime();
-    return static_cast<ntb::Int64>(seconds * 1000.0);
+    return static_cast<std::int64_t>(seconds * 1000.0);
 }
 
 static MyNTBShellInterfaceGLFW g_ntbShell;
@@ -179,8 +179,8 @@ static void appGlLegacyMouseButtonCallbackGLFW(GLFWwindow * /*window*/, const in
     AppEvent event{};
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        const  ntb::Int64 doubleClickTimeMs = 350; // Milliseconds between clicks for a double click
-        static ntb::Int64 lastClickTimeMs   = 0;   // Milliseconds of last mouse click
+        const  std::int64_t doubleClickTimeMs = 350; // Milliseconds between clicks for a double click
+        static std::int64_t lastClickTimeMs   = 0;   // Milliseconds of last mouse click
 
         int clicks;
         if (action == GLFW_PRESS)

@@ -80,11 +80,11 @@ public:
     void draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ) override;
 
     void draw2DTriangles(const VertexPTC * verts, int vertCount,
-                         const UInt16 * indexes, int indexCount,
+                         const std::uint16_t * indexes, int indexCount,
                          TextureHandle texture, int frameMaxZ) override;
 
     void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
-                                const UInt16 * indexes, int indexCount,
+                                const std::uint16_t * indexes, int indexCount,
                                 const DrawClippedInfo * drawInfo,
                                 int drawInfoCount, int frameMaxZ) override;
 
@@ -405,11 +405,11 @@ void * RenderInterfaceDefaultGLLegacy::grayscaleToRgba(int widthPixels, int heig
 {
     struct Rgba
     {
-        UInt8 r, g, b, a;
+        std::uint8_t r, g, b, a;
     };
 
     Rgba * expanded = implAllocT<Rgba>(widthPixels * heightPixels);
-    const UInt8 * p = static_cast<const UInt8 *>(pixels);
+    const auto p = static_cast<const std::uint8_t *>(pixels);
 
     // Expand graymap the RGBA:
     const int count = widthPixels * heightPixels;
@@ -443,7 +443,7 @@ void RenderInterfaceDefaultGLLegacy::draw2DLines(const VertexPC * verts, int ver
     glBegin(GL_LINES);
     for (int v = 0; v < vertCount; ++v)
     {
-        UInt8 r, g, b, a;
+        std::uint8_t r, g, b, a;
         unpackColor(verts[v].color, r, g, b, a);
         glColor4ub(r, g, b, a);
 
@@ -459,7 +459,7 @@ void RenderInterfaceDefaultGLLegacy::draw2DLines(const VertexPC * verts, int ver
 }
 
 void RenderInterfaceDefaultGLLegacy::draw2DTriangles(const VertexPTC * verts, int vertCount,
-                                                     const UInt16 * indexes, int indexCount,
+                                                     const std::uint16_t * indexes, int indexCount,
                                                      TextureHandle texture, int frameMaxZ)
 {
     NTB_ASSERT(verts   != nullptr);
@@ -479,9 +479,9 @@ void RenderInterfaceDefaultGLLegacy::draw2DTriangles(const VertexPTC * verts, in
     glBegin(GL_TRIANGLES);
     for (int i = 0; i < indexCount; ++i)
     {
-        const UInt32 v = indexes[i];
+        const std::uint32_t v = indexes[i];
 
-        UInt8 r, g, b, a;
+        std::uint8_t r, g, b, a;
         unpackColor(verts[v].color, r, g, b, a);
 
         glColor4ub(r, g, b, a);
@@ -506,7 +506,7 @@ void RenderInterfaceDefaultGLLegacy::draw2DTriangles(const VertexPTC * verts, in
 }
 
 void RenderInterfaceDefaultGLLegacy::drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
-                                                            const UInt16 * indexes, int indexCount,
+                                                            const std::uint16_t * indexes, int indexCount,
                                                             const DrawClippedInfo * drawInfo,
                                                             int drawInfoCount, int frameMaxZ)
 {
@@ -563,9 +563,9 @@ void RenderInterfaceDefaultGLLegacy::drawClipped2DTriangles(const VertexPTC * ve
         const int firstIdx = drawInfo[i].firstIndex;
         for (int j = 0; j < idxCount; ++j)
         {
-            const UInt32 v = indexes[firstIdx + j];
+            const std::uint32_t v = indexes[firstIdx + j];
 
-            UInt8 r, g, b, a;
+            std::uint8_t r, g, b, a;
             unpackColor(verts[v].color, r, g, b, a);
 
             glColor4ub(r, g, b, a);

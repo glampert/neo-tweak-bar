@@ -317,7 +317,7 @@ int main(const int argc, const char * argv[])
             con->setButtonTextScaling(1.0f);
 
             ntb::SmallStr line;
-            for (ntb::Int64 i = 0; i < 15; ++i)
+            for (std::int64_t i = 0; i < 15; ++i)
             {
                 line = "Test line ";
                 line += ntb::SmallStr::fromNumber(i);

@@ -88,11 +88,11 @@ public:
     void draw2DLines(const VertexPC * verts, int vertCount, int frameMaxZ) override;
 
     void draw2DTriangles(const VertexPTC * verts, int vertCount,
-                         const UInt16 * indexes, int indexCount,
+                         const std::uint16_t * indexes, int indexCount,
                          TextureHandle texture, int frameMaxZ) override;
 
     void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
-                                const UInt16 * indexes, int indexCount,
+                                const std::uint16_t * indexes, int indexCount,
                                 const DrawClippedInfo * drawInfo,
                                 int drawInfoCount, int frameMaxZ) override;
 
@@ -788,7 +788,7 @@ void RenderInterfaceDefaultGLCore::draw2DLines(const VertexPC * verts, int vertC
 }
 
 void RenderInterfaceDefaultGLCore::draw2DTriangles(const VertexPTC * verts, int vertCount,
-                                                   const UInt16 * indexes, int indexCount,
+                                                   const std::uint16_t * indexes, int indexCount,
                                                    TextureHandle texture, int frameMaxZ)
 {
     NTB_ASSERT(verts   != nullptr);
@@ -800,7 +800,7 @@ void RenderInterfaceDefaultGLCore::draw2DTriangles(const VertexPTC * verts, int 
     glBufferData(GL_ARRAY_BUFFER, vertCount * sizeof(VertexPTC), verts, GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboTris2D);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(UInt16), indexes, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(std::uint16_t), indexes, GL_DYNAMIC_DRAW);
 
     glEnableVertexAttribArray(0); // Position
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexPTC), offsetPtr(0));
@@ -850,7 +850,7 @@ void RenderInterfaceDefaultGLCore::draw2DTriangles(const VertexPTC * verts, int 
 }
 
 void RenderInterfaceDefaultGLCore::drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
-                                                          const UInt16 * indexes, int indexCount,
+                                                          const std::uint16_t * indexes, int indexCount,
                                                           const DrawClippedInfo * drawInfo,
                                                           int drawInfoCount, int frameMaxZ)
 {
@@ -866,7 +866,7 @@ void RenderInterfaceDefaultGLCore::drawClipped2DTriangles(const VertexPTC * vert
     glBufferData(GL_ARRAY_BUFFER, vertCount * sizeof(VertexPTC), verts, GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboTris2D);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(UInt16), indexes, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(std::uint16_t), indexes, GL_DYNAMIC_DRAW);
 
     glEnableVertexAttribArray(0); // Position
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexPTC), offsetPtr(0));
@@ -939,7 +939,7 @@ void RenderInterfaceDefaultGLCore::drawClipped2DTriangles(const VertexPTC * vert
 
         // Issue the draw call:
         glDrawElements(GL_TRIANGLES, drawInfo[i].indexCount, GL_UNSIGNED_SHORT,
-                       offsetPtr(drawInfo[i].firstIndex * sizeof(UInt16)));
+                       offsetPtr(drawInfo[i].firstIndex * sizeof(std::uint16_t)));
     }
 
     glDisable(GL_SCISSOR_TEST);

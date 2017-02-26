@@ -16,14 +16,14 @@ namespace ntb
 struct FontChar
 {
     // Position within the glyph bitmap.
-    UInt16 x;
-    UInt16 y;
+    std::uint16_t x;
+    std::uint16_t y;
 };
 
 struct FontCharSet
 {
     enum { MaxChars = 256 };
-    const UInt8 * bitmap;
+    const std::uint8_t * bitmap;
     int bitmapWidth;
     int bitmapHeight;
     int bitmapColorChannels;
@@ -38,8 +38,8 @@ struct FontCharSet
 namespace detail
 {
 
-const UInt8 * getRawFontBitmapData();
-const FontCharSet & getFontCharSet();
+const std::uint8_t * getRawFontBitmapData();
+const FontCharSet  & getFontCharSet();
 
 // ========================================================
 // LZW decompression helpers for the font glyph bitmap:
@@ -72,14 +72,14 @@ struct LzwDictionary
 
 struct LzwBitStreamReader
 {
-    const UInt8 * stream; // Pointer to the external bit stream. Not owned by the reader.
-    int sizeInBytes;      // Size of the stream in bytes. Might include padding.
-    int sizeInBits;       // Size of the stream in bits, padding not include.
-    int currBytePos;      // Current byte being read in the stream.
-    int nextBitPos;       // Bit position within the current byte to access next. 0 to 7.
-    int numBitsRead;      // Total bits read from the stream so far. Never includes byte-rounding.
+    const std::uint8_t * stream; // Pointer to the external bit stream. Not owned by the reader.
+    int sizeInBytes; // Size of the stream in bytes. Might include padding.
+    int sizeInBits;  // Size of the stream in bits, padding not include.
+    int currBytePos; // Current byte being read in the stream.
+    int nextBitPos;  // Bit position within the current byte to access next. 0 to 7.
+    int numBitsRead; // Total bits read from the stream so far. Never includes byte-rounding.
 
-    LzwBitStreamReader(const UInt8 * bitStream, int byteCount, int bitCount);
+    LzwBitStreamReader(const std::uint8_t * bitStream, int byteCount, int bitCount);
     bool readNextBit(int & outBit);
     int  readBits(int bitCount);
 };
@@ -149,7 +149,7 @@ bool LzwDictionary::flush(int & codeBitsWidth)
 // LzwBitStreamReader implementation:
 //
 
-LzwBitStreamReader::LzwBitStreamReader(const UInt8 * bitStream, const int byteCount, const int bitCount)
+LzwBitStreamReader::LzwBitStreamReader(const std::uint8_t * bitStream, const int byteCount, const int bitCount)
     : stream(bitStream)
     , sizeInBytes(byteCount)
     , sizeInBits(bitCount)
@@ -197,23 +197,23 @@ int LzwBitStreamReader::readBits(const int bitCount)
 // lzwDecompress() and helpers:
 // ========================================================
 
-static bool lzwOutputByte(int code, UInt8 *& output, int outputSizeBytes, int & bytesDecodedSoFar)
+static bool lzwOutputByte(int code, std::uint8_t *& output, int outputSizeBytes, int & bytesDecodedSoFar)
 {
     if (code < 0 || code >= 256) { return false; }
     if (bytesDecodedSoFar >= outputSizeBytes) { return false; }
-    *output++ = static_cast<UInt8>(code);
+    *output++ = static_cast<std::uint8_t>(code);
     ++bytesDecodedSoFar;
     return true;
 }
 
 static bool lzwOutputSequence(const LzwDictionary & dict, int code,
-                              UInt8 *& output, int outputSizeBytes,
+                              std::uint8_t *& output, int outputSizeBytes,
                               int & bytesDecodedSoFar, int & firstByte)
 {
     // A sequence is stored backwards, so we have to write
     // it to a temp then output the buffer in reverse.
     int i = 0;
-    UInt8 sequence[LzwMaxDictEntries];
+    std::uint8_t sequence[LzwMaxDictEntries];
     do
     {
         sequence[i++] = dict.entries[code].value;
@@ -250,8 +250,8 @@ static int lzwDecompress(const void * compressedData, int compressedSizeBytes,
     int firstByte     = 0;
     int bytesDecoded  = 0;
 
-    const UInt8 * compressedPtr = reinterpret_cast<const UInt8 *>(compressedData);
-    UInt8 * uncompressedPtr = reinterpret_cast<UInt8 *>(uncompressedData);
+    const auto compressedPtr = reinterpret_cast<const std::uint8_t *>(compressedData);
+    auto uncompressedPtr     = reinterpret_cast<std::uint8_t *>(uncompressedData);
 
     // We'll reconstruct the dictionary based on the bit stream codes.
     LzwBitStreamReader bitStream(compressedPtr, compressedSizeBytes, compressedSizeBits);
@@ -318,9 +318,9 @@ static int lzwDecompress(const void * compressedData, int compressedSizeBytes,
     return bytesDecoded;
 }
 
-static UInt8 * decompressFontBitmap()
+static std::uint8_t * decompressFontBitmap()
 {
-    const UInt32 * compressedData = reinterpret_cast<const UInt32 *>(getRawFontBitmapData());
+    auto compressedData = reinterpret_cast<const std::uint32_t *>(getRawFontBitmapData());
 
     // First two uint32s are the compressed size in
     // bytes followed by the compressed size in bits.
@@ -329,7 +329,7 @@ static UInt8 * decompressFontBitmap()
 
     // Allocate the decompression buffer:
     const int uncompressedSizeBytes = getFontCharSet().bitmapDecompressSize;
-    UInt8 * uncompressedData = implAllocT<UInt8>(uncompressedSizeBytes);
+    std::uint8_t * uncompressedData = implAllocT<std::uint8_t>(uncompressedSizeBytes);
 
     // Decode the bitmap pixels (stored with an LZW-flavor of compression):
     const int bytesDecoded = lzwDecompress(compressedData,
@@ -363,7 +363,7 @@ static UInt8 * decompressFontBitmap()
  * LZW compression: https://github.com/glampert/compression-algorithms
  * ShareTechMono:   https://www.google.com/fonts/specimen/Share+Tech+Mono
  */
-NTB_ALIGNED(static const UInt8 g_fontShareTechMono20Bitmap[], 16) = // ~13.28 KB
+NTB_ALIGNED(static const std::uint8_t g_fontShareTechMono20Bitmap[], 16) = // ~13.28 KB
 "\x1B\x35\x00\x00\xD7\xA8\x01\x00\x00\x00\x06\x14\x38\x90\x60\x41\x83\x07\x11\x26\x54\xB8"
 "\x90\x61\x43\x87\x0F\x21\x46\x94\x38\x91\x62\x45\x8B\x17\x31\x66\xD4\xB8\x91\x63\x47\x8F"
 "\x1F\x41\x86\x14\xD9\x31\x82\x9A\x16\x23\x41\x06\x08\xA8\x52\xA0\x02\x35\x4D\x16\x32\x79"
@@ -1065,8 +1065,8 @@ static const FontCharSet g_fontShareTechMono20CharSet = {
 // If you decide to change the font, these are the only things that
 // need to be updated. The 'g_fontXYZ' variables are never referenced
 // directly in the code, these functions are used instead.
-const UInt8 * getRawFontBitmapData() { return g_fontShareTechMono20Bitmap;  }
-const FontCharSet & getFontCharSet() { return g_fontShareTechMono20CharSet; }
+const std::uint8_t * getRawFontBitmapData() { return g_fontShareTechMono20Bitmap;  }
+const FontCharSet  & getFontCharSet()       { return g_fontShareTechMono20CharSet; }
 
 } // namespace detail {}
 } // namespace ntb {}

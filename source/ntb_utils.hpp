@@ -39,9 +39,9 @@ namespace ntb
 // Assorted helper functions:
 // ========================================================
 
-UInt32 hashString(const char * cstr);
+std::uint32_t hashString(const char * cstr);
 int copyString(char * dest, int destSizeInChars, const char * source);
-bool intToString(UInt64 number, char * dest, int destSizeInChars, int numBase, bool isNegative);
+bool intToString(std::uint64_t number, char * dest, int destSizeInChars, int numBase, bool isNegative);
 int decodeUtf8(const char * encodedBuffer, int * outCharLength);
 
 template<int Size>
@@ -82,7 +82,7 @@ void HLSToRGB(Float32 hue, Float32 light, Float32 saturation, Float32 & fR, Floa
 // ========================================================
 
 template<typename T>
-inline T * implAllocT(const UInt32 countInItems = 1)
+inline T * implAllocT(const std::uint32_t countInItems = 1)
 {
     NTB_ASSERT(countInItems != 0);
     return static_cast<T *>(getShellInterface().memAlloc(countInItems * sizeof(T)));
@@ -185,7 +185,7 @@ public:
         }
 
         NTB_ASSERT(sizeof(T) == getItemSize());
-        *reinterpret_cast<T *>(basePtr + (currSize * sizeof(T))) = item;
+        *reinterpret_cast<T *>(m_basePtr + (currSize * sizeof(T))) = item;
         setSize(currSize + 1);
     }
 
@@ -235,7 +235,7 @@ public:
         NTB_ASSERT(isAllocated());
         NTB_ASSERT(sizeof(T) == getItemSize());
         NTB_ASSERT(index >= 0 && index < getSize());
-        return *reinterpret_cast<const T *>(basePtr + (index * sizeof(T)));
+        return *reinterpret_cast<const T *>(m_basePtr + (index * sizeof(T)));
     }
     template<typename T>
     T & get(const int index)
@@ -243,38 +243,38 @@ public:
         NTB_ASSERT(isAllocated());
         NTB_ASSERT(sizeof(T) == getItemSize());
         NTB_ASSERT(index >= 0 && index < getSize());
-        return *reinterpret_cast<T *>(basePtr + (index * sizeof(T)));
+        return *reinterpret_cast<T *>(m_basePtr + (index * sizeof(T)));
     }
 
     // Pointer to base address:
-    // (T doesn't have to match itemSize in this case)
+    // (T doesn't have to match item-size in this case)
     template<typename T>
     const T * getData() const
     {
-        return reinterpret_cast<const T *>(basePtr);
+        return reinterpret_cast<const T *>(m_basePtr);
     }
     template<typename T>
     T * getData()
     {
-        return reinterpret_cast<T *>(basePtr);
+        return reinterpret_cast<T *>(m_basePtr);
     }
 
     // Miscellaneous accessors:
-    bool isAllocated() const { return basePtr != nullptr; }
-    bool isEmpty()     const { return ctrl.used == 0; }
-    int  getSize()     const { return ctrl.used;      }
-    int  getCapacity() const { return ctrl.capacity;  }
-    int  getItemSize() const { return ctrl.itemSize;  }
-    void clear()             { setSize(0);            }
+    bool isAllocated() const { return m_basePtr != nullptr; }
+    bool isEmpty()     const { return m_used == 0; }
+    int  getSize()     const { return m_used;      }
+    int  getCapacity() const { return m_capacity;  }
+    int  getItemSize() const { return m_itemSize;  }
+    void clear()             { setSize(0);         }
 
 private:
 
-    void initInternal(int itemBytes);
-    void setNewStorage(UInt8 * newMemory);
+    void initInternal(int itemSize);
+    void setNewStorage(std::uint8_t * newMemory);
 
-    void setSize(const int amount)     { ctrl.used     = amount; }
-    void setCapacity(const int amount) { ctrl.capacity = amount; }
-    void setItemSize(const int amount) { ctrl.itemSize = amount; }
+    void setSize(const int amount)     { m_used     = amount; }
+    void setCapacity(const int amount) { m_capacity = amount; }
+    void setItemSize(const int amount) { m_itemSize = amount; }
 
     //
     // 4 or 8 bytes for the pointer and 64 bits
@@ -282,19 +282,17 @@ private:
     // PODArray total size should not be beyond
     // 16 bytes on a 64-bits architecture.
     //
-    // Max item size is 65536 bytes (16-bits)
+    // Max item size is UINT16_MAX bytes (16-bits)
     //
-    #pragma pack(push, 1)
-    struct {
-        int used     : 24; // Slots used by items.
-        int capacity : 24; // Total slots allocated.
-        int itemSize : 16; // Size in bytes of each item.
-    } ctrl;
-    #pragma pack(pop)
+    std::uint64_t m_used     : 24; // Slots used by items.
+    std::uint64_t m_capacity : 24; // Total slots allocated.
+    std::uint64_t m_itemSize : 16; // Size in bytes of each item.
 
     // Pointer to first slot.
-    UInt8 * basePtr;
+    std::uint8_t * m_basePtr;
 };
+
+static_assert(sizeof(PODArray) <= 16, "Unexpected size for ntb::PODArray!");
 
 // ========================================================
 // class SmallStr:
@@ -318,7 +316,7 @@ public:
     {
         if (isDynamic())
         {
-            implFree(backingStore.dynamic);
+            implFree(m_backingStore.dynamic);
         }
         // else storage is inline with the object.
     }
@@ -363,8 +361,8 @@ public:
 
     void setMaxSize(const int numChars)
     {
-        NTB_ASSERT(numChars <= 65536);
-        ctrl.maxSize = numChars;
+        NTB_ASSERT(numChars <= INT16_MAX);
+        m_maxSize = numChars;
     }
     void set(const char * str)
     {
@@ -385,8 +383,8 @@ public:
     }
 
     // C-string access: (c_str() name for compatibility with std::string)
-    const char * c_str() const { return !isDynamic() ? backingStore.fixed : backingStore.dynamic; }
-          char * c_str()       { return !isDynamic() ? backingStore.fixed : backingStore.dynamic; }
+    const char * c_str() const { return !isDynamic() ? m_backingStore.fixed : m_backingStore.dynamic; }
+          char * c_str()       { return !isDynamic() ? m_backingStore.fixed : m_backingStore.dynamic; }
 
     // Compare against other SmallStr or a char* string:
     bool operator == (const SmallStr & other) const
@@ -409,11 +407,11 @@ public:
     }
 
     // Miscellaneous accessors:
-    bool isDynamic()   const { return ctrl.capacity > static_cast<int>(sizeof(backingStore)); }
-    bool isEmpty()     const { return ctrl.length == 0; }
-    int  getLength()   const { return ctrl.length;      }
-    int  getCapacity() const { return ctrl.capacity;    }
-    int  getMaxSize()  const { return ctrl.maxSize;     }
+    bool isDynamic()   const { return m_capacity > sizeof(m_backingStore); }
+    bool isEmpty()     const { return m_length == 0; }
+    int  getLength()   const { return m_length;      }
+    int  getCapacity() const { return m_capacity;    }
+    int  getMaxSize()  const { return m_maxSize;     }
 
     // String manipulation:
     void set(const char * str, int len);
@@ -426,46 +424,49 @@ public:
     void clear();
 
     // Covert numbers/pointers/vectors to string:
-    static SmallStr fromPointer(const void * ptr, const int base = 16);
-    static SmallStr fromNumber(const Float64 num, const int base = 10);
-    static SmallStr fromNumber(const Int64 num,   const int base = 10);
-    static SmallStr fromNumber(const UInt64 num,  const int base = 10);
-    static SmallStr fromFloatVec(const Float32 vec[], const int elemCount, const char * prefix = "");
+    static SmallStr fromPointer(const void * ptr, int base = 16);
+    static SmallStr fromNumber(Float64 num, int base = 10);
+    static SmallStr fromNumber(std::int64_t num, int base = 10);
+    static SmallStr fromNumber(std::uint64_t num, int base = 10);
+    static SmallStr fromFloatVec(const Float32 vec[], int elemCount, const char * prefix = "");
 
 private:
 
     void initInternal(const char * str, int len);
     void reallocInternal(int newCapacity, bool preserveOldStr);
 
-    #pragma pack(push, 1)
+    // For the number => string converters.
+    static constexpr int NumConvBufSize = 128;
+
+    //
     // Bitfield used here to avoid additional
     // unnecessary padding and because we don't
     // really need the full range of an integer
     // for SmallStr. So the 3 fields are packed
     // into 64-bits, making the total structure
     // size = 48 bytes.
-    // maxSize limit is 65536 (16-bits).
+    // m_maxSize limit is INT16_MAX (16-bits with sign).
     // This is fine since it is only used by some
     // parts of the UI to constrain text-field lengths
     // and sizes of Panel string variables, which are
     // actually already capped to 256 chars anyways.
-    struct {
-        int length   : 24; // Chars used in string, not counting a '\0' at the end.
-        int capacity : 24; // Total chars available for use.
-        int maxSize  : 16; // Max size (counting the '\0') that this string is allowed to have.
-                           // If -1, can have any size. This is only used by the UI text fields.
-    } ctrl;
+    //
+    std::uint64_t m_length   : 24; // Chars used in string, not counting a '\0' at the end.
+    std::uint64_t m_capacity : 24; // Total chars available for use.
+    std::int64_t  m_maxSize  : 16; // Max size (counting the '\0') that this string is allowed to have.
+                                   // If -1, can have any size. This is only used by the UI text fields.
 
     // Either we are using the small fixed-size buffer
     // or the 'dynamic' field which is heap allocated.
-    // Dynamic memory is in use if capacity > sizeof(backingStore)
+    // Dynamic memory is in use if m_capacity > sizeof(m_backingStore)
     union Backing
     {
         char * dynamic;
         char fixed[40];
-    } backingStore;
-    #pragma pack(pop)
+    } m_backingStore;
 };
+
+static_assert(sizeof(SmallStr) == 48, "Unexpected size for ntb::SmallStr!");
 
 // ========================================================
 // template class ListNode<T>:
@@ -1019,8 +1020,17 @@ inline Float32 lerpAngles(Float32 a, Float32 b, const Float32 t)
 	return (a + t * (b - a));
 }
 
-void makeTexturedBoxGeometry(BoxVert vertsOut[24], UInt16 indexesOut[36], const Color32 faceColors[6], Float32 width, Float32 height, Float32 depth);
-void screenProjectionXY(VertexPTC & vOut, const VertexPTC & vIn, const Mat4x4 & viewProjMatrix, const Rectangle & viewport);
+void makeTexturedBoxGeometry(BoxVert vertsOut[24],
+                             std::uint16_t indexesOut[36],
+                             const Color32 faceColors[6],
+                             Float32 width,
+                             Float32 height,
+                             Float32 depth);
+
+void screenProjectionXY(VertexPTC & vOut,
+                        const VertexPTC & vIn,
+                        const Mat4x4 & viewProjMatrix,
+                        const Rectangle & viewport);
 
 } // namespace ntb {}
 

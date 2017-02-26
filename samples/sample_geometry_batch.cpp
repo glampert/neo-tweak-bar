@@ -30,8 +30,8 @@
 static void makeScreenProjectedBox(ntb::PODArray * scrProjectedVerts, ntb::PODArray * scrProjectedIndexes,
                                    const ntb::Mat4x4 & modelToWorldMatrix, const ntb::Mat4x4 & viewProjMatrix)
 {
-    ntb::BoxVert tempBoxVerts[24];
-    ntb::UInt16  tempBoxIndexes[36];
+    ntb::BoxVert  tempBoxVerts[24];
+    std::uint16_t tempBoxIndexes[36];
 
     int viewport[4];
     ntb::Rectangle scrViewport;
@@ -44,10 +44,10 @@ static void makeScreenProjectedBox(ntb::PODArray * scrProjectedVerts, ntb::PODAr
     const ntb::Float32 h          = 0.4f;
     const ntb::Float32 d          = 0.4f;
     const ntb::Color32 shadeColor = ntb::packColor(0, 0, 0, 255);
-    const ntb::BoxVert * pVert    = tempBoxVerts;
-    const ntb::UInt16  * pIndex   = tempBoxIndexes;
-    const ntb::Int32 vertCount    = ntb::lengthOfArray(tempBoxVerts);
-    const ntb::Int32 indexCount   = ntb::lengthOfArray(tempBoxIndexes);
+    const ntb::BoxVert  * pVert   = tempBoxVerts;
+    const std::uint16_t * pIndex  = tempBoxIndexes;
+    const std::int32_t vertCount  = ntb::lengthOfArray(tempBoxVerts);
+    const std::int32_t indexCount = ntb::lengthOfArray(tempBoxIndexes);
 
     // Each face can be colored independently.
     static const ntb::Color32 tempFaceColors[6] = {
@@ -63,7 +63,7 @@ static void makeScreenProjectedBox(ntb::PODArray * scrProjectedVerts, ntb::PODAr
     scrProjectedVerts->allocateExact(vertCount);
     scrProjectedIndexes->allocateExact(indexCount);
 
-    for (ntb::Int32 v = 0; v < vertCount; ++v, ++pVert)
+    for (std::int32_t v = 0; v < vertCount; ++v, ++pVert)
     {
         const ntb::Vec3 wp = ntb::Mat4x4::transformPointAffine(pVert->position, modelToWorldMatrix);
         const ntb::Vec3 wn = ntb::Mat4x4::transformPointAffine(pVert->normal,   modelToWorldMatrix);
@@ -74,9 +74,9 @@ static void makeScreenProjectedBox(ntb::PODArray * scrProjectedVerts, ntb::PODAr
         scrProjectedVerts->pushBack<ntb::VertexPTC>(scrVert);
     }
 
-    for (ntb::Int32 i = 0; i < indexCount; ++i, ++pIndex)
+    for (std::int32_t i = 0; i < indexCount; ++i, ++pIndex)
     {
-        scrProjectedIndexes->pushBack<ntb::UInt16>(*pIndex);
+        scrProjectedIndexes->pushBack<std::uint16_t>(*pIndex);
     }
 }
 
@@ -98,7 +98,7 @@ int main(const int argc, const char * argv[])
         ntb::TextureHandle sampleTex = ctx.renderInterface->createCheckerboardTexture(64, 64, 4);
 
         ntb::PODArray scrProjectedVerts{ sizeof(ntb::VertexPTC) };
-        ntb::PODArray scrProjectedIndexes{ sizeof(ntb::UInt16) };
+        ntb::PODArray scrProjectedIndexes{ sizeof(std::uint16_t) };
 
         ntb::Float32 rotationDegreesX = 0.0f;
         ntb::Float32 rotationDegreesZ = 0.0f;
@@ -114,9 +114,9 @@ int main(const int argc, const char * argv[])
             //
             // Draw a textured quad without batching:
             //
-            const ntb::Float32 batchZ    = geoBatch.getNextZ();
-            const ntb::UInt16 indexes[]  = { 0, 1, 2, 2, 3, 0 };
-            const ntb::VertexPTC verts[] =
+            const ntb::Float32 batchZ     = geoBatch.getNextZ();
+            const std::uint16_t indexes[] = { 0, 1, 2, 2, 3, 0 };
+            const ntb::VertexPTC verts[]  =
             {
                 { 10,  10,  batchZ, 0.0f, 0.0f, ntb::packColor(255, 0,   0)   },
                 { 10,  200, batchZ, 0.0f, 1.0f, ntb::packColor(0,   255, 0)   },
@@ -203,7 +203,7 @@ int main(const int argc, const char * argv[])
 
             geoBatch.drawRectFilled(clipViewport, ntb::packColor(200, 200, 200));
             geoBatch.drawClipped2DTriangles(scrProjectedVerts.getData<ntb::VertexPTC>(), scrProjectedVerts.getSize(),
-                                            scrProjectedIndexes.getData<ntb::UInt16>(), scrProjectedIndexes.getSize(),
+                                            scrProjectedIndexes.getData<std::uint16_t>(), scrProjectedIndexes.getSize(),
                                             clipViewport, clipViewport);
             geoBatch.drawRectOutline(clipViewport.expanded(10, 10), ntb::packColor(255, 0, 0));
 

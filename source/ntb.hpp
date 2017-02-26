@@ -38,66 +38,58 @@ class Panel;
 class GUI;
 
 //
-// Integer/floating-point sized types:
+// Sized floating-point types:
 //
-using Int8    = std::int8_t;
-using UInt8   = std::uint8_t;
-using Int16   = std::int16_t;
-using UInt16  = std::uint16_t;
-using Int32   = std::int32_t;
-using UInt32  = std::uint32_t;
-using Int64   = std::int64_t;
-using UInt64  = std::uint64_t;
 using Float32 = float;
 using Float64 = double;
 
 //
 // 32 bits ARGB color value.
 //
-using Color32 = UInt32;
+using Color32 = std::uint32_t;
 
 // Pack each byte into an integer Color32.
 // 0x00-00-00-00
 //   aa-rr-gg-bb
 // Order will be ARGB, but APIs like OpenGL read it right-to-left as BGRA (GL_BGRA).
-constexpr Color32 packColor(const UInt8 r, const UInt8 g, const UInt8 b, const UInt8 a = 255)
+constexpr Color32 packColor(const std::uint8_t r, const std::uint8_t g, const std::uint8_t b, const std::uint8_t a = 255)
 {
     return static_cast<Color32>((a << 24) | (r << 16) | (g << 8) | b);
 }
 
 // Undo the work of packColor().
-inline void unpackColor(const Color32 color, UInt8 & r, UInt8 & g, UInt8 & b, UInt8 & a)
+inline void unpackColor(const Color32 color, std::uint8_t & r, std::uint8_t & g, std::uint8_t & b, std::uint8_t & a)
 {
-    b = static_cast<UInt8>((color & 0x000000FF) >> 0);
-    g = static_cast<UInt8>((color & 0x0000FF00) >> 8);
-    r = static_cast<UInt8>((color & 0x00FF0000) >> 16);
-    a = static_cast<UInt8>((color & 0xFF000000) >> 24);
+    b = static_cast<std::uint8_t>((color & 0x000000FF) >> 0);
+    g = static_cast<std::uint8_t>((color & 0x0000FF00) >> 8);
+    r = static_cast<std::uint8_t>((color & 0x00FF0000) >> 16);
+    a = static_cast<std::uint8_t>((color & 0xFF000000) >> 24);
 }
 
 // Set alpha channel of the color. Other channel values are not changed.
-constexpr Color32 setAlphaChannel(const Color32 color, const UInt8 alpha)
+constexpr Color32 setAlphaChannel(const Color32 color, const std::uint8_t alpha)
 {
     return ((alpha << 24) | (color & 0x00FFFFFF));
 }
 
 // Byte in [0,255] range to floating-point in [0,1] range.
 // Used for color space conversions.
-constexpr Float64 byteToFloat(const UInt8 b)
+constexpr Float64 byteToFloat(const std::uint8_t b)
 {
     return static_cast<Float64>(b) * (1.0 / 255.0);
 }
 
 // Float in [0,1] range to byte in [0,255] range.
 // Used for color space conversions. Note that 'f' is not clamped!
-constexpr UInt8 floatToByte(const Float64 f)
+constexpr std::uint8_t floatToByte(const Float64 f)
 {
-    return static_cast<UInt8>(f * 255.0);
+    return static_cast<std::uint8_t>(f * 255.0);
 }
 
 //
 // Displayed numerical bases for number variables.
 //
-enum class NumberFormat : UInt8
+enum class NumberFormat : std::uint8_t
 {
     Binary      = 2,
     Octal       = 8,
@@ -110,16 +102,16 @@ enum class NumberFormat : UInt8
 //
 struct EnumConstant final
 {
-    const char * name;
-    const Int64  value;
+    const char * const name;
+    const std::int64_t value;
 
-    EnumConstant(const char * n, const Int64 v)
+    EnumConstant(const char * n, const std::int64_t v)
         : name(n), value(v)
     { }
 
     template<typename EnumType>
     EnumConstant(const char * n, const EnumType v)
-        : name(n), value(static_cast<Int64>(v))
+        : name(n), value(static_cast<std::int64_t>(v))
     { }
 };
 
@@ -207,18 +199,18 @@ struct SpecialKeys
 
 struct KeyModifiers
 {
-    static constexpr UInt32 Shift = 1 << 0;
-    static constexpr UInt32 Ctrl  = 1 << 1;
-    static constexpr UInt32 Cmd   = 1 << 2;
+    static constexpr std::uint32_t Shift = 1 << 0;
+    static constexpr std::uint32_t Ctrl  = 1 << 1;
+    static constexpr std::uint32_t Cmd   = 1 << 2;
 };
 
 // KeyModifiers flags can be ORed together.
-using KeyModFlags = UInt32;
+using KeyModFlags = std::uint32_t;
 
 // Keyboard keys:
 // - Lowercase ASCII keys + 0-9 and digits;
 // - Special keys as the SpecialKeys enum.
-using KeyCode = UInt32;
+using KeyCode = std::uint32_t;
 
 // Debug printing helpers:
 #if NEO_TWEAK_BAR_DEBUG
@@ -241,13 +233,13 @@ public:
     // If you choose not to override these to use a custom
     // allocator, the default implementation just forwards
     // to std::malloc() and std::free().
-    virtual void * memAlloc(UInt32 sizeInBytes);
+    virtual void * memAlloc(std::uint32_t sizeInBytes);
     virtual void memFree(void * ptrToFree);
 
     // Get the current time in milliseconds for things like
     // cursor animation and other UI effects. This method
     // is required and must be implemented.
-    virtual Int64 getTimeMilliseconds() const = 0;
+    virtual std::int64_t getTimeMilliseconds() const = 0;
 };
 
 // ========================================================
@@ -329,14 +321,14 @@ public:
     // Optional. Draw a batch of indexed 2D triangles - Texture will be null for color only triangles.
     // Vertexes are in screen-space, according to the size given by getViewport().
     virtual void draw2DTriangles(const VertexPTC * verts, int vertCount,
-                                 const UInt16 * indexes, int indexCount,
+                                 const std::uint16_t * indexes, int indexCount,
                                  TextureHandle texture, int frameMaxZ);
 
     // Similar to draw2DTriangles(), but takes an array of DrawClippedInfos to apply additional
     // clipping and custom viewports to the primitives. Each DrawClippedInfo corresponds to a
     // separate draw call.
     virtual void drawClipped2DTriangles(const VertexPTC * verts, int vertCount,
-                                        const UInt16 * indexes, int indexCount,
+                                        const std::uint16_t * indexes, int indexCount,
                                         const DrawClippedInfo * drawInfo,
                                         int drawInfoCount, int frameMaxZ);
 
@@ -556,9 +548,10 @@ private:
          Blob() { }
         ~Blob() { }
 
-        detail::VarCallbacksMemFuncByValOrRef<S, Int64> dummy0;
-        detail::VarCallbacksMemFuncByPointer<S, Int64>  dummy1;
-        detail::VarCallbacksCFuncPtr<S, Int64>          dummy2;
+        std::max_align_t maxAlign;
+        detail::VarCallbacksMemFuncByValOrRef<S, std::int64_t> dummy0;
+        detail::VarCallbacksMemFuncByPointer<S, std::int64_t> dummy1;
+        detail::VarCallbacksCFuncPtr<S, std::int64_t> dummy2;
     };
 
     // The pointer will hold our placement-new constructed callback impl,
@@ -568,7 +561,7 @@ private:
 
     // We use the raw pointer to placement-new callbacks into it.
     void * getDataPtr() { return &dataBlob; }
-    enum { DataSizeBytes = sizeof(Blob) };
+    static constexpr std::size_t DataSizeBytes = sizeof(Blob);
 };
 
 // ========================================================
@@ -727,7 +720,7 @@ public:
 
     // Get name/title and name hash code:
     virtual const char * getName() const = 0;
-    virtual UInt32 getHashCode() const = 0;
+    virtual std::uint32_t getHashCode() const = 0;
 
     // Get the GUI that owns the Panel that owns the variable:
     virtual const GUI * getGUI() const = 0;
@@ -789,45 +782,45 @@ public:
     // Integer/float number variables:
     //
 
-    virtual Variable * addNumberRO(const char * name, const Int8 * var) = 0;
-    virtual Variable * addNumberRO(Variable * parent, const char * name, const Int8 * var) = 0;
-    virtual Variable * addNumberRW(const char * name, Int8 * var) = 0;
-    virtual Variable * addNumberRW(Variable * parent, const char * name, Int8 * var) = 0;
+    virtual Variable * addNumberRO(const char * name, const std::int8_t * var) = 0;
+    virtual Variable * addNumberRO(Variable * parent, const char * name, const std::int8_t * var) = 0;
+    virtual Variable * addNumberRW(const char * name, std::int8_t * var) = 0;
+    virtual Variable * addNumberRW(Variable * parent, const char * name, std::int8_t * var) = 0;
 
-    virtual Variable * addNumberRO(const char * name, const UInt8 * var) = 0;
-    virtual Variable * addNumberRO(Variable * parent, const char * name, const UInt8 * var) = 0;
-    virtual Variable * addNumberRW(const char * name, UInt8 * var) = 0;
-    virtual Variable * addNumberRW(Variable * parent, const char * name, UInt8 * var) = 0;
+    virtual Variable * addNumberRO(const char * name, const std::uint8_t * var) = 0;
+    virtual Variable * addNumberRO(Variable * parent, const char * name, const std::uint8_t * var) = 0;
+    virtual Variable * addNumberRW(const char * name, std::uint8_t * var) = 0;
+    virtual Variable * addNumberRW(Variable * parent, const char * name, std::uint8_t * var) = 0;
 
-    virtual Variable * addNumberRO(const char * name, const Int16 * var) = 0;
-    virtual Variable * addNumberRO(Variable * parent, const char * name, const Int16 * var) = 0;
-    virtual Variable * addNumberRW(const char * name, Int16 * var) = 0;
-    virtual Variable * addNumberRW(Variable * parent, const char * name, Int16 * var) = 0;
+    virtual Variable * addNumberRO(const char * name, const std::int16_t * var) = 0;
+    virtual Variable * addNumberRO(Variable * parent, const char * name, const std::int16_t * var) = 0;
+    virtual Variable * addNumberRW(const char * name, std::int16_t * var) = 0;
+    virtual Variable * addNumberRW(Variable * parent, const char * name, std::int16_t * var) = 0;
 
-    virtual Variable * addNumberRO(const char * name, const UInt16 * var) = 0;
-    virtual Variable * addNumberRO(Variable * parent, const char * name, const UInt16 * var) = 0;
-    virtual Variable * addNumberRW(const char * name, UInt16 * var) = 0;
-    virtual Variable * addNumberRW(Variable * parent, const char * name, UInt16 * var) = 0;
+    virtual Variable * addNumberRO(const char * name, const std::uint16_t * var) = 0;
+    virtual Variable * addNumberRO(Variable * parent, const char * name, const std::uint16_t * var) = 0;
+    virtual Variable * addNumberRW(const char * name, std::uint16_t * var) = 0;
+    virtual Variable * addNumberRW(Variable * parent, const char * name, std::uint16_t * var) = 0;
 
-    virtual Variable * addNumberRO(const char * name, const Int32 * var) = 0;
-    virtual Variable * addNumberRO(Variable * parent, const char * name, const Int32 * var) = 0;
-    virtual Variable * addNumberRW(const char * name, Int32 * var) = 0;
-    virtual Variable * addNumberRW(Variable * parent, const char * name, Int32 * var) = 0;
+    virtual Variable * addNumberRO(const char * name, const std::int32_t * var) = 0;
+    virtual Variable * addNumberRO(Variable * parent, const char * name, const std::int32_t * var) = 0;
+    virtual Variable * addNumberRW(const char * name, std::int32_t * var) = 0;
+    virtual Variable * addNumberRW(Variable * parent, const char * name, std::int32_t * var) = 0;
 
-    virtual Variable * addNumberRO(const char * name, const UInt32 * var) = 0;
-    virtual Variable * addNumberRO(Variable * parent, const char * name, const UInt32 * var) = 0;
-    virtual Variable * addNumberRW(const char * name, UInt32 * var) = 0;
-    virtual Variable * addNumberRW(Variable * parent, const char * name, UInt32 * var) = 0;
+    virtual Variable * addNumberRO(const char * name, const std::uint32_t * var) = 0;
+    virtual Variable * addNumberRO(Variable * parent, const char * name, const std::uint32_t * var) = 0;
+    virtual Variable * addNumberRW(const char * name, std::uint32_t * var) = 0;
+    virtual Variable * addNumberRW(Variable * parent, const char * name, std::uint32_t * var) = 0;
 
-    virtual Variable * addNumberRO(const char * name, const Int64 * var) = 0;
-    virtual Variable * addNumberRO(Variable * parent, const char * name, const Int64 * var) = 0;
-    virtual Variable * addNumberRW(const char * name, Int64 * var) = 0;
-    virtual Variable * addNumberRW(Variable * parent, const char * name, Int64 * var) = 0;
+    virtual Variable * addNumberRO(const char * name, const std::int64_t * var) = 0;
+    virtual Variable * addNumberRO(Variable * parent, const char * name, const std::int64_t * var) = 0;
+    virtual Variable * addNumberRW(const char * name, std::int64_t * var) = 0;
+    virtual Variable * addNumberRW(Variable * parent, const char * name, std::int64_t * var) = 0;
 
-    virtual Variable * addNumberRO(const char * name, const UInt64 * var) = 0;
-    virtual Variable * addNumberRO(Variable * parent, const char * name, const UInt64 * var) = 0;
-    virtual Variable * addNumberRW(const char * name, UInt64 * var) = 0;
-    virtual Variable * addNumberRW(Variable * parent, const char * name, UInt64 * var) = 0;
+    virtual Variable * addNumberRO(const char * name, const std::uint64_t * var) = 0;
+    virtual Variable * addNumberRO(Variable * parent, const char * name, const std::uint64_t * var) = 0;
+    virtual Variable * addNumberRW(const char * name, std::uint64_t * var) = 0;
+    virtual Variable * addNumberRW(Variable * parent, const char * name, std::uint64_t * var) = 0;
 
     virtual Variable * addNumberRO(const char * name, const Float32 * var) = 0;
     virtual Variable * addNumberRO(Variable * parent, const char * name, const Float32 * var) = 0;
@@ -905,10 +898,10 @@ public:
     //
 
     // Byte-sized color components [0,255]:
-    virtual Variable * addColorRO(const char * name, const UInt8 * color, int size) = 0;
-    virtual Variable * addColorRO(Variable * parent, const char * name, const UInt8 * color, int size) = 0;
-    virtual Variable * addColorRW(const char * name, UInt8 * color, int size) = 0;
-    virtual Variable * addColorRW(Variable * parent, const char * name, UInt8 * color, int size) = 0;
+    virtual Variable * addColorRO(const char * name, const std::uint8_t * color, int size) = 0;
+    virtual Variable * addColorRO(Variable * parent, const char * name, const std::uint8_t * color, int size) = 0;
+    virtual Variable * addColorRW(const char * name, std::uint8_t * color, int size) = 0;
+    virtual Variable * addColorRW(Variable * parent, const char * name, std::uint8_t * color, int size) = 0;
 
     // Floating-point color components [0,1]:
     virtual Variable * addColorRO(const char * name, const Float32 * color, int size) = 0;
@@ -980,7 +973,7 @@ public:
     //
 
     virtual Variable * findVariable(const char * varName) const = 0;
-    virtual Variable * findVariable(UInt32 varNameHashCode) const = 0;
+    virtual Variable * findVariable(std::uint32_t varNameHashCode) const = 0;
     virtual bool destroyVariable(Variable * variable) = 0;
     virtual void destroyAllVariables() = 0;
     virtual int getVariablesCount() const = 0;
@@ -988,7 +981,7 @@ public:
 
     // Miscellaneous accessors:
     virtual const char * getName() const = 0;
-    virtual UInt32 getHashCode() const = 0;
+    virtual std::uint32_t getHashCode() const = 0;
 
     virtual const GUI * getGUI() const = 0;
     virtual GUI * getGUI() = 0;
@@ -1023,7 +1016,7 @@ public:
 
     // Panel creation and management:
     virtual Panel * findPanel(const char * panelName) const = 0;
-    virtual Panel * findPanel(UInt32 panelNameHashCode) const = 0;
+    virtual Panel * findPanel(std::uint32_t panelNameHashCode) const = 0;
     virtual Panel * createPanel(const char * panelName) = 0;
     virtual bool destroyPanel(Panel * panel) = 0;
     virtual void destroyAllPanels() = 0;
@@ -1053,7 +1046,7 @@ public:
 
     // Miscellaneous accessors:
     virtual const char * getName() const = 0;
-    virtual UInt32 getHashCode() const = 0;
+    virtual std::uint32_t getHashCode() const = 0;
 };
 
 // Callback for ntb::enumerateAllGUIs().
@@ -1091,7 +1084,7 @@ RenderInterface & getRenderInterface();
 // If more than one GUI with the same name exits, the
 // first one found is returned.
 GUI * findGUI(const char * guiName);
-GUI * findGUI(UInt32 guiNameHashCode);
+GUI * findGUI(std::uint32_t guiNameHashCode);
 
 // Create a new GUI instance. Name doesn't have to be unique,
 // but it must not be null nor an empty string.

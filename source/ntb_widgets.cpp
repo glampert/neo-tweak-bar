@@ -28,12 +28,12 @@ GeometryBatch::GeometryBatch()
     , baseVertexClipped(0)
     , linesBatch(sizeof(VertexPC))
     , verts2DBatch(sizeof(VertexPTC))
-    , tris2DBatch(sizeof(UInt16))
+    , tris2DBatch(sizeof(std::uint16_t))
     , textVertsBatch(sizeof(VertexPTC))
-    , textTrisBatch(sizeof(UInt16))
+    , textTrisBatch(sizeof(std::uint16_t))
     , drawClippedInfos(sizeof(DrawClippedInfo))
     , vertsClippedBatch(sizeof(VertexPTC))
-    , trisClippedBatch(sizeof(UInt16))
+    , trisClippedBatch(sizeof(std::uint16_t))
 {
     createGlyphTexture();
 }
@@ -97,7 +97,7 @@ void GeometryBatch::endDraw()
     {
         renderer.draw2DTriangles(
             verts2DBatch.getData<VertexPTC>(), verts2DBatch.getSize(),
-            tris2DBatch.getData<UInt16>(), tris2DBatch.getSize(),
+            tris2DBatch.getData<std::uint16_t>(), tris2DBatch.getSize(),
             nullptr, currentZ); // untextured
     }
 
@@ -105,7 +105,7 @@ void GeometryBatch::endDraw()
     {
         renderer.drawClipped2DTriangles(
             vertsClippedBatch.getData<VertexPTC>(), vertsClippedBatch.getSize(),
-            trisClippedBatch.getData<UInt16>(), trisClippedBatch.getSize(),
+            trisClippedBatch.getData<std::uint16_t>(), trisClippedBatch.getSize(),
             drawClippedInfos.getData<DrawClippedInfo>(), drawClippedInfos.getSize(), currentZ);
     }
 
@@ -113,7 +113,7 @@ void GeometryBatch::endDraw()
     {
         renderer.draw2DTriangles(
             textVertsBatch.getData<VertexPTC>(), textVertsBatch.getSize(),
-            textTrisBatch.getData<UInt16>(), textTrisBatch.getSize(),
+            textTrisBatch.getData<std::uint16_t>(), textTrisBatch.getSize(),
             glyphTex, currentZ); // textured
     }
 
@@ -141,7 +141,7 @@ void GeometryBatch::endDraw()
 }
 
 void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int vertCount,
-                                           const UInt16 * indexes, const int indexCount,
+                                           const std::uint16_t * indexes, const int indexCount,
                                            const Rectangle & viewport, const Rectangle & clipBox)
 {
     NTB_ASSERT(verts   != nullptr);
@@ -167,7 +167,7 @@ void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int ve
     {
         NTB_ASSERT(indexes[i] < unsigned(vertCount));
         NTB_ASSERT(indexes[i] + baseVertexClipped <= UINT16_MAX);
-        trisClippedBatch.pushBack<UInt16>(indexes[i] + baseVertexClipped);
+        trisClippedBatch.pushBack<std::uint16_t>(indexes[i] + baseVertexClipped);
     }
     baseVertexClipped += vertCount;
 
@@ -183,7 +183,7 @@ void GeometryBatch::drawClipped2DTriangles(const VertexPTC * verts, const int ve
 }
 
 void GeometryBatch::draw2DTriangles(const VertexPTC * verts, const int vertCount,
-                                    const UInt16 * indexes, const int indexCount)
+                                    const std::uint16_t * indexes, const int indexCount)
 {
     NTB_ASSERT(verts   != nullptr);
     NTB_ASSERT(indexes != nullptr);
@@ -194,7 +194,7 @@ void GeometryBatch::draw2DTriangles(const VertexPTC * verts, const int vertCount
     {
         NTB_ASSERT(indexes[i] < unsigned(vertCount));
         NTB_ASSERT(indexes[i] + baseVertex2D <= UINT16_MAX);
-        tris2DBatch.pushBack<UInt16>(indexes[i] + baseVertex2D);
+        tris2DBatch.pushBack<std::uint16_t>(indexes[i] + baseVertex2D);
     }
     baseVertex2D += vertCount;
 
@@ -265,7 +265,7 @@ void GeometryBatch::drawRectFilled(const Rectangle & rect, const Color32 c0,
     verts[3].v = 0.0f;
     verts[3].color = c3;
 
-    static const UInt16 indexes[6] = { 0, 1, 2, 2, 1, 3 };
+    static const std::uint16_t indexes[6] = { 0, 1, 2, 2, 1, 3 };
     draw2DTriangles(verts, lengthOfArray(verts), indexes, lengthOfArray(indexes));
 }
 
@@ -366,7 +366,7 @@ void GeometryBatch::drawArrowFilled(const Rectangle & rect, const Color32 bgColo
         verts[2].y = static_cast<Float32>(rect.yMins);
     }
 
-    static const UInt16 indexes[3] = { 0, 1, 2 };
+    static const std::uint16_t indexes[3] = { 0, 1, 2 };
     draw2DTriangles(verts, lengthOfArray(verts), indexes, lengthOfArray(indexes));
 
     // Outline:
@@ -377,7 +377,7 @@ void GeometryBatch::drawArrowFilled(const Rectangle & rect, const Color32 bgColo
 
 void GeometryBatch::createGlyphTexture()
 {
-    UInt8 * decompressedBitmap = detail::decompressFontBitmap();
+    std::uint8_t * decompressedBitmap = detail::decompressFontBitmap();
     if (decompressedBitmap == nullptr)
     {
         errorF("Unable to decompress the built-in font bitmap data!");
@@ -459,17 +459,17 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, Float3
     NTB_ASSERT(textLength > 0);
 
     // Invariants for all characters:
-    const Float32 initialX      = x;
-    const FontCharSet & charSet = detail::getFontCharSet();
-    const Float32 charsZ        = getNextZ(); // Assume glyphs in a string never overlap, so share the Z index.
-    const Float32 scaleU        = static_cast<Float32>(charSet.bitmapWidth);
-    const Float32 scaleV        = static_cast<Float32>(charSet.bitmapHeight);
-    const Float32 fixedWidth    = getCharWidth();  // Unscaled
-    const Float32 fixedHeight   = getCharHeight(); // Unscaled
-    const Float32 tabW          = fixedWidth  * 4.0f * scaling; // TAB = 4 spaces.
-    const Float32 chrW          = fixedWidth  * scaling;
-    const Float32 chrH          = fixedHeight * scaling;
-    const UInt16 indexes[6]     = { 0, 1, 2, 2, 1, 3 };
+    const Float32 initialX         = x;
+    const FontCharSet & charSet    = detail::getFontCharSet();
+    const Float32 charsZ           = getNextZ(); // Assume glyphs in a string never overlap, so share the Z index.
+    const Float32 scaleU           = static_cast<Float32>(charSet.bitmapWidth);
+    const Float32 scaleV           = static_cast<Float32>(charSet.bitmapHeight);
+    const Float32 fixedWidth       = getCharWidth();  // Unscaled
+    const Float32 fixedHeight      = getCharHeight(); // Unscaled
+    const Float32 tabW             = fixedWidth  * 4.0f * scaling; // TAB = 4 spaces.
+    const Float32 chrW             = fixedWidth  * scaling;
+    const Float32 chrH             = fixedHeight * scaling;
+    const std::uint16_t indexes[6] = { 0, 1, 2, 2, 1, 3 };
 
     // These are necessary to avoid artefacts caused by texture
     // sampling between characters that draw close together. Values
@@ -548,7 +548,7 @@ void GeometryBatch::drawTextImpl(const char * text, const int textLength, Float3
         for (int i = 0; i < 6; ++i)
         {
             NTB_ASSERT(indexes[i] + baseVertexText <= UINT16_MAX);
-            textTrisBatch.pushBack<UInt16>(indexes[i] + baseVertexText);
+            textTrisBatch.pushBack<std::uint16_t>(indexes[i] + baseVertexText);
         }
         for (int v = 0; v < 4; ++v)
         {
@@ -628,7 +628,7 @@ Float32 GeometryBatch::getCharHeight()
 static void drawCheckMark(GeometryBatch & geoBatch, const Rectangle & rect, const Color32 color, const Float32 scaling)
 {
     // Invariants for all triangles:
-    static const UInt16 indexes[6] = { 0, 1, 2, 2, 1, 3 };
+    static const std::uint16_t indexes[6] = { 0, 1, 2, 2, 1, 3 };
     VertexPTC verts[4];
     verts[0].u = 0.0f;
     verts[0].v = 0.0f;
@@ -679,8 +679,8 @@ static inline bool leftClick(const MouseButton button, const int clicks)
     return clicks > 0 && button == MouseButton::Left;
 }
 
-static inline Int16 min_i16(const Int16 a, const Int16 b) { return (a < b) ? a : b; }
-static inline Int16 max_i16(const Int16 a, const Int16 b) { return (a > b) ? a : b; }
+static inline std::int16_t min_i16(const std::int16_t a, const std::int16_t b) { return (a < b) ? a : b; }
+static inline std::int16_t max_i16(const std::int16_t a, const std::int16_t b) { return (a > b) ? a : b; }
 
 // ========================================================
 // class ValueSlider:
@@ -818,7 +818,7 @@ void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const c
         // Cursor when active:
         if (shouldDrawCursor)
         {
-            const UInt8 alpha = (isInInsertMode ? 128 : 255);
+            const std::uint8_t alpha = (isInInsertMode ? 128 : 255);
             geoBatch.drawRectFilled(cursorRect.shrunk(0, Widget::uiScaleBy(1, uiScaling)), setAlphaChannel(cursorColor, alpha));
         }
 
@@ -1263,7 +1263,7 @@ void EditField::moveCursorHome(const Rectangle & displayBox, Float32 textScaling
 
 void EditField::moveCursorEnd(const Rectangle & displayBox, Float32 textScaling, Float32 uiScaling)
 {
-    const Int16 posMax = textLength - (isInInsertMode ? 1 : 0);
+    const std::int16_t posMax = textLength - (isInInsertMode ? 1 : 0);
     if (cursorPos >= posMax)
     {
         return;
@@ -2637,9 +2637,9 @@ void ColorPickerWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & m
     #if NEO_TWEAK_BAR_SORT_COLORTABLE
     auto colorSortPredicate = [](const detail::NamedColor a, const detail::NamedColor b) -> bool
     {
-        UInt8 alpha;
-        UInt8 aR, aG, aB;
-        UInt8 bR, bG, bB;
+        std::uint8_t alpha;
+        std::uint8_t aR, aG, aB;
+        std::uint8_t bR, bG, bB;
         unpackColor(a.value, aR, aG, aB, alpha);
         unpackColor(b.value, bR, bG, bB, alpha);
 
@@ -2861,7 +2861,7 @@ View3DWidget::View3DWidget()
     , resettingAngles(false)
     , prevFrameTimeMs(0)
     , scrProjectedVerts(sizeof(VertexPTC))
-    , scrProjectedIndexes(sizeof(UInt16))
+    , scrProjectedIndexes(sizeof(std::uint16_t))
     , projParams()
 {
     mouseDelta.setZero();
@@ -2934,8 +2934,8 @@ void View3DWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect
 
 void View3DWidget::onDraw(GeometryBatch & geoBatch) const
 {
-    const Int64 currentTimeMs = getShellInterface().getTimeMilliseconds();
-    const Int64 deltaTimeMs   = currentTimeMs - prevFrameTimeMs;
+    const std::int64_t currentTimeMs = getShellInterface().getTimeMilliseconds();
+    const std::int64_t deltaTimeMs   = currentTimeMs - prevFrameTimeMs;
     prevFrameTimeMs = currentTimeMs;
 
     if (resettingAngles)
@@ -3142,7 +3142,7 @@ void View3DWidget::clearScreenVertexCaches() const
 void View3DWidget::submitScreenVertexCaches(GeometryBatch & geoBatch) const
 {
     geoBatch.drawClipped2DTriangles(scrProjectedVerts.getData<VertexPTC>(), scrProjectedVerts.getSize(),
-                                    scrProjectedIndexes.getData<UInt16>(), scrProjectedIndexes.getSize(),
+                                    scrProjectedIndexes.getData<std::uint16_t>(), scrProjectedIndexes.getSize(),
                                     projParams.viewport, projParams.viewport);
 }
 
@@ -3154,12 +3154,12 @@ void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, F
     renderer.getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
     const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
 
-    const bool highlighted   = isMouseIntersecting();
-    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
-    const Color32 shadeColor = packColor(0, 0, 0, 255);
-    const SphereVert * pVert = detail::g_sphereVerts;
-    const int vertCount      = lengthOfArray(detail::g_sphereVerts);
-    UInt16 nextVertexIndex   = scrProjectedVerts.getSize();
+    const bool highlighted        = isMouseIntersecting();
+    const Color32 brightness      = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor      = packColor(0, 0, 0, 255);
+    const SphereVert * pVert      = detail::g_sphereVerts;
+    const int vertCount           = lengthOfArray(detail::g_sphereVerts);
+    std::uint16_t nextVertexIndex = scrProjectedVerts.getSize();
 
     // Should have been preallocated.
     NTB_ASSERT(scrProjectedVerts.getCapacity()   >= vertCount);
@@ -3175,7 +3175,7 @@ void View3DWidget::addScreenProjectedSphere(const Mat4x4 & modelToWorldMatrix, F
         screenProjectionXY(scrVert, scrVert, projParams.viewProjMatrix, scrViewport);
 
         scrProjectedVerts.pushBack<VertexPTC>(scrVert);
-        scrProjectedIndexes.pushBack<UInt16>(nextVertexIndex++);
+        scrProjectedIndexes.pushBack<std::uint16_t>(nextVertexIndex++);
     }
 }
 
@@ -3187,12 +3187,12 @@ void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, Fl
     renderer.getViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
     const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
 
-    const bool highlighted   = isMouseIntersecting();
-    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
-    const Color32 shadeColor = packColor(0, 0, 0, 255);
-    const ArrowVert * pVert  = detail::g_arrowVerts;
-    const int vertCount      = lengthOfArray(detail::g_arrowVerts);
-    UInt16 nextVertexIndex   = scrProjectedVerts.getSize();
+    const bool highlighted        = isMouseIntersecting();
+    const Color32 brightness      = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor      = packColor(0, 0, 0, 255);
+    const ArrowVert * pVert       = detail::g_arrowVerts;
+    const int vertCount           = lengthOfArray(detail::g_arrowVerts);
+    std::uint16_t nextVertexIndex = scrProjectedVerts.getSize();
 
     // Should have been preallocated.
     NTB_ASSERT(scrProjectedVerts.getCapacity()   >= vertCount);
@@ -3228,7 +3228,7 @@ void View3DWidget::addScreenProjectedArrow(const Mat4x4 & modelToWorldMatrix, Fl
         screenProjectionXY(scrVert, scrVert, projParams.viewProjMatrix, scrViewport);
 
         scrProjectedVerts.pushBack<VertexPTC>(scrVert);
-        scrProjectedIndexes.pushBack<UInt16>(nextVertexIndex++);
+        scrProjectedIndexes.pushBack<std::uint16_t>(nextVertexIndex++);
     }
 }
 
@@ -3241,15 +3241,15 @@ void View3DWidget::addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, Floa
     const Rectangle scrViewport{ vp[0], vp[1], vp[0] + vp[2], vp[1] + vp[3] };
 
     BoxVert tempBoxVerts[24];
-    UInt16  tempBoxIndexes[36];
+    std::uint16_t tempBoxIndexes[36];
 
-    const bool highlighted   = isMouseIntersecting();
-    const Color32 brightness = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
-    const Color32 shadeColor = packColor(0, 0, 0, 255);
-    const BoxVert * pVert    = tempBoxVerts;
-    const UInt16  * pIndex   = tempBoxIndexes;
-    const int vertCount      = lengthOfArray(tempBoxVerts);
-    const int indexCount     = lengthOfArray(tempBoxIndexes);
+    const bool highlighted       = isMouseIntersecting();
+    const Color32 brightness     = highlighted ? packColor(255, 255, 255) : packColor(200, 200, 200);
+    const Color32 shadeColor     = packColor(0, 0, 0, 255);
+    const BoxVert * pVert        = tempBoxVerts;
+    const std::uint16_t * pIndex = tempBoxIndexes;
+    const int vertCount          = lengthOfArray(tempBoxVerts);
+    const int indexCount         = lengthOfArray(tempBoxIndexes);
 
     // Each face could be colored independently, but we aren't using this at the moment.
     const Color32 tempFaceColors[6] = { color, color, color, color, color, color };
@@ -3276,7 +3276,7 @@ void View3DWidget::addScreenProjectedBox(const Mat4x4 & modelToWorldMatrix, Floa
     // Unlike the others, the box geometry is actually indexed!
     for (int i = 0; i < indexCount; ++i, ++pIndex)
     {
-        scrProjectedIndexes.pushBack<UInt16>(*pIndex);
+        scrProjectedIndexes.pushBack<std::uint16_t>(*pIndex);
     }
 }
 
@@ -3700,12 +3700,12 @@ void WindowWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect
     Widget::init(myGUI, myParent, myRect, visible);
     setResizeable(resizeable);
 
-    titleBarButtonSize  = static_cast<Int16>(titleBarBtnSize);
-    titleBarHeight      = static_cast<Int16>(titleBarH);
-    scrollBarButtonSize = static_cast<Int16>(scrollBarBtnSize);
-    scrollBarWidth      = static_cast<Int16>(scrollBarW);
-    minWindowWidth      = static_cast<Int16>(Widget::uiScaled(145)); // Defaults
-    minWindowHeight     = static_cast<Int16>(Widget::uiScaled(145));
+    titleBarButtonSize  = static_cast<std::int16_t>(titleBarBtnSize);
+    titleBarHeight      = static_cast<std::int16_t>(titleBarH);
+    scrollBarButtonSize = static_cast<std::int16_t>(scrollBarBtnSize);
+    scrollBarWidth      = static_cast<std::int16_t>(scrollBarW);
+    minWindowWidth      = static_cast<std::int16_t>(Widget::uiScaled(145)); // Defaults
+    minWindowHeight     = static_cast<std::int16_t>(Widget::uiScaled(145));
 
     refreshBarRects(title, nullptr);
 

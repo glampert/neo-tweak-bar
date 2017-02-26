@@ -16,14 +16,14 @@ namespace ntb
 // Assorted helper functions:
 // ========================================================
 
-UInt32 hashString(const char * cstr)
+std::uint32_t hashString(const char * cstr)
 {
     NTB_ASSERT(cstr != nullptr);
 
     // Simple and fast One-at-a-Time (OAT) hash algorithm:
     //  http://en.wikipedia.org/wiki/Jenkins_hash_function
     //
-    UInt32 h = 0;
+    std::uint32_t h = 0;
     while (*cstr != '\0')
     {
         h += *cstr++;
@@ -58,7 +58,7 @@ int copyString(char * dest, int destSizeInChars, const char * source)
     return static_cast<int>(ptr - dest - 1);
 }
 
-bool intToString(UInt64 number, char * dest, const int destSizeInChars, const int numBase, const bool isNegative)
+bool intToString(std::uint64_t number, char * dest, const int destSizeInChars, const int numBase, const bool isNegative)
 {
     NTB_ASSERT(dest != nullptr);
     NTB_ASSERT(destSizeInChars > 3); // - or 0x and a '\0'
@@ -89,7 +89,7 @@ bool intToString(UInt64 number, char * dest, const int destSizeInChars, const in
             // Negative decimal, so output '-' and negate:
             length++;
             *ptr++ = '-';
-            number = static_cast<UInt64>(-static_cast<Int64>(number));
+            number = static_cast<std::uint64_t>(-static_cast<std::int64_t>(number));
         }
     }
 
@@ -148,10 +148,10 @@ int decodeUtf8(const char * encodedBuffer, int * outCharLength)
     NTB_ASSERT(encodedBuffer != nullptr);
     NTB_ASSERT(outCharLength != nullptr);
 
-    const UInt8 * buf = reinterpret_cast<const UInt8 *>(encodedBuffer);
+    const auto buf = reinterpret_cast<const std::uint8_t *>(encodedBuffer);
     int value  =  0;
     int length = -1;
-    UInt8 byte = buf[0];
+    std::uint8_t byte = buf[0];
 
     if ((byte & 0x80) == 0)
     {
@@ -211,7 +211,7 @@ int decodeUtf8(const char * encodedBuffer, int * outCharLength)
 
 Color32 lighthenRGB(const Color32 color, const Float32 percent)
 {
-    UInt8 bR, bG, bB, bA;
+    std::uint8_t bR, bG, bB, bA;
     unpackColor(color, bR, bG, bB, bA);
 
     const Float32 scale = percent / 100.0f;
@@ -233,7 +233,7 @@ Color32 lighthenRGB(const Color32 color, const Float32 percent)
 
 Color32 darkenRGB(const Color32 color, const Float32 percent)
 {
-    UInt8 bR, bG, bB, bA;
+    std::uint8_t bR, bG, bB, bA;
     unpackColor(color, bR, bG, bB, bA);
 
     const Float32 scale = percent / 100.0f;
@@ -267,14 +267,14 @@ Color32 blendColors(const Float32 color1[], const Float32 color2[], const Float3
 
 Color32 blendColors(const Color32 color1, const Color32 color2, const Float32 percent)
 {
-    UInt8 r1, g1, b1, a1;
+    std::uint8_t r1, g1, b1, a1;
     unpackColor(color1, r1, g1, b1, a1);
     const Float32 fR1 = byteToFloat(r1);
     const Float32 fG1 = byteToFloat(g1);
     const Float32 fB1 = byteToFloat(b1);
     const Float32 fA1 = byteToFloat(a1);
 
-    UInt8 r2, g2, b2, a2;
+    std::uint8_t r2, g2, b2, a2;
     unpackColor(color2, r2, g2, b2, a2);
     const Float32 fR2 = byteToFloat(r2);
     const Float32 fG2 = byteToFloat(g2);
@@ -421,21 +421,18 @@ void HLSToRGB(const Float32 hue, const Float32 light, const Float32 saturation, 
     }
     else
     {
-        struct Helper
+        auto hls2rgb = [](Float32 a, Float32 b, Float32 h) -> Float32
         {
-            static Float32 HLS2RGB(Float32 a, Float32 b, Float32 h)
-            {
-                if (h > 360.0f) { h = h - 360.0f; }
-                if (h < 0.0f  ) { h = h + 360.0f; }
-                if (h < 60.0f ) { return a + (b - a) * h / 60.0f; }
-                if (h < 180.0f) { return b; }
-                if (h < 240.0f) { return a + (b - a) * (240.0f - h) / 60.0f; }
-                return a;
-            }
+            if (h > 360.0f) { h = h - 360.0f; }
+            if (h <   0.0f) { h = h + 360.0f; }
+            if (h <  60.0f) { return a + (b - a) * h / 60.0f; }
+            if (h < 180.0f) { return b; }
+            if (h < 240.0f) { return a + (b - a) * (240.0f - h) / 60.0f; }
+            return a;
         };
-        fR = Helper::HLS2RGB(rm1, rm2, rh + 120.0f);
-        fG = Helper::HLS2RGB(rm1, rm2, rh);
-        fB = Helper::HLS2RGB(rm1, rm2, rh - 120.0f);
+        fR = hls2rgb(rm1, rm2, rh + 120.0f);
+        fG = hls2rgb(rm1, rm2, rh);
+        fB = hls2rgb(rm1, rm2, rh - 120.0f);
     }
 }
 
@@ -463,20 +460,20 @@ PODArray::~PODArray()
     deallocate();
 }
 
-void PODArray::initInternal(const int itemBytes)
+void PODArray::initInternal(const int itemSize)
 {
-    // Size we can fit in the 16 bits of ctrl.itemSize.
-    NTB_ASSERT(itemBytes <= 65536);
-    ctrl.used     = 0;
-    ctrl.capacity = 0;
-    ctrl.itemSize = itemBytes;
-    basePtr       = nullptr;
+    // Can we fit the value in the 16 bits of m_itemSize?
+    NTB_ASSERT(itemSize <= UINT16_MAX);
+    m_used     = 0;
+    m_capacity = 0;
+    m_itemSize = itemSize;
+    m_basePtr  = nullptr;
 }
 
-void PODArray::setNewStorage(UInt8 * newMemory)
+void PODArray::setNewStorage(std::uint8_t * newMemory)
 {
-    implFree(basePtr);
-    basePtr = newMemory;
+    implFree(m_basePtr);
+    m_basePtr = newMemory;
 }
 
 void PODArray::zeroFill()
@@ -486,7 +483,7 @@ void PODArray::zeroFill()
         return;
     }
 
-    std::memset(basePtr, 0, getCapacity() * getItemSize());
+    std::memset(m_basePtr, 0, getCapacity() * getItemSize());
 }
 
 void PODArray::allocate()
@@ -516,12 +513,12 @@ void PODArray::allocate(const int capacityHint)
                            (itemSize <= 8) ?  8 : 4;
 
     const int newCapacity = capacityHint + allocExtra;
-    UInt8 * newMemory = implAllocT<UInt8>(newCapacity * itemSize);
+    std::uint8_t * newMemory = implAllocT<std::uint8_t>(newCapacity * itemSize);
 
     // Preserve old data, if any:
     if (getSize() > 0)
     {
-        std::memcpy(newMemory, basePtr, getSize() * itemSize);
+        std::memcpy(newMemory, m_basePtr, getSize() * itemSize);
     }
 
     setCapacity(newCapacity);
@@ -536,10 +533,10 @@ void PODArray::allocateExact(const int capacityWanted)
     }
 
     const int itemSize = getItemSize();
-    UInt8 * newMemory  = implAllocT<UInt8>(capacityWanted * itemSize);
+    std::uint8_t * newMemory  = implAllocT<std::uint8_t>(capacityWanted * itemSize);
     if (getSize() > 0) // Preserve old data, if any:
     {
-        std::memcpy(newMemory, basePtr, getSize() * itemSize);
+        std::memcpy(newMemory, m_basePtr, getSize() * itemSize);
     }
 
     setCapacity(capacityWanted);
@@ -580,8 +577,8 @@ void PODArray::erase(const int index)
         if (remaining > 0)
         {
             const int itemSize = getItemSize();
-            std::memmove(basePtr + (index * itemSize),
-                         basePtr + ((index + 1) * itemSize),
+            std::memmove(m_basePtr + (index * itemSize),
+                         m_basePtr + ((index + 1) * itemSize),
                          remaining * itemSize);
         }
     }
@@ -596,8 +593,8 @@ void PODArray::eraseSwap(const int index)
     if (index != newSize)
     {
         const int itemSize = getItemSize();
-        std::memmove(basePtr + (index * itemSize),
-                     basePtr + (newSize * itemSize),
+        std::memmove(m_basePtr + (index * itemSize),
+                     m_basePtr + (newSize * itemSize),
                      itemSize);
     }
     setSize(newSize);
@@ -609,10 +606,10 @@ void PODArray::eraseSwap(const int index)
 
 void SmallStr::initInternal(const char * str, const int len)
 {
-    ctrl.length   =  0;
-    ctrl.maxSize  = -1;
-    ctrl.capacity = static_cast<int>(sizeof(backingStore));
-    std::memset(&backingStore, 0, sizeof(backingStore));
+    m_length   =  0;
+    m_maxSize  = -1;
+    m_capacity = sizeof(m_backingStore);
+    std::memset(&m_backingStore, 0, sizeof(m_backingStore));
 
     if (str != nullptr)
     {
@@ -636,11 +633,11 @@ void SmallStr::reallocInternal(int newCapacity, const bool preserveOldStr)
     }
     if (isDyn)
     {
-        implFree(backingStore.dynamic);
+        implFree(m_backingStore.dynamic);
     }
 
-    ctrl.capacity = newCapacity;
-    backingStore.dynamic = newMemory;
+    m_capacity = newCapacity;
+    m_backingStore.dynamic = newMemory;
 }
 
 void SmallStr::set(const char * str, const int len)
@@ -652,19 +649,19 @@ void SmallStr::set(const char * str, const int len)
         clear();
         return;
     }
-    if (ctrl.maxSize > 0 && (len + 1) > ctrl.maxSize)
+    if (getMaxSize() > 0 && (len + 1) > getMaxSize())
     {
-        errorF("Setting SmallStr would overflow maxSize!");
+        errorF("Setting SmallStr would overflow max size!");
         return;
     }
-    if ((len + 1) > ctrl.capacity)
+    if ((len + 1) > getCapacity())
     {
         reallocInternal(len + 1, false);
     }
 
     std::memcpy(c_str(), str, len);
     c_str()[len] = '\0';
-    ctrl.length = len;
+    m_length = len;
 }
 
 void SmallStr::append(const char c)
@@ -674,20 +671,20 @@ void SmallStr::append(const char c)
         return;
     }
 
-    const int lengthNeeded = ctrl.length + 1;
-    if (ctrl.maxSize > 0 && (lengthNeeded + 1) > ctrl.maxSize)
+    const int lengthNeeded = getLength() + 1;
+    if (getMaxSize() > 0 && (lengthNeeded + 1) > getMaxSize())
     {
-        errorF("Appending to SmallStr would overflow maxSize!");
+        errorF("Appending to SmallStr would overflow max size!");
         return;
     }
-    if ((lengthNeeded + 1) > ctrl.capacity)
+    if ((lengthNeeded + 1) > getCapacity())
     {
         reallocInternal(lengthNeeded + 1, true);
     }
 
     c_str()[lengthNeeded - 1] = c;
     c_str()[lengthNeeded] = '\0';
-    ctrl.length = lengthNeeded;
+    m_length = lengthNeeded;
 }
 
 void SmallStr::append(const char * str, const int len)
@@ -699,20 +696,20 @@ void SmallStr::append(const char * str, const int len)
         return;
     }
 
-    const int lengthNeeded = ctrl.length + len;
-    if (ctrl.maxSize > 0 && (lengthNeeded + 1) > ctrl.maxSize)
+    const int lengthNeeded = getLength() + len;
+    if (getMaxSize() > 0 && (lengthNeeded + 1) > getMaxSize())
     {
-        errorF("Appending to SmallStr would overflow maxSize!");
+        errorF("Appending to SmallStr would overflow max size!");
         return;
     }
-    if ((lengthNeeded + 1) > ctrl.capacity)
+    if ((lengthNeeded + 1) > getCapacity())
     {
         reallocInternal(lengthNeeded + 1, true);
     }
 
-    std::memcpy(c_str() + ctrl.length, str, len);
+    std::memcpy(c_str() + getLength(), str, len);
     c_str()[lengthNeeded] = '\0';
-    ctrl.length = lengthNeeded;
+    m_length = lengthNeeded;
 }
 
 void SmallStr::resize(const int newLength, const bool preserveOldStr, const char fillVal)
@@ -722,17 +719,17 @@ void SmallStr::resize(const int newLength, const bool preserveOldStr, const char
         clear();
         return;
     }
-    else if (newLength == ctrl.length)
+    else if (newLength == getLength())
     {
         return;
     }
-    else if (ctrl.maxSize > 0 && (newLength + 1) > ctrl.maxSize)
+    else if (getMaxSize() > 0 && (newLength + 1) > getMaxSize())
     {
-        errorF("Resizing SmallStr would overflow maxSize!");
+        errorF("Resizing SmallStr would overflow getMaxSize()!");
         return;
     }
 
-    if ((newLength + 1) > ctrl.capacity) // newLength doesn't include the NUL-terminator.
+    if ((newLength + 1) > getCapacity()) // newLength doesn't include the NUL-terminator.
     {
         reallocInternal(newLength + 1, preserveOldStr);
     }
@@ -743,20 +740,20 @@ void SmallStr::resize(const int newLength, const bool preserveOldStr, const char
     }
     else
     {
-        if (newLength > ctrl.length) // Made longer?
+        if (newLength > getLength()) // Made longer?
         {
-            std::memset(c_str() + ctrl.length, fillVal, (newLength - ctrl.length));
+            std::memset(c_str() + getLength(), fillVal, (newLength - getLength()));
         }
         // If shrunk, just truncate.
     }
 
     c_str()[newLength] = '\0';
-    ctrl.length = newLength;
+    m_length = newLength;
 }
 
 void SmallStr::erase(int index)
 {
-    const int len = ctrl.length;
+    const int len = getLength();
     if (len == 0) // Empty string?
     {
         return;
@@ -774,12 +771,12 @@ void SmallStr::erase(int index)
     // Erase one char from an arbitrary position by shifting to the left:
     char * str = c_str();
     std::memmove(str + index, str + index + 1, (len - index) + 2);
-    ctrl.length = len - 1;
+    m_length = len - 1;
 }
 
 void SmallStr::insert(int index, const char c)
 {
-    int len = ctrl.length;
+    int len = getLength();
     if (len == 0 || index >= len) // Empty string or inserting past the end?
     {
         append(c);
@@ -792,12 +789,12 @@ void SmallStr::insert(int index, const char c)
         index = 0;
     }
 
-    if (ctrl.maxSize > 0 && (len + 1) > ctrl.maxSize)
+    if (getMaxSize() > 0 && (len + 1) > getMaxSize())
     {
-        errorF("Inserting into SmallStr would overflow maxSize!");
+        errorF("Inserting into SmallStr would overflow max size!");
         return;
     }
-    if ((len + 1) > ctrl.capacity)
+    if ((len + 1) > getCapacity())
     {
         reallocInternal(len + 1, true);
     }
@@ -807,15 +804,15 @@ void SmallStr::insert(int index, const char c)
     std::memmove(str + index + 1, str + index, len - index);
 
     // Insert new:
-    str[index]  = c;
-    ctrl.length = len;
+    str[index] = c;
+    m_length = len;
 }
 
 void SmallStr::truncate(const int maxLen)
 {
-    if (maxLen < ctrl.length)
+    if (maxLen < getLength())
     {
-        ctrl.length = maxLen;
+        m_length = maxLen;
         c_str()[maxLen] = '\0';
     }
 }
@@ -823,14 +820,11 @@ void SmallStr::truncate(const int maxLen)
 void SmallStr::clear()
 {
     // Does not free dynamic memory.
-    ctrl.length = 0;
-    c_str()[0]  = '\0';
+    m_length = 0;
+    c_str()[0] = '\0';
 }
 
-// For the number => string converters below.
-enum { NumConvBufSize = 128 };
-
-SmallStr SmallStr::fromPointer(const void * ptr, const int base)
+SmallStr SmallStr::fromPointer(const void * const ptr, const int base)
 {
     // Hexadecimal is the default for pointers.
     if (base == 16)
@@ -849,7 +843,7 @@ SmallStr SmallStr::fromPointer(const void * ptr, const int base)
     else
     {
         // Cast to integer and display as decimal/bin/octal:
-        return fromNumber(static_cast<UInt64>(reinterpret_cast<std::uintptr_t>(ptr)), base);
+        return fromNumber(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(ptr)), base);
     }
 }
 
@@ -889,28 +883,28 @@ SmallStr SmallStr::fromNumber(const Float64 num, const int base)
         union F2I
         {
             Float64 asF64;
-            UInt64  asU64;
+            std::uint64_t asU64;
         } val;
         val.asF64 = num;
         return fromNumber(val.asU64, base);
     }
 }
 
-SmallStr SmallStr::fromNumber(const Int64 num, const int base)
+SmallStr SmallStr::fromNumber(const std::int64_t num, const int base)
 {
     char buffer[NumConvBufSize];
-    intToString(static_cast<UInt64>(num), buffer, sizeof(buffer), base, (num < 0));
+    intToString(static_cast<std::uint64_t>(num), buffer, sizeof(buffer), base, (num < 0));
     return buffer;
 }
 
-SmallStr SmallStr::fromNumber(const UInt64 num, const int base)
+SmallStr SmallStr::fromNumber(const std::uint64_t num, const int base)
 {
     char buffer[NumConvBufSize];
     intToString(num, buffer, sizeof(buffer), base, false);
     return buffer;
 }
 
-SmallStr SmallStr::fromFloatVec(const Float32 vec[], const int elemCount, const char * prefix)
+SmallStr SmallStr::fromFloatVec(const Float32 vec[], const int elemCount, const char * const prefix)
 {
     NTB_ASSERT(elemCount > 0);
 
@@ -1099,13 +1093,17 @@ Vec4 Mat4x4::transformVector(const Vec4 & v, const Mat4x4 & m)
 // Geometry helpers:
 // ========================================================
 
-void makeTexturedBoxGeometry(BoxVert vertsOut[24], UInt16 indexesOut[36], const Color32 faceColors[6],
-                             const Float32 width, const Float32 height, const Float32 depth)
+void makeTexturedBoxGeometry(BoxVert vertsOut[24],
+                             std::uint16_t indexesOut[36],
+                             const Color32 faceColors[6],
+                             const Float32 width,
+                             const Float32 height,
+                             const Float32 depth)
 {
     //
     // -0.5,+0.5 indexed box:
     //
-    static const UInt16 boxFaces[][4] =
+    static const std::uint16_t boxFaces[][4] =
     {
         { 0, 1, 5, 4 },
         { 4, 5, 6, 7 },
@@ -1144,10 +1142,10 @@ void makeTexturedBoxGeometry(BoxVert vertsOut[24], UInt16 indexesOut[36], const 
 
     const Color32 * pColor = faceColors;
     BoxVert       * pVert  = vertsOut;
-    UInt16        * pFace  = indexesOut;
+    std::uint16_t * pFace  = indexesOut;
 
     // 'i' iterates over the faces, 2 triangles per face:
-    UInt16 vertIndex = 0;
+    std::uint16_t vertIndex = 0;
     for (int i = 0; i < 6; ++i, vertIndex += 4)
     {
         for (int j = 0; j < 4; ++j, ++pVert)
@@ -1174,7 +1172,10 @@ void makeTexturedBoxGeometry(BoxVert vertsOut[24], UInt16 indexesOut[36], const 
     }
 }
 
-void screenProjectionXY(VertexPTC & vOut, const VertexPTC & vIn, const Mat4x4 & viewProjMatrix, const Rectangle & viewport)
+void screenProjectionXY(VertexPTC & vOut,
+                        const VertexPTC & vIn,
+                        const Mat4x4 & viewProjMatrix,
+                        const Rectangle & viewport)
 {
     // Project the vertex (we don't care about z/depth here):
     const Mat4x4::Vec4Ptr * M = viewProjMatrix.getRows();

@@ -18,14 +18,6 @@ namespace ntb
 // Type size checking:
 // ========================================================
 
-static_assert(sizeof(Int8)    == 1, "Expected 8-bits  integer!");
-static_assert(sizeof(UInt8)   == 1, "Expected 8-bits  integer!");
-static_assert(sizeof(Int16)   == 2, "Expected 16-bits integer!");
-static_assert(sizeof(UInt16)  == 2, "Expected 16-bits integer!");
-static_assert(sizeof(Int32)   == 4, "Expected 32-bits integer!");
-static_assert(sizeof(UInt32)  == 4, "Expected 32-bits integer!");
-static_assert(sizeof(Int64)   == 8, "Expected 64-bits integer!");
-static_assert(sizeof(UInt64)  == 8, "Expected 64-bits integer!");
 static_assert(sizeof(Float32) == 4, "Expected 32-bits float!");
 static_assert(sizeof(Float64) == 8, "Expected 64-bits float!");
 static_assert(sizeof(void *)  == sizeof(std::size_t),    "Expected size_t to be the size of a pointer!");
@@ -60,7 +52,7 @@ VarCallbacksInterface::~VarCallbacksInterface() { }
 // ShellInterface defaults:
 // ========================================================
 
-void * ShellInterface::memAlloc(UInt32 sizeInBytes)
+void * ShellInterface::memAlloc(std::uint32_t sizeInBytes)
 {
     NTB_ASSERT(sizeInBytes != 0);
     return std::malloc(sizeInBytes);
@@ -125,12 +117,13 @@ void RenderInterface::draw2DLines(const VertexPC *, int, int)
     // Nothing.
 }
 
-void RenderInterface::draw2DTriangles(const VertexPTC *, int, const UInt16 *, int, TextureHandle, int)
+void RenderInterface::draw2DTriangles(const VertexPTC *, int, const std::uint16_t *, int,
+                                      TextureHandle, int)
 {
     // Nothing.
 }
 
-void RenderInterface::drawClipped2DTriangles(const VertexPTC *, int, const UInt16 *, int,
+void RenderInterface::drawClipped2DTriangles(const VertexPTC *, int, const std::uint16_t *, int,
                                              const DrawClippedInfo *, int, int)
 {
     // Nothing.
@@ -144,13 +137,13 @@ TextureHandle RenderInterface::createCheckerboardTexture(int widthPixels, int he
     NTB_ASSERT((widthPixels  % squares) == 0);
     NTB_ASSERT((heightPixels % squares) == 0);
 
-    const UInt8 colors[2][4] =
+    const std::uint8_t colors[2][4] =
     {
         { 0,   0,   0,   255 },
         { 255, 255, 255, 255 }
     };
     const int checkerSize = widthPixels / squares; // Size of one checker square, in pixels.
-    UInt8 * buffer = implAllocT<UInt8>(widthPixels * heightPixels * 4);
+    std::uint8_t * buffer = implAllocT<std::uint8_t>(widthPixels * heightPixels * 4);
 
     for (int y = 0; y < heightPixels; ++y)
     {
@@ -241,6 +234,7 @@ bool initialize(ShellInterface * shell, RenderInterface * renderer)
     g_pRenderInterface = renderer;
 
     //TODO
+    return true;
 }
 
 void shutdown()
@@ -270,21 +264,30 @@ RenderInterface & getRenderInterface()
 GUI * findGUI(const char * guiName)
 {
     //TODO
+    (void)guiName;
+    return nullptr;
 }
 
-GUI * findGUI(UInt32 guiNameHashCode)
+GUI * findGUI(std::uint32_t guiNameHashCode)
 {
     //TODO
+    (void)guiNameHashCode;
+    return nullptr;
 }
 
 GUI * createGUI(const char * guiName)
 {
     //TODO
+    (void)guiName;
+    static char fakeGUI[sizeof(GUI)];
+    return (GUI*)&fakeGUI;
 }
 
 bool destroyGUI(GUI * gui)
 {
     //TODO
+    (void)gui;
+    return false;
 }
 
 void destroyAllGUIs()
@@ -295,11 +298,14 @@ void destroyAllGUIs()
 int getGUICount()
 {
     //TODO
+    return 0;
 }
 
 void enumerateAllGUIs(GUIEnumerateCallback enumCallback, void * userContext)
 {
     //TODO
+    (void)enumCallback;
+    (void)userContext;
 }
 
 // ========================================================
