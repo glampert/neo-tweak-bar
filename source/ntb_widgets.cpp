@@ -11,7 +11,7 @@
 #include "ntb_tables.hpp"
 #include "ntb_font.hpp"
 
-//TODO add macro switch to optionally sort primitives in the batch by Z
+//TODO add macro switch to optionally sort primitives in the GeometryBatch by Z/depth?
 
 namespace ntb
 {
