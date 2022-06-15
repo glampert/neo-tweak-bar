@@ -13,6 +13,7 @@
 
 #include "ntb.hpp"
 #include <string>
+#include <cstdio>
 
 #if !defined(NEO_TWEAK_BAR_STD_STRING_INTEROP)
     #error "NEO_TWEAK_BAR_STD_STRING_INTEROP is required for this sample!"
@@ -168,9 +169,9 @@ struct Test
 //
 // C-style variable callbacks:
 //
-static float  g_float;
-static bool   g_bool;
-static void * g_ptr;
+static float  g_float = 0.0f;
+static bool   g_bool  = false;
+static void * g_ptr   = nullptr;
 
 static void c_getFloat(const void * /*userData*/, float * outVal)
 {
@@ -212,6 +213,24 @@ int main()
     ntb::Panel * panel1 = gui->createPanel("Null panel 1");
     ntb::Panel * panel2 = gui->createPanel("Null panel 2");
 
+    // Test find:
+    ntb::GUI * testGui = ntb::findGUI("Null GUI");
+    NTB_ASSERT(testGui == gui);
+
+    ntb::Panel * testP1 = gui->findPanel("Null panel 1");
+    NTB_ASSERT(testP1 == panel1);
+
+    ntb::Panel * testP2 = gui->findPanel("Null panel 2");
+    NTB_ASSERT(testP2 == panel2);
+
+    gui->enumerateAllPanels([](ntb::Panel * panel, void * userContext)
+    {
+        std::printf("Panel: %s\n", panel->getName());
+        return true; // continue iterating
+    }, nullptr);
+
+    std::printf("\n");
+
     //
     // Direct pointers to variables:
     //
@@ -239,7 +258,7 @@ int main()
     //
     // Var callbacks:
     //
-    Test obj;
+    Test obj = {};
     void * vpObj = &obj;
 
     // By value:
@@ -287,7 +306,20 @@ int main()
     // error: static_assert failed "Variable cannot be a pointer for this type of callbacks!"
     //panel2->addNumberRO("p", ntb::callbacks(&obj, &Test::badGetFloatPtr));
 
+    panel1->enumerateAllVariables([](ntb::Variable * var, void * userContext)
+    {
+        std::printf("Panel1 -> Variable: %s\n", var->getName());
+        return true; // continue iterating
+    }, nullptr);
+
+    std::printf("\n");
+
+    panel2->enumerateAllVariables([](ntb::Variable * var, void * userContext)
+    {
+        std::printf("Panel2 -> Variable: %s\n", var->getName());
+        return true; // continue iterating
+    }, nullptr);
+
     // All GUIs are destroyed, also freeing any panels and variables linked to them.
     ntb::shutdown();
 }
-

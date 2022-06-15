@@ -9,6 +9,7 @@
 
 #include "ntb_utils.hpp"
 #include "ntb_widgets.hpp"
+#include "ntb_impl.hpp"
 #include <cstdarg> // for va_list & co
 
 namespace ntb
@@ -233,13 +234,12 @@ bool initialize(ShellInterface * shell, RenderInterface * renderer)
     g_pShellInterface  = shell;
     g_pRenderInterface = renderer;
 
-    //TODO
     return true;
 }
 
 void shutdown()
 {
-    //TODO
+    destroyAllGUIs();
 
     g_pShellInterface  = nullptr;
     g_pRenderInterface = nullptr;
@@ -261,51 +261,45 @@ RenderInterface & getRenderInterface()
 // GUI management:
 // ========================================================
 
+static PODArray g_allGUIs{ sizeof(GUIImpl *) };
+
 GUI * findGUI(const char * guiName)
 {
-    //TODO
-    (void)guiName;
-    return nullptr;
+    return findItemByName<GUIImpl *>(g_allGUIs, guiName);
 }
 
 GUI * findGUI(std::uint32_t guiNameHashCode)
 {
-    //TODO
-    (void)guiNameHashCode;
-    return nullptr;
+    return findItemByHashCode<GUIImpl *>(g_allGUIs, guiNameHashCode);
 }
 
 GUI * createGUI(const char * guiName)
 {
-    //TODO
-    (void)guiName;
-    static char fakeGUI[sizeof(GUI)];
-    return (GUI*)&fakeGUI;
+    NTB_ASSERT(guiName != nullptr);
+    GUIImpl * gui = construct(implAllocT<GUIImpl>());
+    gui->setName(guiName);
+    g_allGUIs.pushBack(gui);
+    return gui;
 }
 
 bool destroyGUI(GUI * gui)
 {
-    //TODO
-    (void)gui;
-    return false;
+    return eraseAndDestroyItem<GUIImpl *>(g_allGUIs, gui);
 }
 
 void destroyAllGUIs()
 {
-    //TODO
+    destroyAllItems<GUIImpl *>(g_allGUIs);
 }
 
 int getGUICount()
 {
-    //TODO
-    return 0;
+    return g_allGUIs.getSize();
 }
 
 void enumerateAllGUIs(GUIEnumerateCallback enumCallback, void * userContext)
 {
-    //TODO
-    (void)enumCallback;
-    (void)userContext;
+    g_allGUIs.forEach<GUIImpl *>(enumCallback, userContext);
 }
 
 // ========================================================

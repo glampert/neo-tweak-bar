@@ -11,8 +11,6 @@
 #include "ntb_tables.hpp"
 #include "ntb_font.hpp"
 
-//TODO add macro switch to optionally sort primitives in the GeometryBatch by Z/depth?
-
 namespace ntb
 {
 
@@ -20,6 +18,7 @@ namespace ntb
 // class GeometryBatch:
 // ========================================================
 
+// TODO: Add macro switch to optionally sort primitives in the GeometryBatch by Z/depth?
 GeometryBatch::GeometryBatch()
     : glyphTex(nullptr)
     , currentZ(0)
@@ -767,7 +766,7 @@ void EditField::setDrawCursor(bool trueIfShouldDraw)
 void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const char * inText, int inTextLength,
                          Color32 textColor, Color32 selectionColor, Color32 cursorColor, Color32 bgColor, Float32 textScaling, Float32 uiScaling)
 {
-    //TODO debugging: draws a box under each character
+    // DEBUG: Draws a box under each character
     /*
     {
         const int x0 = displayBox.xMins + Widget::uiScaleBy(2, uiScaling);
@@ -785,7 +784,7 @@ void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const c
             xMins += charWidth;
         }
     }
-    //*/
+    */
 
     // Saved for other operations. Text is expected to remain unchanged until next update at least.
     textLength = inTextLength;
@@ -805,14 +804,15 @@ void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const c
         {
             geoBatch.drawRectFilled(selectionRect.shrunk(0, Widget::uiScaleBy(1, uiScaling)), selectionColor);
 
-            /*//TODO DEBUG visualize the selected text:
+            // DEBUG: Visualize the selected text
+            /*
             SmallStr selText;
             selText.setCString(inText + selectionStart, min_i16(selectionEnd - selectionStart, inTextLength - selectionStart));
             Rectangle r = displayBox;
             r.xMins -= 200;
             r.xMaxs -= 200;
             geoBatch.drawTextConstrained(selText.c_str(), selText.getLength(), r, r, 1.0f, packColor(255, 255, 255), TextAlign::Left);
-            //*/
+            */
         }
 
         // Cursor when active:
@@ -841,15 +841,15 @@ void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const c
 EditField::EditCommand EditField::handleSpecialKey(const Rectangle & displayBox, KeyCode key, KeyModFlags modifiers,
                                                    Float32 textScaling, Float32 uiScaling)
 {
-//TODO
-//- delete selected range with Backspace/Delete
-//- insert replacing selected range
-//- copy-paste commands: Ctl+C/Cmd+C, Ctl+V/Cmd+V
-//- single backup undo operation (Ctl+Z/Ctl+Y win or Cmd+Z/Cmd+Shift+Z on mac)
-//- text scrolling when the edit box is full
-//- double-click selects text up till the first whitespace
-//- more tests and bugfixes (probably)
-//FIXME: Text selection won't scroll with the window contents!!!
+    // TODO
+    // - delete selected range with Backspace/Delete
+    // - insert replacing selected range
+    // - copy-paste commands: Ctl+C/Cmd+C, Ctl+V/Cmd+V
+    // - single backup undo operation (Ctl+Z/Ctl+Y win or Cmd+Z/Cmd+Shift+Z on mac)
+    // - text scrolling when the edit box is full
+    // - double-click selects text up till the first whitespace
+    // - more tests and bugfixes (probably)
+    // - FIXME: text selection won't scroll with the window contents!
 
     EditCommand cmd = EditCommand::None;
 
@@ -1466,7 +1466,7 @@ void Widget::setMouseDragEnabled(bool enabled)
 
 void Widget::setNormalColors()
 {
-    //TODO this is a temporary for testing only. User should set this instead.
+    // TODO: This is temporary for testing only. User should set this instead.
     static const ColorScheme test_colors_normal = {
         // box
         {
@@ -1522,7 +1522,7 @@ void Widget::setNormalColors()
 
 void Widget::setHighlightedColors()
 {
-    //TODO this is a temporary for testing only. User should set this instead.
+    // TODO: This is temporary for testing only. User should set this instead.
     static const ColorScheme test_colors_mousehover = {
         // box
         {
@@ -1930,12 +1930,12 @@ bool TitleBarWidget::onButtonDown(ButtonWidget & button)
 {
     if (&buttons[BtnMinimize] == &button)
     {
-        //TODO button action!
+        // TODO: button action!
         return true;
     }
     if (&buttons[BtnMaximize] == &button)
     {
-        //TODO button action!
+        // TODO: button action!
         return true;
     }
     return false;
@@ -2106,8 +2106,7 @@ void ScrollBarWidget::onDraw(GeometryBatch & geoBatch) const
 
 bool ScrollBarWidget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
 {
-    //TODO:
-    // [HOME] and [END] keys should scroll all the way to the top and bottom!
+    // TODO: [HOME] and [END] keys should scroll all the way to the top and bottom!
     (void)key; (void)modifiers;
     return false;
 }
@@ -2680,7 +2679,7 @@ void ColorPickerWidget::onMove(int displacementX, int displacementY)
 
 bool ColorPickerWidget::onButtonDown(ButtonWidget & /*button*/)
 {
-    //TODO handle the close button at the top bar
+    // TODO: Handle the close button at the top bar
     return false;
 }
 
@@ -2690,7 +2689,7 @@ bool ColorPickerWidget::onMouseButton(MouseButton button, int clicks)
     {
         if (forEachColorButton(&ColorPickerWidget::testColorButtonClick, nullptr))
         {
-            //TODO handle color selection!
+            // TODO: Handle color selection!
             titleBar.setTitle(detail::g_colorTable[selectedColorIndex].name);
             return true; // Got a button click.
         }
@@ -3409,7 +3408,7 @@ void VarDisplayWidget::drawVarValue(GeometryBatch & /*geoBatch*/) const
 
 void VarDisplayWidget::drawValueEditButtons(GeometryBatch & geoBatch) const
 {
-    //TODO
+    // TODO
     (void)geoBatch;
 }
 
@@ -3514,25 +3513,25 @@ void VarDisplayWidget::setVisible(bool visible)
 
 bool VarDisplayWidget::onMouseButton(MouseButton button, int clicks)
 {
-    //TODO
+    // TODO
     return Widget::onMouseButton(button, clicks);
 }
 
 bool VarDisplayWidget::onMouseMotion(int mx, int my)
 {
-    //TODO
+    // TODO
     return Widget::onMouseMotion(mx, my);
 }
 
 bool VarDisplayWidget::onMouseScroll(int yScroll)
 {
-    //TODO
+    // TODO
     return Widget::onMouseScroll(yScroll);
 }
 
 bool VarDisplayWidget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
 {
-    //TODO
+    // TODO
     return Widget::onKeyPressed(key, modifiers);
 }
 
@@ -3688,7 +3687,7 @@ WindowWidget::WindowWidget()
 
 WindowWidget::~WindowWidget()
 {
-    //TODO might need to flag dynamic elements for deletion! (like the popupWidget)
+    // TODO: Might need to flag dynamic elements for deletion! (like the popupWidget)
 
     // Edit fields are never dynamically allocated. So just reset.
     editFieldsList.reset();
@@ -4173,7 +4172,7 @@ void ConsoleWindowWidget::onDraw(GeometryBatch & geoBatch) const
         line.edit.drawSelf(geoBatch, textBox, text, length, myColors.text.normal,
                            myColors.text.selection, myColors.text.cursor, 0, textScaling, scaling);
 
-        geoBatch.drawRectOutline(textBox, packColor(255,255,255));//TODO debug only | remove
+        geoBatch.drawRectOutline(textBox, packColor(255,255,255)); // TODO: Debug only | remove
     }
 }
 
@@ -4186,7 +4185,7 @@ void ConsoleWindowWidget::onAdjustLayout()
     const int linesOut         = (linesUsed > maxLinesInWindow ? linesUsed - maxLinesInWindow : 0);
 
     getScrollBar().updateLineScrollState(linesUsed, linesOut, linesOut);
-    //TODO still a few bugs when scrolling a tiny window!
+    // TODO: Still a few bugs when scrolling a tiny window!
 }
 
 void ConsoleWindowWidget::onScrollContentUp()
@@ -4212,12 +4211,12 @@ void ConsoleWindowWidget::pushLine(const char * text, int length)
 
     if (linesUsed == maxLines)
     {
-        //TODO recycle a line
+        // TODO: Recycle a line
     }
 
     if (bufferUsed == bufferSize)
     {
-        //TODO make room in the buffer
+        // TODO: Make room in the buffer
     }
 
     lines[linesUsed].edit.reset();

@@ -74,16 +74,16 @@ constexpr Color32 setAlphaChannel(const Color32 color, const std::uint8_t alpha)
 
 // Byte in [0,255] range to floating-point in [0,1] range.
 // Used for color space conversions.
-constexpr Float64 byteToFloat(const std::uint8_t b)
+constexpr Float32 byteToFloat(const std::uint8_t b)
 {
-    return static_cast<Float64>(b) * (1.0 / 255.0);
+    return static_cast<Float32>(b) * (1.0f / 255.0f);
 }
 
 // Float in [0,1] range to byte in [0,255] range.
 // Used for color space conversions. Note that 'f' is not clamped!
-constexpr std::uint8_t floatToByte(const Float64 f)
+constexpr std::uint8_t floatToByte(const Float32 f)
 {
-    return static_cast<std::uint8_t>(f * 255.0);
+    return static_cast<std::uint8_t>(f * 255.0f);
 }
 
 //

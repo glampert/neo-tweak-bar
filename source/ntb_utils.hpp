@@ -295,6 +295,80 @@ private:
 static_assert(sizeof(PODArray) <= 16, "Unexpected size for ntb::PODArray!");
 
 // ========================================================
+// PODArray utils:
+// ========================================================
+
+template<typename T>
+inline T findItemByName(const PODArray & arr, const char * name)
+{
+    const int count = arr.getSize();
+    for (int i = 0; i < count; ++i)
+    {
+        T item = arr.get<T>(i);
+        if (stringsEqual(item->getName(), name))
+        {
+            return item;
+        }
+    }
+    return nullptr;
+}
+
+template<typename T>
+inline T findItemByHashCode(const PODArray & arr, const std::uint32_t hashCode)
+{
+    const int count = arr.getSize();
+    for (int i = 0; i < count; ++i)
+    {
+        T item = arr.get<T>(i);
+        if (item->getHashCode() == hashCode)
+        {
+            return item;
+        }
+    }
+    return nullptr;
+}
+
+template<typename T, typename U>
+inline bool eraseAndDestroyItem(PODArray & arr, U item)
+{
+    int eraseIndex = -1;
+    const int count = arr.getSize();
+    for (int i = 0; i < count; ++i)
+    {
+        T test = arr.get<T>(i);
+        if (test == item)
+        {
+            eraseIndex = i;
+            break;
+        }
+    }
+
+    if (eraseIndex >= 0)
+    {
+        arr.eraseSwap(eraseIndex);
+        destroy(item);
+        implFree(item);
+        return true;
+    }
+
+    return false;
+}
+
+template<typename T>
+inline void destroyAllItems(PODArray & arr)
+{
+    const int count = arr.getSize();
+    for (int i = 0; i < count; ++i)
+    {
+        T item = arr.get<T>(i);
+        destroy(item);
+        implFree(item);
+    }
+
+    arr.deallocate();
+}
+
+// ========================================================
 // class SmallStr:
 // ========================================================
 
