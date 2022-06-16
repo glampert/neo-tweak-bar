@@ -19,16 +19,16 @@
 
 // ========================================================
 
-extern bool appGlCoreInit(int glVersionMajor, int glVersionMinor, const char * windowTitle,
-                          int windowWidth, int windowHeight, AppContext * outCtx);
+extern bool appGlCoreInit(const int glVersionMajor, const int glVersionMinor, const char * const windowTitle,
+                          const int windowWidth, const int windowHeight, AppContext * outCtx);
 
-extern bool appGlLegacyInit(int glVersionMajor, int glVersionMinor, const char * windowTitle,
-                            int windowWidth, int windowHeight, AppContext * outCtx);
+extern bool appGlLegacyInit(const int glVersionMajor, const int glVersionMinor, const char * const windowTitle,
+                            const int windowWidth, const int windowHeight, AppContext * outCtx);
 
 // ========================================================
 
-bool appInit(const int argc, const char * argv[], const char * const windowTitle,
-             const int windowWidth, const int windowHeight, AppContext * outCtx)
+bool appInit(int argc, const char * argv[], const char * windowTitle,
+             int windowWidth, int windowHeight, AppContext * outCtx)
 {
     std::memset(outCtx, 0, sizeof(*outCtx));
 
@@ -54,6 +54,23 @@ bool appInit(const int argc, const char * argv[], const char * const windowTitle
             glVersionMinor  = 0;
             fullTitle      += " - Legacy OpenGL";
         }
+        // Command line override for window size:
+        else if (std::strncmp(argv[i], "--window-width=", std::strlen("--window-width=")) == 0)
+        {
+            int value = 0;
+            if (std::sscanf(argv[i], "--window-width=%i", &value) == 1)
+            {
+                windowWidth = value;
+            }
+        }
+        else if (std::strncmp(argv[i], "--window-height=", std::strlen("--window-height=")) == 0)
+        {
+            int value = 0;
+            if (std::sscanf(argv[i], "--window-height=%i", &value) == 1)
+            {
+                windowHeight = value;
+            }
+        }
         else if (std::strcmp(argv[i], "--help") == 0)
         {
             std::printf("\nUsage:\n  $ %s [--gl-code | --gl-legacy | --help]\n", argv[0]);
@@ -77,4 +94,3 @@ bool appInit(const int argc, const char * argv[], const char * const windowTitle
     std::printf("Done!\n\n");
     return success;
 }
-

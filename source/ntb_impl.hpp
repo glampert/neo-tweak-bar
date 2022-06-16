@@ -268,6 +268,8 @@ public:
     GUIImpl();
     ~GUIImpl();
 
+    void init(const char * myName);
+
     Panel * findPanel(const char * panelName) const override;
     Panel * findPanel(std::uint32_t panelNameHashCode) const override;
     Panel * createPanel(const char * panelName) override;

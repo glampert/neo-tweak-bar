@@ -104,6 +104,11 @@ GUIImpl::~GUIImpl()
 {
 }
 
+void GUIImpl::init(const char * myName)
+{
+    setName(myName);
+}
+
 Panel * GUIImpl::findPanel(const char * panelName) const
 {
     return findItemByName<PanelImpl *>(panels, panelName);

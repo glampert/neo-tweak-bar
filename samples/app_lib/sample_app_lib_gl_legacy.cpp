@@ -74,9 +74,11 @@ static AppWindowHandle * appGlLegacyInitInternal(const int glVersionMajor, const
 
     glfwMakeContextCurrent(window);
 
-    std::printf("GL_VENDOR:    %s\n", glGetString(GL_VERSION));
-    std::printf("GL_VERSION:   %s\n", glGetString(GL_VENDOR));
-    std::printf("GLSL_VERSION: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+    std::printf("GL_VENDOR:  %s\n", glGetString(GL_VENDOR));
+    std::printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
+
+    // Not always available on GL legacy platforms...
+    //std::printf("GLSL_VERSION: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
     std::printf("Attempting to initialize sample renderer with GL Legacy profile...\n");
     (*outRenderInterface) = new ntb::RenderInterfaceDefaultGLLegacy(windowWidth, windowHeight);
@@ -253,4 +255,3 @@ bool appGlLegacyInit(const int glVersionMajor, const int glVersionMinor, const c
 
     return true;
 }
-

@@ -277,7 +277,7 @@ GUI * createGUI(const char * guiName)
 {
     NTB_ASSERT(guiName != nullptr);
     GUIImpl * gui = construct(implAllocT<GUIImpl>());
-    gui->setName(guiName);
+    gui->init(guiName);
     g_allGUIs.pushBack(gui);
     return gui;
 }

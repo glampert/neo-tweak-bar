@@ -223,4 +223,3 @@ int main(const int argc, const char * argv[])
     ctx.shutdown(&ctx);
     ntb::shutdown();
 }
-

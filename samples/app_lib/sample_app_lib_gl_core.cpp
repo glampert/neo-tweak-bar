@@ -9,6 +9,16 @@
 
 #include "sample_app_lib.hpp"
 
+// min/max macros on Windows.h wreak havoc...
+#if defined(_WIN32) || defined(WIN32)
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif // WIN32_LEAN_AND_MEAN
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif // NOMINMAX
+#endif // WIN32
+
 #include <GL/gl3w.h> // An OpenGL extension wrangler (https://github.com/skaslev/gl3w).
 #include <GLFW/glfw3.h>
 #include <string>
@@ -92,8 +102,8 @@ static AppWindowHandle * appGlCoreInitInternal(const int glVersionMajor, const i
         return nullptr;
     }
 
-    std::printf("GL_VENDOR:    %s\n", glGetString(GL_VERSION));
-    std::printf("GL_VERSION:   %s\n", glGetString(GL_VENDOR));
+    std::printf("GL_VENDOR:    %s\n", glGetString(GL_VENDOR));
+    std::printf("GL_VERSION:   %s\n", glGetString(GL_VERSION));
     std::printf("GLSL_VERSION: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
     std::printf("Attempting to initialize sample renderer with GL Core profile...\n");
@@ -279,4 +289,3 @@ bool appGlCoreInit(const int glVersionMajor, const int glVersionMinor, const cha
 // simplify things in this demo app, I have just included the .cpp file directly in here.
 #include "gl3w.cpp"
 // ================================================================================================
-

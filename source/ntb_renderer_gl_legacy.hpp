@@ -180,6 +180,11 @@ inline void RenderInterfaceDefaultGLLegacy::setWindowDimensions(const int w, con
 
 #ifdef NTB_DEFAULT_RENDERER_GL_LEGACY
 
+// Fallback if this is not defined...
+#if !defined(GL_CLAMP_TO_EDGE)
+    #define GL_CLAMP_TO_EDGE GL_CLAMP
+#endif // GL_CLAMP_TO_EDGE
+
 namespace ntb
 {
 
