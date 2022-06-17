@@ -376,6 +376,6 @@ int main(const int argc, const char * argv[])
                 return true;
             }, nullptr);
     }
-    ctx.shutdown(&ctx);
     ntb::shutdown(); // This will also free the GUI instance.
+    ctx.shutdown(&ctx);
 }

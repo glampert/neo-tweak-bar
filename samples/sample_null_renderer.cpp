@@ -21,7 +21,7 @@
 
 // ========================================================
 
-class MyNTBShellInterfaceNull : public ntb::ShellInterface
+class MyNTBShellInterfaceNull final : public ntb::ShellInterface
 {
 public:
     ~MyNTBShellInterfaceNull();
@@ -32,7 +32,7 @@ MyNTBShellInterfaceNull::~MyNTBShellInterfaceNull()
 
 // ========================================================
 
-class MyNTBRenderInterfaceNull : public ntb::RenderInterface
+class MyNTBRenderInterfaceNull final : public ntb::RenderInterface
 {
 public:
     ~MyNTBRenderInterfaceNull();

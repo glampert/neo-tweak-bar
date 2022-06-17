@@ -276,7 +276,7 @@ class Widget
 {
 public:
 
-    enum Flags
+    enum Flags : std::uint32_t
     {
         // Common to all widgets:
         Flag_Visible                 = 1 << 0,
@@ -448,6 +448,7 @@ public:
 
     void onDraw(GeometryBatch & geoBatch) const override;
     bool onMouseButton(MouseButton button, int clicks) override;
+    void onResize(int displacementX, int displacementY, Corner corner) override;
 
     bool getState() const;
     void setState(bool newState);
@@ -1009,7 +1010,7 @@ private:
 // class ConsoleWindowWidget:
 // ========================================================
 
-class ConsoleWindowWidget
+class ConsoleWindowWidget final
     : public WindowWidget
 {
 public:

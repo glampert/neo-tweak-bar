@@ -27,7 +27,7 @@ namespace ntb
 // class RenderInterfaceDefaultGLLegacy:
 // ========================================================
 
-class RenderInterfaceDefaultGLLegacy
+class RenderInterfaceDefaultGLLegacy final
     : public RenderInterface
 {
 public:

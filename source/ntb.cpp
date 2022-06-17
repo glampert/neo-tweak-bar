@@ -240,9 +240,6 @@ bool initialize(ShellInterface * shell, RenderInterface * renderer)
 void shutdown()
 {
     destroyAllGUIs();
-
-    g_pShellInterface  = nullptr;
-    g_pRenderInterface = nullptr;
 }
 
 ShellInterface & getShellInterface()

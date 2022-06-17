@@ -428,7 +428,9 @@ void GeometryBatch::drawTextConstrained(const char * text, const int textLength,
     Float32 x = alignBox.xMins;
     Float32 y = alignBox.yMins;
 
-    for (;;)
+    // FIXME: This can cause an infinite loop when resizing windows!
+    // Put a stop limit after 10 iterations for now...
+    for (int n = 0; n < 10; ++n)
     {
         if (align == TextAlign::Center)
         {
@@ -1744,6 +1746,31 @@ bool ButtonWidget::onMouseButton(MouseButton button, int clicks)
     return isMouseIntersecting();
 }
 
+void ButtonWidget::onResize(int displacementX, int displacementY, Corner corner)
+{
+    switch (corner)
+    {
+    case TopLeft:
+        rect.moveBy(displacementX, displacementY);
+        break;
+
+    case BottomLeft:
+        rect.moveBy(displacementX, 0);
+        break;
+
+    case TopRight:
+        rect.moveBy(0, displacementY);
+        break;
+
+    case BottomRight:
+        break;
+
+    default:
+        errorF("Bad corner enum in ButtonWidget!");
+        break;
+    } // switch (corner)
+}
+
 // ========================================================
 // class ButtonWidget::EventListener:
 // ========================================================
@@ -1930,14 +1957,38 @@ bool TitleBarWidget::onButtonDown(ButtonWidget & button)
 {
     if (&buttons[BtnMinimize] == &button)
     {
-        // TODO: button action!
+        if (parent)
+        {
+            parent->setMinimized(true);
+        }
+
+        const int childCount = getChildCount();
+        for (int c = 0; c < childCount; ++c)
+        {
+            Widget * child = getChild(c);
+            child->setMinimized(true);
+        }
+
         return true;
     }
+
     if (&buttons[BtnMaximize] == &button)
     {
-        // TODO: button action!
+        if (parent)
+        {
+            parent->setMinimized(false);
+        }
+
+        const int childCount = getChildCount();
+        for (int c = 0; c < childCount; ++c)
+        {
+            Widget * child = getChild(c);
+            child->setMinimized(false);
+        }
+
         return true;
     }
+
     return false;
 }
 
@@ -3406,10 +3457,9 @@ void VarDisplayWidget::drawVarValue(GeometryBatch & /*geoBatch*/) const
     // Unimplemented in the base class.
 }
 
-void VarDisplayWidget::drawValueEditButtons(GeometryBatch & geoBatch) const
+void VarDisplayWidget::drawValueEditButtons(GeometryBatch & /*geoBatch*/) const
 {
-    // TODO
-    (void)geoBatch;
+    // Unimplemented in the base class.
 }
 
 void VarDisplayWidget::onMove(int displacementX, int displacementY)
@@ -3725,6 +3775,17 @@ void WindowWidget::onDraw(GeometryBatch & geoBatch) const
         return;
     }
 
+    // Only draw the title bar when minimized.
+    if (isMinimized())
+    {
+        titleBar.onDraw(geoBatch);
+        if (isResizeable())
+        {
+            drawResizeHandles(geoBatch);
+        }
+        return;
+    }
+
     // First draw the window itself:
     drawSelf(geoBatch);
 
@@ -3972,20 +4033,26 @@ void WindowWidget::drawResizeHandles(GeometryBatch & geoBatch) const
     geoBatch.drawLine(xMins + offset + 1, yMins + offset, xMins + offset + 1, yMins + offset + size, shadeColor); // Top-left corner, vertical
     geoBatch.drawLine(xMaxs - offset - size, yMins + offset + 1, xMaxs - offset, yMins + offset + 1, shadeColor); // Top-right corner, horizontal
     geoBatch.drawLine(xMaxs - offset - 1, yMins + offset, xMaxs - offset - 1, yMins + offset + size, shadeColor); // Top-right corner, vertical
-    geoBatch.drawLine(xMins + offset, yMaxs - offset - 1, xMins + offset + size, yMaxs - offset - 1, shadeColor); // Bottom-left corner, horizontal
-    geoBatch.drawLine(xMins + offset + 1, yMaxs - offset, xMins + offset + 1, yMaxs - offset - size, shadeColor); // Bottom-left corner, vertical
-    geoBatch.drawLine(xMaxs - offset - size, yMaxs - offset - 1, xMaxs - offset, yMaxs - offset - 1, shadeColor); // Bottom-right corner, horizontal
-    geoBatch.drawLine(xMaxs - offset - 1, yMaxs - offset, xMaxs - offset - 1, yMaxs - offset - size, shadeColor); // Bottom-right corner, vertical
+    if (!isMinimized())
+    {
+        geoBatch.drawLine(xMins + offset, yMaxs - offset - 1, xMins + offset + size, yMaxs - offset - 1, shadeColor); // Bottom-left corner, horizontal
+        geoBatch.drawLine(xMins + offset + 1, yMaxs - offset, xMins + offset + 1, yMaxs - offset - size, shadeColor); // Bottom-left corner, vertical
+        geoBatch.drawLine(xMaxs - offset - size, yMaxs - offset - 1, xMaxs - offset, yMaxs - offset - 1, shadeColor); // Bottom-right corner, horizontal
+        geoBatch.drawLine(xMaxs - offset - 1, yMaxs - offset, xMaxs - offset - 1, yMaxs - offset - size, shadeColor); // Bottom-right corner, vertical
+    }
 
     // Main wedge lines:
     geoBatch.drawLine(xMins + offset, yMins + offset, xMins + offset + size, yMins + offset, wedgeColor); // Top-left corner, horizontal
     geoBatch.drawLine(xMins + offset, yMins + offset, xMins + offset, yMins + offset + size, wedgeColor); // Top-left corner, vertical
     geoBatch.drawLine(xMaxs - offset - size, yMins + offset, xMaxs - offset, yMins + offset, wedgeColor); // Top-right corner, horizontal
     geoBatch.drawLine(xMaxs - offset, yMins + offset, xMaxs - offset, yMins + offset + size, wedgeColor); // Top-right corner, vertical
-    geoBatch.drawLine(xMins + offset, yMaxs - offset, xMins + offset + size, yMaxs - offset, wedgeColor); // Bottom-left corner, horizontal
-    geoBatch.drawLine(xMins + offset, yMaxs - offset, xMins + offset, yMaxs - offset - size, wedgeColor); // Bottom-left corner, vertical
-    geoBatch.drawLine(xMaxs - offset - size, yMaxs - offset, xMaxs - offset, yMaxs - offset, wedgeColor); // Bottom-right corner, horizontal
-    geoBatch.drawLine(xMaxs - offset, yMaxs - offset, xMaxs - offset, yMaxs - offset - size, wedgeColor); // Bottom-right corner, vertical
+    if (!isMinimized())
+    {
+        geoBatch.drawLine(xMins + offset, yMaxs - offset, xMins + offset + size, yMaxs - offset, wedgeColor); // Bottom-left corner, horizontal
+        geoBatch.drawLine(xMins + offset, yMaxs - offset, xMins + offset, yMaxs - offset - size, wedgeColor); // Bottom-left corner, vertical
+        geoBatch.drawLine(xMaxs - offset - size, yMaxs - offset, xMaxs - offset, yMaxs - offset, wedgeColor); // Bottom-right corner, horizontal
+        geoBatch.drawLine(xMaxs - offset, yMaxs - offset, xMaxs - offset, yMaxs - offset - size, wedgeColor); // Bottom-right corner, vertical
+    }
 }
 
 void WindowWidget::resizeWithMin(Corner corner, int & x, int & y, int offsetX, int offsetY)

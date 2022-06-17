@@ -34,7 +34,7 @@
 namespace
 {
 
-class MyNTBShellInterfaceGLFW : public ntb::ShellInterface
+class MyNTBShellInterfaceGLFW final : public ntb::ShellInterface
 {
 public:
 

@@ -27,7 +27,7 @@ namespace ntb
 // class RenderInterfaceDefaultGLCore:
 // ========================================================
 
-class RenderInterfaceDefaultGLCore
+class RenderInterfaceDefaultGLCore final
     : public RenderInterface
 {
 public:
