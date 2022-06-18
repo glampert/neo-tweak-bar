@@ -86,9 +86,11 @@ int main(const int argc, const char * argv[])
         ntb::GUI   * gui    = ntb::createGUI("Sample GUI");
         ntb::Panel * panel1 = gui->createPanel("Sample panel 1");
         ntb::Panel * panel2 = gui->createPanel("Sample panel 2");
+        ntb::Panel * panel3 = gui->createPanel("Sample panel 3");
 
         panel1->setPosition(10, 10)->setSize(500, 500);
-        panel2->setPosition(600, 10)->setSize(400, 500);;
+        panel2->setPosition(600, 10)->setSize(500, 500);
+        panel3->setPosition(10, 600)->setSize(400, 500);
 
         bool          b       = true;
         int           i       = 42;
@@ -97,10 +99,10 @@ int main(const int argc, const char * argv[])
         const char *  s       = "the variable value";
         float         v[4]    = { 1.0f, 2.0f, 3.0f, 4.0f };
         unsigned char c[3]    = { 0, 128, 255 };
-        char          buf[16] = { 0 };
-        const void *  ptr     = (void *)UINT64_C(0xDEADBEEF);
+        char          buf[16] = "hello!";
+        const void *  ptr     = (void *)UINT64_C(0xCAFED00DDEADBEEF);
         ntb::Color32 c32      = ntb::packColor(255, 0, 0);
-        float        quat[4]  = { 1.0f, 1.0f, 1.0f, 1.0f };
+        float        quat[4]  = { 1.1f, 1.2f, 1.3f, 1.4f };
 
         // Read-write variables
         auto var0 = panel1->addBoolRW("a boolean", &b);
@@ -116,6 +118,33 @@ int main(const int argc, const char * argv[])
         auto var8  = panel2->addEnumRO(var7, "an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
         auto var9  = panel2->addColorRO(var7, "a color32", &c32);
         auto var10 = panel2->addRotationQuatRO(var9, "a quaternion", quat);
+
+        struct Test
+        {
+            bool        b{ true };
+            int         i{ 1234 };
+            std::string s{ "Test" };
+
+            bool getBoolVal() const { return b; }
+            void setBoolVal(bool val) { b = val; }
+
+            int getIntVal() const { return i; }
+            void setIntVal(int val) { i = val; }
+
+            const std::string & getStdStringVal() const { return s; }
+            void setStdStringVal(const std::string & val) { s = val; }
+        } testObj;
+
+        const char ch = 'G';
+        panel3->addCharRO("a char", &ch);
+
+        const std::string str = "hello world";
+        panel3->addStringRO("std string", &str);
+
+        // Variables with callbacks
+        panel3->addNumberRW("Test::b", ntb::callbacks(&testObj, &Test::getBoolVal,      &Test::setBoolVal));
+        panel3->addNumberRW("Test::i", ntb::callbacks(&testObj, &Test::getIntVal,       &Test::setIntVal));
+        panel3->addNumberRW("Test::s", ntb::callbacks(&testObj, &Test::getStdStringVal, &Test::setStdStringVal));
 
         // To forward window input events to the GUI.
         ctx.setAppCallback(&ctx, &myAppEventCallback, gui);

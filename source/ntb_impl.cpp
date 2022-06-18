@@ -12,8 +12,6 @@
 namespace ntb
 {
 
-// TODO: Review these hardcoded values. Do we need to make them scaled?
-
 constexpr int kVarHeight             = 30;
 constexpr int kVarTopSpacing         = 55;
 constexpr int kVarLeftSpacing        = 15;
@@ -40,14 +38,13 @@ VariableImpl::~VariableImpl()
 {
 }
 
-void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * myName, bool isReadOnly,
-                        Variable::Type varType, void * varData, int elementCount, const EnumConstant * enumConstants,
-                        const VarCallbacksAny * optionalCallbacks)
+void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * myName, bool readOnly, Variable::Type varType,
+                        void * varData, int elementCount, const EnumConstant * enumConstants, const VarCallbacksAny * optionalCallbacks)
 {
     panel = myPanel;
     setName(myName);
 
-    this->isReadOnly    = isReadOnly;
+    this->readOnly      = readOnly;
     this->varType       = varType;
     this->varData       = varData;
     this->elementCount  = elementCount;
@@ -58,8 +55,9 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
         this->optionalCallbacks = *optionalCallbacks;
     }
 
-    const Rectangle windowRect = panel->getWindow()->getRect();
-    const bool visible = panel->getWindow()->isVisible();
+    WindowWidget * window = panel->getWindow();
+    const Rectangle windowRect = window->getRect();
+    const bool visible = window->isVisible();
 
     auto parentVarImpl = static_cast<VariableImpl *>(myParent);
     auto parentWidget  = static_cast<VarDisplayWidget *>(parentVarImpl);
@@ -70,31 +68,34 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
         // Adjust for the hierarchy expand/collapse button if needed:
         if (!parentWidget->hasExpandCollapseButton())
         {
-            const Rectangle parentRect = parentWidget->getRect();
-            parentWidget->setRect(parentRect.shrunk(parentWidget->getExpandCollapseButtonSize(), 0));
+            Rectangle parentRect = parentWidget->getRect();
+            parentRect = parentRect.shrunk(parentWidget->getExpandCollapseButtonSize() / 2, 0);
+            parentRect.moveBy(parentWidget->getExpandCollapseButtonSize() / 2, 0);
+            parentWidget->setRect(parentRect);
         }
 
         const int siblingCount = parentWidget->getChildCount();
 
         varRect = parentWidget->getRect();
-        varRect.moveBy(kVarNestOffsetX, (kVarHeight + kVarInBetweenSpacing) * (siblingCount + 1));
-        varRect = varRect.shrunk(kVarNestOffsetX, 0);
+        varRect.moveBy(window->uiScaled(kVarNestOffsetX), window->uiScaled(kVarHeight + kVarInBetweenSpacing) * (siblingCount + 1));
+        varRect = varRect.shrunk(window->uiScaled(kVarNestOffsetX), 0);
     }
     else
     {
-        varRect.xMins = windowRect.getX() + kVarLeftSpacing;
-        varRect.yMins = windowRect.getY() + kVarTopSpacing + ((kVarHeight + kVarInBetweenSpacing) * panel->getVariablesCount());
-        varRect.xMaxs = varRect.xMins + windowRect.getWidth() - kVarRightSpacing - kVarLeftSpacing;
-        varRect.yMaxs = varRect.yMins + kVarHeight;
+        varRect.xMins = windowRect.getX() + window->uiScaled(kVarLeftSpacing);
+        varRect.yMins = windowRect.getY() + window->uiScaled(kVarTopSpacing) + (window->uiScaled(kVarHeight + kVarInBetweenSpacing) * panel->getVariablesCount());
+        varRect.xMaxs = varRect.xMins + windowRect.getWidth() - window->uiScaled(kVarRightSpacing) - window->uiScaled(kVarLeftSpacing);
+        varRect.yMaxs = varRect.yMins + window->uiScaled(kVarHeight);
     }
 
-    VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, panel->getWindow(), name.c_str());
+    VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, window, name.c_str());
 }
 
 Variable * VariableImpl::setName(const char * newName)
 {
     name = newName;
     hashCode = hashString(newName);
+    titleWidth = (int)GeometryBatch::calcTextWidth(name.c_str(), name.getLength(), getGUI()->getGlobalTextScaling());
     return this;
 }
 
@@ -133,8 +134,37 @@ Variable::Type VariableImpl::getType() const
     return varType;
 }
 
+bool VariableImpl::isReadOnly() const
+{
+    return readOnly;
+}
+
 void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
 {
+    Rectangle editBox = getRect().shrunk(uiScaled(4), uiScaled(4));
+    editBox.moveBy(uiScaled(titleWidth) + uiScaled(2), 0);
+    editBox.xMaxs = std::min(editBox.xMaxs, getRect().xMaxs - uiScaled(2));
+
+    bool shouldDraw = true;
+    const Rectangle parentRect = panel->getWindow()->getUsableRect();
+
+    if (editBox.xMins > editBox.xMaxs)
+    {
+        shouldDraw = false;
+    }
+    else if (editBox.xMins > parentRect.xMaxs || editBox.xMaxs < parentRect.xMins)
+    {
+        shouldDraw = false;
+    }
+    else if (editBox.yMins > parentRect.yMaxs || editBox.yMaxs < parentRect.yMins || editBox.yMaxs > parentRect.yMaxs)
+    {
+        shouldDraw = false;
+    }
+    if (!shouldDraw)
+    {
+        return;
+    }
+
     void * valuePtr = nullptr;
     NTB_ALIGNED(char tempValue[128], 16) = {};
 
@@ -149,8 +179,8 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
         valuePtr = tempValue;
     }
 
-    // TODO: WIP
-
+    // Convert value to string:
+    SmallStr valueText;
     switch (varType)
     {
     case Variable::Type::Undefined:
@@ -158,79 +188,188 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
         break;
 
     // Need to query the specific type from the callbacks for these.
-    case Variable::Type::Number:
-    case Variable::Type::Color:
-    case Variable::Type::String:
-        break;
-
+    case Variable::Type::NumberCB:
+    case Variable::Type::ColorCB:
+    case Variable::Type::StringCB:
+        {
+            // TODO!
+            break;
+        }
     case Variable::Type::Ptr:
-        break;
-
+        {
+            auto v = reinterpret_cast<const void * const *>(valuePtr);
+            valueText = SmallStr::fromPointer(*v);
+            break;
+        }
     case Variable::Type::Enum:
-        break;
+        {
+            NTB_ASSERT(enumConstants != nullptr);
+            NTB_ASSERT(elementCount  >= 1);
 
+            std::int64_t enumVal = 0;
+            const EnumConstant & enumTypeSize = enumConstants[0];
+            switch (enumTypeSize.value)
+            {
+            case sizeof(std::int8_t)  : enumVal = *reinterpret_cast<const std::int8_t  *>(valuePtr); break;
+            case sizeof(std::int16_t) : enumVal = *reinterpret_cast<const std::int16_t *>(valuePtr); break;
+            case sizeof(std::int32_t) : enumVal = *reinterpret_cast<const std::int32_t *>(valuePtr); break;
+            case sizeof(std::int64_t) : enumVal = *reinterpret_cast<const std::int64_t *>(valuePtr); break;
+            default : NTB_ASSERT(false);
+            }
+
+            const char * enumName = nullptr;
+            for (int i = 1; i < elementCount; ++i)
+            {
+                if (enumConstants[i].value == enumVal)
+                {
+                    enumName = enumConstants[i].name;
+                    break;
+                }
+            }
+
+            if (enumName != nullptr)
+            {
+                valueText = enumName;
+            }
+            else
+            {
+                valueText = SmallStr::fromNumber(enumVal);
+            }
+            break;
+        }
     case Variable::Type::VecF:
-        break;
-
     case Variable::Type::DirVec3:
-        break;
-
     case Variable::Type::Quat4:
-        break;
-
     case Variable::Type::ColorF:
-        break;
-
+        {
+            auto v = reinterpret_cast<const Float32 *>(valuePtr);
+            for (int i = 0; i < elementCount; ++i)
+            {
+                valueText += SmallStr::fromNumber(v[i]);
+                if (i != (elementCount - 1))
+                    valueText.append(',');
+            }
+            break;
+        }
     case Variable::Type::Color8B:
-        break;
-
+        {
+            auto c = reinterpret_cast<const std::uint8_t *>(valuePtr);
+            for (int i = 0; i < elementCount; ++i)
+            {
+                valueText += SmallStr::fromNumber(std::uint64_t(c[i]));
+                if (i != (elementCount - 1))
+                    valueText.append(',');
+            }
+            break;
+        }
     case Variable::Type::ColorU32:
-        break;
-
+        {
+            auto c = reinterpret_cast<const Color32 *>(valuePtr);
+            std::uint8_t rgba[4];
+            unpackColor(*c, rgba[0], rgba[1], rgba[2], rgba[3]);
+            for (int i = 0; i < lengthOfArray(rgba); ++i)
+            {
+                valueText += SmallStr::fromNumber(std::uint64_t(rgba[i]));
+                if (i != (lengthOfArray(rgba) - 1))
+                    valueText.append(',');
+            }
+            break;
+        }
     case Variable::Type::Bool:
-        break;
-
+        {
+            auto b = reinterpret_cast<const bool *>(valuePtr);
+            valueText = (*b ? "true" : "false");
+            break;
+        }
     case Variable::Type::Int8:
-        break;
-
+        {
+            auto i = reinterpret_cast<const std::int8_t *>(valuePtr);
+            valueText = SmallStr::fromNumber(std::int64_t(*i));
+            break;
+        }
     case Variable::Type::UInt8:
-        break;
-
+        {
+            auto i = reinterpret_cast<const std::uint8_t*>(valuePtr);
+            valueText = SmallStr::fromNumber(std::uint64_t(*i));
+            break;
+        }
     case Variable::Type::Int16:
-        break;
-
+        {
+            auto i = reinterpret_cast<const std::int16_t*>(valuePtr);
+            valueText = SmallStr::fromNumber(std::int64_t(*i));
+            break;
+        }
     case Variable::Type::UInt16:
-        break;
-
+        {
+            auto i = reinterpret_cast<const std::uint16_t*>(valuePtr);
+            valueText = SmallStr::fromNumber(std::uint64_t(*i));
+            break;
+        }
     case Variable::Type::Int32:
-        break;
-
+        {
+            auto i = reinterpret_cast<const std::int32_t *>(valuePtr);
+            valueText = SmallStr::fromNumber(std::int64_t(*i));
+            break;
+        }
     case Variable::Type::UInt32:
-        break;
-
+        {
+            auto i = reinterpret_cast<const std::uint32_t *>(valuePtr);
+            valueText = SmallStr::fromNumber(std::uint64_t(*i));
+            break;
+        }
     case Variable::Type::Int64:
-        break;
-
+        {
+            auto i = reinterpret_cast<const std::int64_t *>(valuePtr);
+            valueText = SmallStr::fromNumber(*i);
+            break;
+        }
     case Variable::Type::UInt64:
-        break;
-
+        {
+            auto i = reinterpret_cast<const std::uint64_t *>(valuePtr);
+            valueText = SmallStr::fromNumber(*i);
+            break;
+        }
     case Variable::Type::Flt32:
-        break;
-
+        {
+            auto f = reinterpret_cast<const Float32 *>(valuePtr);
+            valueText = SmallStr::fromNumber(*f);
+            break;
+        }
     case Variable::Type::Flt64:
-        break;
-
+        {
+            auto f = reinterpret_cast<const Float64 *>(valuePtr);
+            valueText = SmallStr::fromNumber(*f);
+            break;
+        }
     case Variable::Type::Char:
-        break;
-
+        {
+            auto c = reinterpret_cast<const char *>(valuePtr);
+            valueText.append(*c);
+            break;
+        }
     case Variable::Type::CString:
-        break;
-
+        {
+            auto s = reinterpret_cast<const char *>(valuePtr);
+            valueText = s;
+            break;
+        }
     #if NEO_TWEAK_BAR_STD_STRING_INTEROP
     case Variable::Type::StdString:
-        break;
+        {
+            auto s = reinterpret_cast<const std::string *>(valuePtr);
+            valueText.append(s->c_str(), int(s->length()));
+            break;
+        }
     #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
     }
+
+    const ColorScheme & myColors = getColors();
+    const Color32 editBackground = lighthenRGB(myColors.box.bgTopLeft, 30);
+
+    EditField & editField = getEditField();
+    editField.drawSelf(geoBatch, editBox, valueText.c_str(), valueText.getLength(),
+                       myColors.text.normal, myColors.text.selection, myColors.text.cursor,
+                       editBackground, getTextScaling(), getScaling());
 }
 
 // ========================================================
@@ -253,11 +392,14 @@ void PanelImpl::init(GUIImpl * myGUI, const char * myName)
     const Float32 titleWidth = GeometryBatch::calcTextWidth(name.c_str(), name.getLength(), myGUI->getGlobalTextScaling());
 
     // TODO: Make these configurable?
-    const ntb::Rectangle rect = { 0, 0, kPanelStartWidth + (int)titleWidth, kPanelStartHeight };
-    const bool visible    = true;
+    const auto scale = myGUI->getGlobalUIScaling();
+    const Rectangle rect = { 0, 0, Widget::uiScaleBy(kPanelStartWidth, scale) + int(titleWidth), Widget::uiScaleBy(kPanelStartHeight, scale) };
+    const bool visible = true;
     const bool resizeable = true;
 
-    window.init(myGUI, nullptr, rect, visible, resizeable, name.c_str(), kPanelTitleBarHeight, kPanelTitleBarBtnSize, kPanelScrollBarWidth, kPanelScrollBarBtnSize);
+    window.init(myGUI, nullptr, rect, visible, resizeable, name.c_str(),
+                Widget::uiScaleBy(kPanelTitleBarHeight, scale), Widget::uiScaleBy(kPanelTitleBarBtnSize, scale),
+                Widget::uiScaleBy(kPanelScrollBarWidth, scale), Widget::uiScaleBy(kPanelScrollBarBtnSize, scale));
 }
 
 Variable * PanelImpl::addVariableRO(VarType type, Variable * parent, const char * name, const void * var,
@@ -269,8 +411,8 @@ Variable * PanelImpl::addVariableRO(VarType type, Variable * parent, const char 
 
     VariableImpl * newVar = construct(implAllocT<VariableImpl>());
 
-    const bool isReadOnly = true;
-    newVar->init(this, parent, name, isReadOnly, type, const_cast<void *>(var), elementCount, enumConstants, nullptr);
+    const bool readOnly = true;
+    newVar->init(this, parent, name, readOnly, type, const_cast<void *>(var), elementCount, enumConstants, nullptr);
 
     variables.pushBack(newVar);
     return newVar;
@@ -285,8 +427,8 @@ Variable * PanelImpl::addVariableRW(VarType type, Variable * parent, const char 
 
     VariableImpl * newVar = construct(implAllocT<VariableImpl>());
 
-    const bool isReadOnly = false;
-    newVar->init(this, parent, name, isReadOnly, type, var, elementCount, enumConstants, nullptr);
+    const bool readOnly = false;
+    newVar->init(this, parent, name, readOnly, type, var, elementCount, enumConstants, nullptr);
 
     variables.pushBack(newVar);
     return newVar;
@@ -301,8 +443,8 @@ Variable * PanelImpl::addVariableCB(VarType type, Variable * parent, const char 
 
     VariableImpl * newVar = construct(implAllocT<VariableImpl>());
 
-    const bool isReadOnly = (access == VarAccess::RO);
-    newVar->init(this, parent, name, isReadOnly, type, nullptr, elementCount, enumConstants, &callbacks);
+    const bool readOnly = (access == VarAccess::RO);
+    newVar->init(this, parent, name, readOnly, type, nullptr, elementCount, enumConstants, &callbacks);
 
     variables.pushBack(newVar);
     return newVar;

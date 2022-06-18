@@ -1615,16 +1615,22 @@ void Widget::drawSelf(GeometryBatch & geoBatch) const
     }
 
     // Body box:
-    geoBatch.drawRectFilled(rect, myColors.box.bgTopLeft,
-                                  myColors.box.bgBottomLeft,
-                                  myColors.box.bgTopRight,
-                                  myColors.box.bgBottomRight);
+    if (!testFlag(Flag_NoRectBackground))
+    {
+        geoBatch.drawRectFilled(rect, myColors.box.bgTopLeft,
+                                      myColors.box.bgBottomLeft,
+                                      myColors.box.bgTopRight,
+                                      myColors.box.bgBottomRight);
+    }
 
     // Box outline/border:
-    geoBatch.drawRectOutline(rect, myColors.box.outlineLeft,
-                                   myColors.box.outlineBottom,
-                                   myColors.box.outlineRight,
-                                   myColors.box.outlineTop);
+    if (!testFlag(Flag_NoRectOutline))
+    {
+        geoBatch.drawRectOutline(rect, myColors.box.outlineLeft,
+                                       myColors.box.outlineBottom,
+                                       myColors.box.outlineRight,
+                                       myColors.box.outlineTop);
+    }
 }
 
 void Widget::drawChildren(GeometryBatch & geoBatch) const
@@ -1681,7 +1687,24 @@ void ButtonWidget::onDraw(GeometryBatch & geoBatch) const
     }
 
     // Draw the box background and outline, if any:
-    Widget::onDraw(geoBatch);
+    const ColorScheme& myColors = getColors();
+
+    // Optional drop shadow effect under the element.
+    if (myColors.shadow.dark != 0 && myColors.shadow.offset != 0 && !testFlag(Flag_NoRectShadow))
+    {
+        geoBatch.drawRectShadow(rect, myColors.shadow.dark,
+                                      myColors.shadow.light,
+                                      myColors.shadow.offset);
+    }
+
+    // Body box:
+    if (!testFlag(Flag_NoRectBackground))
+    {
+        geoBatch.drawRectFilled(rect, myColors.box.bgTopLeft,
+                                      myColors.box.bgBottomLeft,
+                                      myColors.box.bgTopRight,
+                                      myColors.box.bgBottomRight);
+    }
 
     // A selected check box fully overrides the widget drawing logic.
     if (isCheckBoxButton() && state == true)
@@ -1724,6 +1747,15 @@ void ButtonWidget::onDraw(GeometryBatch & geoBatch) const
         {
             geoBatch.drawRectOutline(rect, getColors().checkBoxBorder);
         }
+    }
+
+    // Box outline/border:
+    if (!testFlag(Flag_NoRectOutline))
+    {
+        geoBatch.drawRectOutline(rect, myColors.box.outlineLeft,
+                                       myColors.box.outlineBottom,
+                                       myColors.box.outlineRight,
+                                       myColors.box.outlineTop);
     }
 }
 
@@ -3423,6 +3455,31 @@ void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
 {
     if (isVisible())
     {
+        // Don't draw if fully outside of the parent window usable area.
+        bool shouldDraw = true;
+        if (parentWindow != nullptr)
+        {
+            const Rectangle parentRect = parentWindow->getUsableRect();
+            if (rect.xMins > parentRect.xMaxs || rect.xMaxs < parentRect.xMins)
+            {
+                shouldDraw = false;
+            }
+            else if (rect.yMins > parentRect.yMaxs || rect.yMaxs < parentRect.yMins || rect.yMaxs > parentRect.yMaxs)
+            {
+                shouldDraw = false;
+            }
+        }
+
+        if (!shouldDraw)
+        {
+            expandCollapseButton.setVisible(false);
+            return;
+        }
+        else
+        {
+            expandCollapseButton.setVisible(true);
+        }
+
         drawSelf(geoBatch);             // Border rectangle
         drawVarName(geoBatch);          // Var name drawing (left side)
         drawVarValue(geoBatch);         // Displayed value (right side)

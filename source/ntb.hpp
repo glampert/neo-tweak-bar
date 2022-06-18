@@ -719,9 +719,9 @@ public:
     enum class Type
     {
         Undefined = 0,
-        Number,
-        Color,
-        String,
+        NumberCB,
+        ColorCB,
+        StringCB,
         Ptr,
         Enum,
         VecF,
@@ -749,7 +749,9 @@ public:
     };
 
     virtual ~Variable();
+
     virtual Type getType() const = 0;
+    virtual bool isReadOnly() const = 0;
 
     // Get name/title and name hash code:
     virtual const char * getName() const = 0;
@@ -879,11 +881,11 @@ public:
     Variable * addNumberRO(Variable * parent, const char * name, const Float64 * var) { return addVariableRO(VarType::Flt64, parent, name, var); }
     Variable * addNumberRW(Variable * parent, const char * name, Float64 * var)       { return addVariableRW(VarType::Flt64, parent, name, var); }
 
-    Variable * addNumberRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::Number, nullptr, name, callbacks, VarAccess::RO); }
-    Variable * addNumberRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::Number, nullptr, name, callbacks, VarAccess::RW); }
+    Variable * addNumberRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::NumberCB, nullptr, name, callbacks, VarAccess::RO); }
+    Variable * addNumberRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::NumberCB, nullptr, name, callbacks, VarAccess::RW); }
 
-    Variable * addNumberRO(Variable * parent, const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::Number, parent, name, callbacks, VarAccess::RO); }
-    Variable * addNumberRW(Variable * parent, const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::Number, parent, name, callbacks, VarAccess::RW); }
+    Variable * addNumberRO(Variable * parent, const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::NumberCB, parent, name, callbacks, VarAccess::RO); }
+    Variable * addNumberRW(Variable * parent, const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::NumberCB, parent, name, callbacks, VarAccess::RW); }
 
     //
     // Hexadecimal pointer value:
@@ -975,11 +977,11 @@ public:
     Variable * addColorRW(Variable * parent, const char * name, Color32 * color)       { return addVariableRW(VarType::ColorU32, parent, name, color); }
 
     // Colors from callbacks:
-    Variable * addColorRO(const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VarType::Color, nullptr, name, callbacks, VarAccess::RO, size); }
-    Variable * addColorRW(const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VarType::Color, nullptr, name, callbacks, VarAccess::RW, size); }
+    Variable * addColorRO(const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VarType::ColorCB, nullptr, name, callbacks, VarAccess::RO, size); }
+    Variable * addColorRW(const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VarType::ColorCB, nullptr, name, callbacks, VarAccess::RW, size); }
 
-    Variable * addColorRO(Variable * parent, const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VarType::Color, parent, name, callbacks, VarAccess::RO, size); }
-    Variable * addColorRW(Variable * parent, const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VarType::Color, parent, name, callbacks, VarAccess::RW, size); }
+    Variable * addColorRO(Variable * parent, const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VarType::ColorCB, parent, name, callbacks, VarAccess::RO, size); }
+    Variable * addColorRW(Variable * parent, const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VarType::ColorCB, parent, name, callbacks, VarAccess::RW, size); }
 
     //
     // String variables:
@@ -1002,11 +1004,11 @@ public:
     #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
 
     // Strings from callbacks:
-    Variable * addStringRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::String, nullptr, name, callbacks, VarAccess::RO); }
-    Variable * addStringRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::String, nullptr, name, callbacks, VarAccess::RW); }
+    Variable * addStringRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::StringCB, nullptr, name, callbacks, VarAccess::RO); }
+    Variable * addStringRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::StringCB, nullptr, name, callbacks, VarAccess::RW); }
 
-    Variable * addStringRO(Variable * parent, const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::String, parent, name, callbacks, VarAccess::RO); }
-    Variable * addStringRW(Variable * parent, const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::String, parent, name, callbacks, VarAccess::RW); }
+    Variable * addStringRO(Variable * parent, const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::StringCB, parent, name, callbacks, VarAccess::RO); }
+    Variable * addStringRW(Variable * parent, const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VarType::StringCB, parent, name, callbacks, VarAccess::RW); }
 
     //
     // User-defined enums (constants are not copied):
@@ -1073,7 +1075,7 @@ protected:
     virtual Variable * addVariableRW(VarType type, Variable * parent, const char * name, void * var,
                                      int elementCount = 1, const EnumConstant * enumConstants = nullptr) = 0;
 
-    // NOTE: VarType may be Number/Color/String. Query the callbacks to get the specific variable type.
+    // NOTE: VarType may be NumberCB/ColorCB/StringCB. Query the callbacks to get the specific variable type.
     virtual Variable * addVariableCB(VarType type, Variable * parent, const char * name, const VarCallbacksAny & callbacks,
                                      VarAccess access, int elementCount = 1, const EnumConstant * enumConstants = nullptr) = 0;
 };

@@ -285,20 +285,22 @@ public:
         Flag_MouseIntersecting       = 1 << 3,
         Flag_MouseDragEnabled        = 1 << 4,
         Flag_NoRectShadow            = 1 << 5,
-        Flag_NeedDeleting            = 1 << 6,
+        Flag_NoRectBackground        = 1 << 6,
+        Flag_NoRectOutline           = 1 << 7,
+        Flag_NeedDeleting            = 1 << 8,
 
         // Scroll bars only:
-        Flag_InvertMouseScroll       = 1 << 7,
-        Flag_HoldingScrollSlider     = 1 << 8,
+        Flag_InvertMouseScroll       = 1 << 9,
+        Flag_HoldingScrollSlider     = 1 << 10,
 
         // Var display widgets:
-        Flag_WithValueEditButtons    = 1 << 9,
-        Flag_ValueEditButtonsEnabled = 1 << 10,
-        Flag_ValueClickAndHold       = 1 << 11,
+        Flag_WithValueEditButtons    = 1 << 11,
+        Flag_ValueEditButtonsEnabled = 1 << 12,
+        Flag_ValueClickAndHold       = 1 << 13,
 
         // Windows:
-        Flag_NoResizing              = 1 << 12,
-        Flag_NoInfoBar               = 1 << 13,
+        Flag_NoResizing              = 1 << 14,
+        Flag_NoInfoBar               = 1 << 15,
     };
 
     enum Corner
@@ -881,6 +883,8 @@ public:
     void setVarName(const SmallStr & name);
     void setVarName(const char * name);
 
+    EditField & getEditField() const { return editField; }
+
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const override;
     #endif // NEO_TWEAK_BAR_DEBUG
@@ -919,7 +923,7 @@ private:
     // Button state true if hierarchy open, false if collapsed.
     // Note that the button will be made a child of the parent widget (Window), so the
     // VarDisplayWidget::children list only containers nested child VarDisplayWidgets.
-    ButtonWidget expandCollapseButton;
+    mutable ButtonWidget expandCollapseButton;
 
     // Mutable because EditField::drawSelf() needs to update some internal state.
     mutable EditField editField;
