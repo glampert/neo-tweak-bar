@@ -202,6 +202,12 @@ void VarCallbacksAny::callSetter(const void * valueIn)
     callbacks->callSetter(valueIn);
 }
 
+VariableType VarCallbacksAny::getVariableType() const
+{
+    NTB_ASSERT(callbacks != nullptr);
+    return callbacks->getVariableType();
+}
+
 void VarCallbacksAny::clear()
 {
     // NOTE: Cutting a corner here. The correct would be to call

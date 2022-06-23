@@ -12,6 +12,10 @@
 namespace ntb
 {
 
+// This effectively limits the length of C strings from callbacks.
+// TODO: Make configurable?
+constexpr int kVarCallbackDataMaxSize = 256;
+
 constexpr int kVarHeight             = 30;
 constexpr int kVarTopSpacing         = 55;
 constexpr int kVarLeftSpacing        = 15;
@@ -38,12 +42,10 @@ VariableImpl::~VariableImpl()
 {
 }
 
-void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * myName, bool readOnly, Variable::Type varType,
+void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * myName, bool readOnly, VariableType varType,
                         void * varData, int elementCount, const EnumConstant * enumConstants, const VarCallbacksAny * optionalCallbacks)
 {
-    panel = myPanel;
-    setName(myName);
-
+    this->panel         = myPanel;
     this->readOnly      = readOnly;
     this->varType       = varType;
     this->varData       = varData;
@@ -53,6 +55,30 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
     if (optionalCallbacks != nullptr)
     {
         this->optionalCallbacks = *optionalCallbacks;
+
+        // Need to query the specific type from the callbacks for these.
+        if (varType == VariableType::NumberCB || varType == VariableType::StringCB)
+        {
+            this->varType = this->optionalCallbacks.getVariableType();
+        }
+        else if (varType == VariableType::ColorCB)
+        {
+            const auto colorStorageType = this->optionalCallbacks.getVariableType();
+            switch (colorStorageType)
+            {
+            case VariableType::UInt32:
+                this->varType = VariableType::ColorU32;
+                break;
+            case VariableType::Flt32:
+                this->varType = VariableType::ColorF;
+                break;
+            case VariableType::UInt8:
+                this->varType = VariableType::Color8B;
+                break;
+            default:
+                NTB_ASSERT(false);
+            }
+        }
     }
 
     WindowWidget * window = panel->getWindow();
@@ -88,20 +114,23 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
         varRect.yMaxs = varRect.yMins + window->uiScaled(kVarHeight);
     }
 
-    VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, window, name.c_str());
+    VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, window, myName);
+
+    hashCode = hashString(myName);
+    titleWidth = (int)GeometryBatch::calcTextWidth(getVarName().c_str(), getVarName().getLength(), getGUI()->getGlobalTextScaling());
 }
 
 Variable * VariableImpl::setName(const char * newName)
 {
-    name = newName;
+    setVarName(newName);
     hashCode = hashString(newName);
-    titleWidth = (int)GeometryBatch::calcTextWidth(name.c_str(), name.getLength(), getGUI()->getGlobalTextScaling());
+    titleWidth = (int)GeometryBatch::calcTextWidth(getVarName().c_str(), getVarName().getLength(), getGUI()->getGlobalTextScaling());
     return this;
 }
 
 const char * VariableImpl::getName() const
 {
-    return name.c_str();
+    return getVarName().c_str();
 }
 
 std::uint32_t VariableImpl::getHashCode() const
@@ -129,7 +158,7 @@ Panel * VariableImpl::getPanel()
     return panel;
 }
 
-Variable::Type VariableImpl::getType() const
+VariableType VariableImpl::getType() const
 {
     return varType;
 }
@@ -166,7 +195,12 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
     }
 
     void * valuePtr = nullptr;
-    NTB_ALIGNED(char tempValue[128], 16) = {};
+    NTB_ALIGNED(char tempValueBuffer[kVarCallbackDataMaxSize], 16) = {};
+
+    // HACK: Std string needs to be default constructed so a raw byte buffer is not enough...
+    #if NEO_TWEAK_BAR_STD_STRING_INTEROP
+    std::string tempStdString;
+    #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
 
     if (varData != nullptr)
     {
@@ -175,33 +209,40 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
     else
     {
         NTB_ASSERT(!optionalCallbacks.isNull());
-        optionalCallbacks.callGetter(tempValue);
-        valuePtr = tempValue;
+
+        #if NEO_TWEAK_BAR_STD_STRING_INTEROP
+        if (varType == VariableType::StdString)
+        {
+            optionalCallbacks.callGetter(&tempStdString);
+            valuePtr = &tempStdString;
+        }
+        else
+        #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
+        {
+            optionalCallbacks.callGetter(tempValueBuffer);
+            valuePtr = tempValueBuffer;
+        }
     }
 
     // Convert value to string:
     SmallStr valueText;
     switch (varType)
     {
-    case Variable::Type::Undefined:
-        NTB_ASSERT(false && "Invalid variable type!");
-        break;
-
-    // Need to query the specific type from the callbacks for these.
-    case Variable::Type::NumberCB:
-    case Variable::Type::ColorCB:
-    case Variable::Type::StringCB:
+    case VariableType::Undefined:
+    case VariableType::NumberCB:
+    case VariableType::ColorCB:
+    case VariableType::StringCB:
         {
-            // TODO!
+            NTB_ASSERT(false && "Invalid variable type!");
             break;
         }
-    case Variable::Type::Ptr:
+    case VariableType::Ptr:
         {
             auto v = reinterpret_cast<const void * const *>(valuePtr);
             valueText = SmallStr::fromPointer(*v);
             break;
         }
-    case Variable::Type::Enum:
+    case VariableType::Enum:
         {
             NTB_ASSERT(enumConstants != nullptr);
             NTB_ASSERT(elementCount  >= 1);
@@ -237,10 +278,10 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
             }
             break;
         }
-    case Variable::Type::VecF:
-    case Variable::Type::DirVec3:
-    case Variable::Type::Quat4:
-    case Variable::Type::ColorF:
+    case VariableType::VecF:
+    case VariableType::DirVec3:
+    case VariableType::Quat4:
+    case VariableType::ColorF:
         {
             auto v = reinterpret_cast<const Float32 *>(valuePtr);
             for (int i = 0; i < elementCount; ++i)
@@ -251,7 +292,7 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
             }
             break;
         }
-    case Variable::Type::Color8B:
+    case VariableType::Color8B:
         {
             auto c = reinterpret_cast<const std::uint8_t *>(valuePtr);
             for (int i = 0; i < elementCount; ++i)
@@ -262,7 +303,7 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
             }
             break;
         }
-    case Variable::Type::ColorU32:
+    case VariableType::ColorU32:
         {
             auto c = reinterpret_cast<const Color32 *>(valuePtr);
             std::uint8_t rgba[4];
@@ -275,86 +316,86 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
             }
             break;
         }
-    case Variable::Type::Bool:
+    case VariableType::Bool:
         {
             auto b = reinterpret_cast<const bool *>(valuePtr);
             valueText = (*b ? "true" : "false");
             break;
         }
-    case Variable::Type::Int8:
+    case VariableType::Int8:
         {
             auto i = reinterpret_cast<const std::int8_t *>(valuePtr);
             valueText = SmallStr::fromNumber(std::int64_t(*i));
             break;
         }
-    case Variable::Type::UInt8:
+    case VariableType::UInt8:
         {
             auto i = reinterpret_cast<const std::uint8_t*>(valuePtr);
             valueText = SmallStr::fromNumber(std::uint64_t(*i));
             break;
         }
-    case Variable::Type::Int16:
+    case VariableType::Int16:
         {
             auto i = reinterpret_cast<const std::int16_t*>(valuePtr);
             valueText = SmallStr::fromNumber(std::int64_t(*i));
             break;
         }
-    case Variable::Type::UInt16:
+    case VariableType::UInt16:
         {
             auto i = reinterpret_cast<const std::uint16_t*>(valuePtr);
             valueText = SmallStr::fromNumber(std::uint64_t(*i));
             break;
         }
-    case Variable::Type::Int32:
+    case VariableType::Int32:
         {
             auto i = reinterpret_cast<const std::int32_t *>(valuePtr);
             valueText = SmallStr::fromNumber(std::int64_t(*i));
             break;
         }
-    case Variable::Type::UInt32:
+    case VariableType::UInt32:
         {
             auto i = reinterpret_cast<const std::uint32_t *>(valuePtr);
             valueText = SmallStr::fromNumber(std::uint64_t(*i));
             break;
         }
-    case Variable::Type::Int64:
+    case VariableType::Int64:
         {
             auto i = reinterpret_cast<const std::int64_t *>(valuePtr);
             valueText = SmallStr::fromNumber(*i);
             break;
         }
-    case Variable::Type::UInt64:
+    case VariableType::UInt64:
         {
             auto i = reinterpret_cast<const std::uint64_t *>(valuePtr);
             valueText = SmallStr::fromNumber(*i);
             break;
         }
-    case Variable::Type::Flt32:
+    case VariableType::Flt32:
         {
             auto f = reinterpret_cast<const Float32 *>(valuePtr);
             valueText = SmallStr::fromNumber(*f);
             break;
         }
-    case Variable::Type::Flt64:
+    case VariableType::Flt64:
         {
             auto f = reinterpret_cast<const Float64 *>(valuePtr);
             valueText = SmallStr::fromNumber(*f);
             break;
         }
-    case Variable::Type::Char:
+    case VariableType::Char:
         {
             auto c = reinterpret_cast<const char *>(valuePtr);
             valueText.append(*c);
             break;
         }
-    case Variable::Type::CString:
+    case VariableType::CString:
         {
             auto s = reinterpret_cast<const char *>(valuePtr);
             valueText = s;
             break;
         }
     #if NEO_TWEAK_BAR_STD_STRING_INTEROP
-    case Variable::Type::StdString:
+    case VariableType::StdString:
         {
             auto s = reinterpret_cast<const std::string *>(valuePtr);
             valueText.append(s->c_str(), int(s->length()));
@@ -402,10 +443,10 @@ void PanelImpl::init(GUIImpl * myGUI, const char * myName)
                 Widget::uiScaleBy(kPanelScrollBarWidth, scale), Widget::uiScaleBy(kPanelScrollBarBtnSize, scale));
 }
 
-Variable * PanelImpl::addVariableRO(VarType type, Variable * parent, const char * name, const void * var,
+Variable * PanelImpl::addVariableRO(VariableType type, Variable * parent, const char * name, const void * var,
                                     int elementCount, const EnumConstant * enumConstants)
 {
-    NTB_ASSERT(type != VarType::Undefined);
+    NTB_ASSERT(type != VariableType::Undefined);
     NTB_ASSERT(name != nullptr);
     NTB_ASSERT(var  != nullptr);
 
@@ -418,10 +459,10 @@ Variable * PanelImpl::addVariableRO(VarType type, Variable * parent, const char 
     return newVar;
 }
 
-Variable * PanelImpl::addVariableRW(VarType type, Variable * parent, const char * name, void * var,
+Variable * PanelImpl::addVariableRW(VariableType type, Variable * parent, const char * name, void * var,
                                     int elementCount, const EnumConstant * enumConstants)
 {
-    NTB_ASSERT(type != VarType::Undefined);
+    NTB_ASSERT(type != VariableType::Undefined);
     NTB_ASSERT(name != nullptr);
     NTB_ASSERT(var  != nullptr);
 
@@ -434,10 +475,10 @@ Variable * PanelImpl::addVariableRW(VarType type, Variable * parent, const char 
     return newVar;
 }
 
-Variable * PanelImpl::addVariableCB(VarType type, Variable * parent, const char * name, const VarCallbacksAny & callbacks,
+Variable * PanelImpl::addVariableCB(VariableType type, Variable * parent, const char * name, const VarCallbacksAny & callbacks,
                                     VarAccess access, int elementCount, const EnumConstant * enumConstants)
 {
-    NTB_ASSERT(type != VarType::Undefined);
+    NTB_ASSERT(type != VariableType::Undefined);
     NTB_ASSERT(name != nullptr);
     NTB_ASSERT(!callbacks.isNull());
 

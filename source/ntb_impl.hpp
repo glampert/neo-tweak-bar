@@ -33,10 +33,10 @@ public:
     VariableImpl();
     ~VariableImpl();
 
-    void init(PanelImpl * myPanel, Variable * myParent, const char * myName, bool readOnly, Variable::Type varType,
+    void init(PanelImpl * myPanel, Variable * myParent, const char * myName, bool readOnly, VariableType varType,
               void * varData, int elementCount, const EnumConstant * enumConstants, const VarCallbacksAny * optionalCallbacks);
 
-    Type getType() const override;
+    VariableType getType() const override;
     bool isReadOnly() const override;
 
     Variable * setName(const char * newName) override;
@@ -58,11 +58,10 @@ private:
 
     PanelImpl *          panel{ nullptr };
     std::uint32_t        hashCode{ 0 };
-    SmallStr             name;
     bool                 readOnly{ false };
     int                  titleWidth{ 0 };
     int                  elementCount{ 0 };
-    Variable::Type       varType{ Variable::Type::Undefined };
+    VariableType         varType{ VariableType::Undefined };
     void               * varData{ nullptr };
     const EnumConstant * enumConstants{ nullptr };
     VarCallbacksAny      optionalCallbacks;
@@ -95,13 +94,13 @@ public:
 
     WindowWidget * getWindow() { return &window; }
 
-    Variable * addVariableRO(VarType type, Variable * parent, const char * name, const void * var,
+    Variable * addVariableRO(VariableType type, Variable * parent, const char * name, const void * var,
                              int elementCount = 1, const EnumConstant * enumConstants = nullptr) override;
 
-    Variable * addVariableRW(VarType type, Variable * parent, const char * name, void * var,
+    Variable * addVariableRW(VariableType type, Variable * parent, const char * name, void * var,
                              int elementCount = 1, const EnumConstant * enumConstants = nullptr) override;
 
-    Variable * addVariableCB(VarType type, Variable * parent, const char * name, const VarCallbacksAny & callbacks,
+    Variable * addVariableCB(VariableType type, Variable * parent, const char * name, const VarCallbacksAny & callbacks,
                              VarAccess access, int elementCount = 1, const EnumConstant * enumConstants = nullptr) override;
 
     Variable * addHierarchyParent(const char * name) override;

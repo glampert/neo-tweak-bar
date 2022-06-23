@@ -121,9 +121,15 @@ int main(const int argc, const char * argv[])
 
         struct Test
         {
-            bool        b{ true };
-            int         i{ 1234 };
-            std::string s{ "Test" };
+            bool         b     { true };
+            int          i     { 1234 };
+            std::string  s     { "Test" };
+            ntb::Color32 c32   { ntb::packColor(255, 0, 255) };
+            float        c4f[4]{ 0.0f, 1.0f, 1.0f, 0.5f };
+            std::uint8_t c8b[4]{ 0, 255, 0, 255 };
+            void *       p     { (void*)UINT64_C(0xCAFED00DDEADBEEF) };
+            char         ch    { 'X' };
+            char         cs[64]{ "Hello again" };
 
             bool getBoolVal() const { return b; }
             void setBoolVal(bool val) { b = val; }
@@ -133,6 +139,24 @@ int main(const int argc, const char * argv[])
 
             const std::string & getStdStringVal() const { return s; }
             void setStdStringVal(const std::string & val) { s = val; }
+
+            ntb::Color32 getColor32Val() const { return c32; }
+            void setColor32Val(ntb::Color32 val) { c32 = val; }
+
+            void getColor4FPtr(float * outVal) const { std::memcpy(outVal, c4f, sizeof(c4f)); }
+            void setColor4FPtr(const float * inVal)  { std::memcpy(c4f, inVal, sizeof(c4f)); }
+
+            void getColor8BPtr(std::uint8_t * outVal) const { std::memcpy(outVal, c8b, sizeof(c8b)); }
+            void setColor8BPtr(const std::uint8_t * inVal)  { std::memcpy(c8b, inVal, sizeof(c8b)); }
+
+            void getVoidPtr(void ** outVal) const { *outVal = p; }
+            void setVoidPtr(void * const * inVal) { p = *inVal; }
+
+            char getCharVal() const { return ch; }
+            void setCharVal(char val) { ch = val; }
+
+            void getCStringPtr(const char ** outVal) const { strncpy_s((char *)outVal, sizeof(cs), cs, sizeof(cs)); }
+            void setCStringPtr(const char * const * inVal) { strcpy_s(cs, *inVal); }
         } testObj;
 
         const char ch = 'G';
@@ -142,9 +166,15 @@ int main(const int argc, const char * argv[])
         panel3->addStringRO("std string", &str);
 
         // Variables with callbacks
-        panel3->addNumberRW("Test::b", ntb::callbacks(&testObj, &Test::getBoolVal,      &Test::setBoolVal));
-        panel3->addNumberRW("Test::i", ntb::callbacks(&testObj, &Test::getIntVal,       &Test::setIntVal));
-        panel3->addNumberRW("Test::s", ntb::callbacks(&testObj, &Test::getStdStringVal, &Test::setStdStringVal));
+        panel3->addBoolRW("Test::b",    ntb::callbacks(&testObj, &Test::getBoolVal,      &Test::setBoolVal));
+        panel3->addNumberRW("Test::i",  ntb::callbacks(&testObj, &Test::getIntVal,       &Test::setIntVal));
+        panel3->addStringRW("Test::s",  ntb::callbacks(&testObj, &Test::getStdStringVal, &Test::setStdStringVal));
+        panel3->addColorRW("Test::c32", ntb::callbacks(&testObj, &Test::getColor32Val,   &Test::setColor32Val), 4);
+        panel3->addColorRW("Test::c4f", ntb::callbacks(&testObj, &Test::getColor4FPtr,   &Test::setColor4FPtr), 4);
+        panel3->addColorRW("Test::c8b", ntb::callbacks(&testObj, &Test::getColor8BPtr,   &Test::setColor8BPtr), 4);
+        panel3->addPointerRW("Test::p", ntb::callbacks(&testObj, &Test::getVoidPtr,      &Test::setVoidPtr));
+        panel3->addCharRW("Test::ch",   ntb::callbacks(&testObj, &Test::getCharVal,      &Test::setCharVal));
+        panel3->addStringRW("Test::cs", ntb::callbacks(&testObj, &Test::getCStringPtr,   &Test::setCStringPtr));
 
         // To forward window input events to the GUI.
         ctx.setAppCallback(&ctx, &myAppEventCallback, gui);
