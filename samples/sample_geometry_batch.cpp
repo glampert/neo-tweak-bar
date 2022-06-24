@@ -21,6 +21,10 @@
 #include <cstdlib>
 #include <cstring>
 
+#if defined(_MSC_VER) && defined(_DEBUG)
+    #include <crtdbg.h>
+#endif // _MSC_VER && _DEBUG
+
 #if !defined(NEO_TWEAK_BAR_STD_STRING_INTEROP)
     #error "NEO_TWEAK_BAR_STD_STRING_INTEROP is required for this sample!"
 #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
@@ -84,6 +88,11 @@ static void makeScreenProjectedBox(ntb::PODArray * scrProjectedVerts, ntb::PODAr
 
 int main(const int argc, const char * argv[])
 {
+#if defined(_MSC_VER) && defined(_DEBUG)
+    // Memory leak checking when main() return.
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif // _MSC_VER && _DEBUG
+
     AppContext ctx;
     if (!appInit(argc, argv, "NTB GeometryBatch Tests", 1024, 768, &ctx))
     {

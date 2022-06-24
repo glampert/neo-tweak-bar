@@ -1,4 +1,4 @@
-
+#pragma once
 // ================================================================================================
 // -*- C++ -*-
 // File: ntb.hpp
@@ -6,9 +6,6 @@
 // Created on: 25/04/16
 // Brief: Neo Tweak Bar - A lightweight and intuitive C++ GUI library for graphics applications.
 // ================================================================================================
-
-#ifndef NTB_HPP
-#define NTB_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -814,6 +811,8 @@ public:
 
     // Styling methods:
     virtual Variable * setName(const char * newName) = 0;
+    virtual Variable * collapseHierarchy() = 0;
+    virtual Variable * expandHierarchy() = 0;
 };
 
 // Callback for Panel::enumerateAllVariables().
@@ -1260,5 +1259,3 @@ ErrorHandlerCallback getErrorCallback();
 void silenceErrors(bool trueIfShouldSilence);
 
 } // namespace ntb {}
-
-#endif // NTB_HPP

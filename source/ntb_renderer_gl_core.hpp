@@ -1,4 +1,4 @@
-
+#pragma once
 // ================================================================================================
 // -*- C++ -*-
 // File: ntb_renderer_gl_core.hpp
@@ -13,9 +13,6 @@
 //  before including this file, then #define NTB_DEFAULT_RENDERER_GL_CORE before including the file
 //  in a .cpp to enable the implementation.
 // ================================================================================================
-
-#ifndef NTB_RENDERER_GL_CORE_HPP
-#define NTB_RENDERER_GL_CORE_HPP
 
 #include "ntb.hpp"
 #include "ntb_utils.hpp"
@@ -225,8 +222,6 @@ inline void * RenderInterfaceDefaultGLCore::offsetPtr(std::size_t offset)
 
 } // namespace ntb {}
 
-// ================== End of header file ==================
-#endif // NTB_RENDERER_GL_CORE_HPP
 // ================== End of header file ==================
 
 // ================================================================================================

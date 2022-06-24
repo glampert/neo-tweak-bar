@@ -1,4 +1,4 @@
-
+#pragma once
 // ================================================================================================
 // -*- C++ -*-
 // File: ntb_utils.hpp
@@ -6,9 +6,6 @@
 // Created on: 25/04/16
 // Brief: Internal use functions, types and structures of the NeoTweakBar library.
 // ================================================================================================
-
-#ifndef NTB_UTILS_HPP
-#define NTB_UTILS_HPP
 
 #include "ntb.hpp"
 
@@ -1107,5 +1104,3 @@ void screenProjectionXY(VertexPTC & vOut,
                         const Rectangle & viewport);
 
 } // namespace ntb {}
-
-#endif // NTB_UTILS_HPP

@@ -19,6 +19,10 @@
 #include <string>
 #include <cstdlib>
 
+#if defined(_MSC_VER) && defined(_DEBUG)
+    #include <crtdbg.h>
+#endif // _MSC_VER && _DEBUG
+
 #if !defined(NEO_TWEAK_BAR_STD_STRING_INTEROP)
     #error "NEO_TWEAK_BAR_STD_STRING_INTEROP is required for this sample!"
 #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
@@ -74,6 +78,11 @@ static void myAppEventCallback(const AppEvent & event, void * userContext)
 
 int main(const int argc, const char * argv[])
 {
+#if defined(_MSC_VER) && defined(_DEBUG)
+    // Memory leak checking when main() return.
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif // _MSC_VER && _DEBUG
+
     AppContext ctx;
     if (!appInit(argc, argv, "NTB Basic Sample", 1024, 768, &ctx))
     {
@@ -90,7 +99,7 @@ int main(const int argc, const char * argv[])
 
         panel1->setPosition(10, 10)->setSize(500, 500);
         panel2->setPosition(600, 10)->setSize(500, 500);
-        panel3->setPosition(10, 550)->setSize(400, 550);
+        panel3->setPosition(10, 550)->setSize(500, 550);
 
         bool          b       = true;
         int           i       = 42;
@@ -148,10 +157,10 @@ int main(const int argc, const char * argv[])
             void setColor32Val(ntb::Color32 val) { c32 = val; }
 
             void getColor4FPtr(float outVal[4]) const { std::memcpy(outVal, c4f, sizeof(c4f)); }
-            void setColor4FPtr(const float inVal[4])  { std::memcpy(c4f, inVal, sizeof(c4f)); }
+            void setColor4FPtr(const float inVal[4])  { std::memcpy(c4f, inVal,  sizeof(c4f)); }
 
             void getColor8BPtr(std::uint8_t outVal[4]) const { std::memcpy(outVal, c8b, sizeof(c8b)); }
-            void setColor8BPtr(const std::uint8_t inVal[4])  { std::memcpy(c8b, inVal, sizeof(c8b)); }
+            void setColor8BPtr(const std::uint8_t inVal[4])  { std::memcpy(c8b, inVal,  sizeof(c8b)); }
 
             void getVoidPtr(void ** outVal) const { *outVal = p; }
             void setVoidPtr(void * const * inVal) { p = *inVal; }
@@ -179,10 +188,17 @@ int main(const int argc, const char * argv[])
         panel3->addColorRW("Test::c32", ntb::callbacks(&testObj, &Test::getColor32Val,   &Test::setColor32Val), 4);
         panel3->addColorRW("Test::c4f", ntb::callbacks(&testObj, &Test::getColor4FPtr,   &Test::setColor4FPtr), 4);
         panel3->addColorRW("Test::c8b", ntb::callbacks(&testObj, &Test::getColor8BPtr,   &Test::setColor8BPtr), 4);
-        panel3->addPointerRW("Test::p", ntb::callbacks(&testObj, &Test::getVoidPtr,      &Test::setVoidPtr));
-        panel3->addCharRW("Test::ch",   ntb::callbacks(&testObj, &Test::getCharVal,      &Test::setCharVal));
-        panel3->addStringRW("Test::cs", ntb::callbacks(&testObj, &Test::getCStringPtr,   &Test::setCStringPtr));
-        panel3->addEnumRW("Test::en",   ntb::callbacks(&testObj, &Test::getEnumVal,      &Test::setEnumVal), testEnumConsts, ntb::lengthOfArray(testEnumConsts));
+
+        // Nest all following variables under this dummy separator variable
+        auto separator = panel3->addHierarchyParent("Separator");
+
+        panel3->addPointerRW(separator, "Test::p",  ntb::callbacks(&testObj, &Test::getVoidPtr,    &Test::setVoidPtr));
+        panel3->addCharRW(separator,    "Test::ch", ntb::callbacks(&testObj, &Test::getCharVal,    &Test::setCharVal));
+        panel3->addStringRW(separator,  "Test::cs", ntb::callbacks(&testObj, &Test::getCStringPtr, &Test::setCStringPtr));
+        panel3->addEnumRW(separator,    "Test::en", ntb::callbacks(&testObj, &Test::getEnumVal,    &Test::setEnumVal), testEnumConsts, ntb::lengthOfArray(testEnumConsts));
+
+        // Start closed
+        separator->collapseHierarchy();
 
         // To forward window input events to the GUI.
         ctx.setAppCallback(&ctx, &myAppEventCallback, gui);

@@ -1,4 +1,4 @@
-
+#pragma once
 // ================================================================================================
 // -*- C++ -*-
 // File: sample_app_lib.hpp
@@ -6,9 +6,6 @@
 // Created on: 25/09/16
 // Brief: A tiny helper library just for the NTB samples.
 // ================================================================================================
-
-#ifndef NTB_SAMPLE_APP_LIB_HPP
-#define NTB_SAMPLE_APP_LIB_HPP
 
 #include "ntb.hpp"
 
@@ -62,5 +59,3 @@ struct AppContext
 
 bool appInit(int argc, const char * argv[], const char * windowTitle,
              int windowWidth, int windowHeight, AppContext * outCtx);
-
-#endif // NTB_SAMPLE_APP_LIB_HPP

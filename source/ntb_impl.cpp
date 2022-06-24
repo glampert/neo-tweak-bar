@@ -47,6 +47,7 @@ VariableImpl::VariableImpl()
 
 VariableImpl::~VariableImpl()
 {
+    VarDisplayWidget::orphanAllChildren();
 }
 
 void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * myName, bool readOnly, VariableType varType,
@@ -108,6 +109,7 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
     auto parentVarImpl = static_cast<VariableImpl *>(myParent);
     auto parentWidget  = static_cast<VarDisplayWidget *>(parentVarImpl);
 
+    // Hierarchy layout:
     Rectangle varRect{};
     if (parentWidget != nullptr)
     {
@@ -135,22 +137,22 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
     }
 
     std::uint32_t varWidgetFlags = 0;
+    bool checkboxInitialState = false;
+
     if (!this->readOnly)
     {
         if (varType == VariableType::Bool)
         {
-            varWidgetFlags |= VarDisplayWidget::Flag_WithCheckmarkButton;
+            varWidgetFlags |= VarDisplayWidget::Flag_WithCheckboxButton;
 
             if (this->varData != nullptr)
             {
                 auto b = reinterpret_cast<bool *>(varData);
-                checkmarkButton.setState(*b);
+                checkboxInitialState = *b;
             }
             else
             {
-                bool boolFromCallback = false;
-                this->optionalCallbacks.callGetter(&boolFromCallback);
-                checkmarkButton.setState(boolFromCallback);
+                this->optionalCallbacks.callGetter(&checkboxInitialState);
             }
         }
         else if (isNumberVar())
@@ -163,7 +165,7 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
         }
     }
 
-    VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, window, myName, varWidgetFlags);
+    VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, window, myName, varWidgetFlags, checkboxInitialState);
 }
 
 Variable * VariableImpl::setName(const char * newName)
@@ -203,6 +205,18 @@ Panel * VariableImpl::getPanel()
     return panel;
 }
 
+Variable * VariableImpl::collapseHierarchy()
+{
+    VarDisplayWidget::setExpandCollapseState(false);
+    return this;
+}
+
+Variable * VariableImpl::expandHierarchy()
+{
+    VarDisplayWidget::setExpandCollapseState(true);
+    return this;
+}
+
 VariableType VariableImpl::getType() const
 {
     return varType;
@@ -223,11 +237,11 @@ bool VariableImpl::isEditPopupVar() const
     return varType >= VariableType::Enum && varType <= VariableType::ColorU32;
 }
 
-void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
+bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
 {
-    if (!editField.isVisisble)
+    if (varData == nullptr && optionalCallbacks.isNull())
     {
-        return;
+        return false;
     }
 
     void * valuePtr = nullptr;
@@ -259,7 +273,6 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
     }
 
     // Convert value to string:
-    SmallStr valueText;
     switch (varType)
     {
     case VariableType::Undefined:
@@ -438,12 +451,13 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
     #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
     }
 
-    const ColorScheme & myColors = getColors();
-    const Color32 editBackground = lighthenRGB(myColors.box.bgTopLeft, 30);
+    return true;
+}
 
-    editField.drawSelf(geoBatch, dataDisplayRect, valueText.c_str(), valueText.getLength(),
-                       myColors.text.normal, myColors.text.selection, myColors.text.cursor,
-                       editBackground, getTextScaling(), getScaling());
+void VariableImpl::onSetVarValueText(const SmallStr & valueText)
+{
+    NTB_ASSERT(!readOnly);
+    // TODO
 }
 
 struct VarOpIncrement
@@ -467,11 +481,12 @@ struct VarOpDecrement
 };
 
 template<typename OP>
-void VariableImpl::ApplyVarOp(OP op)
+void VariableImpl::ApplyNumberVarOp(OP op)
 {
     NTB_ASSERT(isNumberVar());
+    NTB_ASSERT(!readOnly);
 
-    void* valuePtr = nullptr;
+    void * valuePtr = nullptr;
     std::uint64_t numberFromCallback = 0;
 
     if (varData != nullptr)
@@ -542,27 +557,27 @@ void VariableImpl::ApplyVarOp(OP op)
 
 void VariableImpl::onIncrementButton()
 {
-    ApplyVarOp(VarOpIncrement{});
+    ApplyNumberVarOp(VarOpIncrement{});
 }
 
 void VariableImpl::onDecrementButton()
 {
-    ApplyVarOp(VarOpDecrement{});
+    ApplyNumberVarOp(VarOpDecrement{});
 }
 
-void VariableImpl::onCheckmarkButton(bool state)
+void VariableImpl::onCheckboxButton(bool state)
 {
-    NTB_ASSERT(varType  == VariableType::Bool);
-    NTB_ASSERT(readOnly == false);
+    NTB_ASSERT(varType == VariableType::Bool);
+    NTB_ASSERT(!readOnly);
 
-    if (!optionalCallbacks.isNull())
-    {
-        optionalCallbacks.callSetter(&state);
-    }
-    else
+    if (varData != nullptr)
     {
         auto b = reinterpret_cast<bool *>(varData);
         *b = state;
+    }
+    else
+    {
+        optionalCallbacks.callSetter(&state);
     }
 }
 
@@ -576,6 +591,8 @@ PanelImpl::PanelImpl()
 
 PanelImpl::~PanelImpl()
 {
+    window.orphanAllChildren();
+    PanelImpl::destroyAllVariables();
 }
 
 void PanelImpl::init(GUIImpl * myGUI, const char * myName)
@@ -704,16 +721,18 @@ void PanelImpl::onFrameRender(GeometryBatch & geoBatch, bool forceRefresh)
 
 Variable * PanelImpl::addHierarchyParent(const char * name)
 {
-    // TODO: Implement
-    NTB_ASSERT(false);
-    return nullptr;
+    return addHierarchyParent(nullptr, name);
 }
 
 Variable * PanelImpl::addHierarchyParent(Variable * parent, const char * name)
 {
-    // TODO: Implement
-    NTB_ASSERT(false);
-    return nullptr;
+    NTB_ASSERT(name != nullptr);
+
+    VariableImpl * newVar = construct(implAllocT<VariableImpl>());
+    newVar->init(this, parent, name, true, VariableType::Undefined, nullptr, 0, nullptr, nullptr);
+    variables.pushBack(newVar);
+
+    return newVar;
 }
 
 Panel * PanelImpl::setPosition(int newPosX, int newPosY)
@@ -746,6 +765,7 @@ GUIImpl::GUIImpl()
 
 GUIImpl::~GUIImpl()
 {
+    GUIImpl::destroyAllPanels();
 }
 
 void GUIImpl::init(const char * myName)

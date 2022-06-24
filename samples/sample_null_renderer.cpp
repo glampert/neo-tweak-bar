@@ -12,8 +12,13 @@
 // ================================================================================================
 
 #include "ntb.hpp"
+
 #include <string>
 #include <cstdio>
+
+#if defined(_MSC_VER) && defined(_DEBUG)
+    #include <crtdbg.h>
+#endif // _MSC_VER && _DEBUG
 
 #if !defined(NEO_TWEAK_BAR_STD_STRING_INTEROP)
     #error "NEO_TWEAK_BAR_STD_STRING_INTEROP is required for this sample!"
@@ -204,6 +209,11 @@ static void c_setVoidPtr(void * /*userData*/, void * const * inPtr)
 
 int main()
 {
+#if defined(_MSC_VER) && defined(_DEBUG)
+    // Memory leak checking when main() return.
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif // _MSC_VER && _DEBUG
+
     MyNTBShellInterfaceNull  shellInterface;
     MyNTBRenderInterfaceNull renderInterface;
 

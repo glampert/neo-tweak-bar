@@ -1,4 +1,4 @@
-
+#pragma once
 // ================================================================================================
 // -*- C++ -*-
 // File: ntb_renderer_gl_legacy.hpp
@@ -13,9 +13,6 @@
 //  then #define NTB_DEFAULT_RENDERER_GL_LEGACY before including the file in a .cpp to enable
 //  the implementation.
 // ================================================================================================
-
-#ifndef NTB_RENDERER_GL_LEGACY_HPP
-#define NTB_RENDERER_GL_LEGACY_HPP
 
 #include "ntb.hpp"
 #include "ntb_utils.hpp"
@@ -168,8 +165,6 @@ inline void RenderInterfaceDefaultGLLegacy::setWindowDimensions(const int w, con
 
 } // namespace ntb {}
 
-// ================== End of header file ==================
-#endif // NTB_RENDERER_GL_LEGACY_HPP
 // ================== End of header file ==================
 
 // ================================================================================================

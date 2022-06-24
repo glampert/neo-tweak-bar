@@ -1,4 +1,4 @@
-
+#pragma once
 // ================================================================================================
 // -*- C++ -*-
 // File: ntb_widgets.hpp
@@ -6,9 +6,6 @@
 // Created on: 25/04/16
 // Brief: Widgets are the back-end UI elements/components of NTB.
 // ================================================================================================
-
-#ifndef NTB_WIDGETS_HPP
-#define NTB_WIDGETS_HPP
 
 #include "ntb_utils.hpp"
 
@@ -288,20 +285,19 @@ public:
         Flag_NoRectShadow            = 1 << 5,
         Flag_NoRectBackground        = 1 << 6,
         Flag_NoRectOutline           = 1 << 7,
-        Flag_NeedDeleting            = 1 << 8,
 
         // Scroll bars only:
-        Flag_InvertMouseScroll       = 1 << 9,
-        Flag_HoldingScrollSlider     = 1 << 10,
+        Flag_InvertMouseScroll       = 1 << 8,
+        Flag_HoldingScrollSlider     = 1 << 9,
 
         // Var display widgets:
-        Flag_WithValueEditButtons    = 1 << 11,
-        Flag_WithEditPopupButton     = 1 << 12,
-        Flag_WithCheckmarkButton     = 1 << 13,
+        Flag_WithValueEditButtons    = 1 << 10,
+        Flag_WithEditPopupButton     = 1 << 11,
+        Flag_WithCheckboxButton      = 1 << 12,
 
         // Windows:
-        Flag_NoResizing              = 1 << 14,
-        Flag_NoInfoBar               = 1 << 15,
+        Flag_NoResizing              = 1 << 13,
+        Flag_NoInfoBar               = 1 << 14,
     };
 
     enum Corner
@@ -373,6 +369,7 @@ public:
     bool isChild(const Widget * widget) const;
     void addChild(Widget * newChild);
     int getChildCount() const;
+    void orphanAllChildren();
 
     // UI/text scaling:
     void setScaling(Float32 s);
@@ -455,7 +452,7 @@ public:
 
     bool getState() const;
     void setState(bool newState);
-    bool isCheckBoxButton() const;
+    bool isCheckboxButton() const;
 
     Icon getIcon() const;
     void setIcon(Icon newIcon);
@@ -849,21 +846,22 @@ public:
     virtual ~VarDisplayWidget();
 
     void init(GUI * myGUI, VarDisplayWidget * myParent, const Rectangle & myRect,
-              bool visible, WindowWidget * myWindow, const char * name, std::uint32_t varWidgetFlags = 0);
+              bool visible, WindowWidget * myWindow, const char * name,
+              std::uint32_t varWidgetFlags = 0, bool checkboxInitialState = false);
 
-    virtual void onDraw(GeometryBatch & geoBatch) const override;
-    virtual void onMove(int displacementX, int displacementY) override;
-    virtual void onResize(int displacementX, int displacementY, Corner corner) override;
+    virtual void onDraw(GeometryBatch & geoBatch) const override final;
+    virtual void onMove(int displacementX, int displacementY) override final;
+    virtual void onResize(int displacementX, int displacementY, Corner corner) override final;
 
-    virtual void onAdjustLayout() override;
-    virtual void onDisableEditing() override;
-    virtual void setVisible(bool visible) override;
+    virtual void onAdjustLayout() override final;
+    virtual void onDisableEditing() override final;
+    virtual void setVisible(bool visible) override final;
 
-    virtual bool onMouseButton(MouseButton button, int clicks) override;
-    virtual bool onMouseMotion(int mx, int my) override;
-    virtual bool onMouseScroll(int yScroll) override;
-    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers) override;
-    virtual bool onButtonDown(ButtonWidget & button) override;
+    virtual bool onMouseButton(MouseButton button, int clicks) override final;
+    virtual bool onMouseMotion(int mx, int my) override final;
+    virtual bool onMouseScroll(int yScroll) override final;
+    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers) override final;
+    virtual bool onButtonDown(ButtonWidget & button) override final;
 
     void setButtonTextScaling(Float32 s);
     int getExpandCollapseButtonSize() const;
@@ -886,27 +884,32 @@ public:
     void setVarName(const char * name);
 
     #if NEO_TWEAK_BAR_DEBUG
-    SmallStr getTypeString() const override;
+    SmallStr getTypeString() const override final;
     #endif // NEO_TWEAK_BAR_DEBUG
 
 protected:
 
-    virtual void drawVarName(GeometryBatch & geoBatch)  const;
-    virtual void drawVarValue(GeometryBatch & geoBatch) const;
-    virtual void drawValueEditButtons(GeometryBatch & geoBatch) const;
+    virtual bool onGetVarValueText(SmallStr &) const { return false; }
+    virtual void onSetVarValueText(const SmallStr &) {}
 
     virtual void onIncrementButton() {}
     virtual void onDecrementButton() {}
     virtual void onEditPopupButton() {}
-    virtual void onCheckmarkButton(bool) {}
+    virtual void onCheckboxButton(bool) {}
 
-    void setHierarchyVisibility(VarDisplayWidget * child, bool visible) const;
     void setExpandCollapseState(bool expanded);
 
-    int getMinDataDisplayRectWidth() const;
-    Rectangle makeDataDisplayAndButtonRects(bool withValueEditButtons, bool withEditPopupButton, bool withCheckmarkButton);
+private:
 
-protected:
+    int getMinDataDisplayRectWidth() const;
+    Rectangle makeDataDisplayAndButtonRects(bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton);
+    void setHierarchyVisibility(VarDisplayWidget* child, bool visible) const;
+
+    void drawVarName(GeometryBatch& geoBatch) const;
+    void drawVarValue(GeometryBatch& geoBatch) const;
+    void drawValueEditButtons(GeometryBatch& geoBatch) const;
+
+private:
 
     // Need the extra reference to the parent window because the
     // 'parent' field of a VarDisplayWidget might be another
@@ -920,7 +923,7 @@ protected:
     Rectangle incrButtonRect;
     Rectangle decrButtonRect;
     Rectangle editPopupButtonRect;
-    Rectangle checkmarkButtonRect;
+    Rectangle checkboxButtonRect;
     Rectangle dataDisplayRect;
     int initialHeight;
     int titleWidth;
@@ -937,11 +940,14 @@ protected:
     // Open edit popup window for colors/vectors/enums.
     mutable ButtonWidget editPopupButton;
 
-    // Boolean variables get a checkmark button.
-    mutable ButtonWidget checkmarkButton;
+    // Boolean variables get a checkbox button.
+    mutable ButtonWidget checkboxButton;
 
     // Mutable because EditField::drawSelf() needs to update some internal state.
     mutable EditField editField;
+
+    // Last value queried form the user variable as text. Updated by drawVarValue().
+    mutable SmallStr cachedValueText;
 
     // Name displayed in the UI.
     // Can contain any ASCII character, including whitespace.
@@ -1238,6 +1244,11 @@ inline int Widget::getChildCount() const
     return children.getSize();
 }
 
+inline void Widget::orphanAllChildren()
+{
+    children.clear();
+}
+
 inline void Widget::setScaling(Float32 s)
 {
     scaling = s;
@@ -1312,7 +1323,7 @@ inline void ButtonWidget::setState(bool newState)
     state = newState;
 }
 
-inline bool ButtonWidget::isCheckBoxButton() const
+inline bool ButtonWidget::isCheckboxButton() const
 {
     return icon == Icon::CheckMark;
 }
@@ -1704,5 +1715,3 @@ inline bool WindowWidget::isResizeable() const
 }
 
 } // namespace ntb {}
-
-#endif // NTB_WIDGETS_HPP

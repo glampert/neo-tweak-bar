@@ -1,4 +1,4 @@
-
+#pragma once
 // ================================================================================================
 // -*- C++ -*-
 // File: ntb_impl.hpp
@@ -6,9 +6,6 @@
 // Created on: 26/09/16
 // Brief: Private implementations for the public NTB interfaces.
 // ================================================================================================
-
-#ifndef NTB_IMPL_HPP
-#define NTB_IMPL_HPP
 
 #include "ntb.hpp"
 #include "ntb_utils.hpp"
@@ -49,17 +46,21 @@ public:
     const Panel * getPanel() const override;
     Panel * getPanel() override;
 
+    Variable * collapseHierarchy() override;
+    Variable * expandHierarchy() override;
+
 protected:
 
     bool isNumberVar() const;
     bool isEditPopupVar() const;
-    template<typename OP> void ApplyVarOp(OP op);
+    template<typename OP> void ApplyNumberVarOp(OP op);
 
     // VarDisplayWidget overrides:
-    void drawVarValue(GeometryBatch & geoBatch) const override;
+    bool onGetVarValueText(SmallStr & valueText) const override;
+    void onSetVarValueText(const SmallStr & valueText) override;
     void onIncrementButton() override;
     void onDecrementButton() override;
-    void onCheckmarkButton(bool state) override;
+    void onCheckboxButton(bool state) override;
 
 private:
 
@@ -195,5 +196,3 @@ private:
 };
 
 } // namespace ntb {}
-
-#endif // NTB_IMPL_HPP

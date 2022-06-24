@@ -20,6 +20,10 @@
 #include <string>
 #include <cstdlib>
 
+#if defined(_MSC_VER) && defined(_DEBUG)
+    #include <crtdbg.h>
+#endif // _MSC_VER && _DEBUG
+
 #if !defined(NEO_TWEAK_BAR_STD_STRING_INTEROP)
     #error "NEO_TWEAK_BAR_STD_STRING_INTEROP is required for this sample!"
 #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
@@ -91,6 +95,11 @@ bool MyButtonEventListener::onButtonDown(ntb::ButtonWidget & button)
 
 int main(const int argc, const char * argv[])
 {
+#if defined(_MSC_VER) && defined(_DEBUG)
+    // Memory leak checking when main() return.
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif // _MSC_VER && _DEBUG
+
     AppContext ctx;
     if (!appInit(argc, argv, "NTB Widgets Test", 1024, 768, &ctx))
     {
@@ -103,6 +112,7 @@ int main(const int argc, const char * argv[])
         bool done = false;
         ntb::GeometryBatch geoBatch;
         ntb::PODArray widgets{ sizeof(ntb::Widget *) };
+        ntb::PODArray variables{ sizeof(ntb::VarDisplayWidget *) };
         ntb::GUI * gui = ntb::createGUI("Sample GUI");
 
         // Basic blank widget:
@@ -250,16 +260,19 @@ int main(const int argc, const char * argv[])
             var0->init(gui, nullptr, rect, true, varWindow, "Var 0");
             var0->setTextScaling(1.5f);
             var0->setButtonTextScaling(1.5f);
+            variables.pushBack(var0);
 
             auto var1 = new ntb::VarDisplayWidget{};
             rect.set(varStartX, y, varStartX + varWidth, y + varHeight); y += varHeight + varOffsY;
             var1->init(gui, var0, rect, true, varWindow, "Var 1");
             var1->setTextScaling(1.5f);
+            variables.pushBack(var1);
 
             auto var2 = new ntb::VarDisplayWidget{};
             rect.set(varStartX, y, varStartX + varWidth, y + varHeight); y += varHeight + varOffsY;
             var2->init(gui, var0, rect, true, varWindow, "Var 2");
             var2->setTextScaling(1.5f);
+            variables.pushBack(var2);
 
             // Change sizes so child vars look nested under the parent
             int cX = varStartX + var0->getExpandCollapseButtonSize();
@@ -270,11 +283,13 @@ int main(const int argc, const char * argv[])
             var3->init(gui, var0, rect, true, varWindow, "Var 3");
             var3->setTextScaling(1.5f);
             var3->setButtonTextScaling(1.5f);
+            variables.pushBack(var3);
 
             auto var4 = new ntb::VarDisplayWidget{};
             rect.set(cX, y, cX + cW, y + varHeight); y += varHeight + varOffsY;
             var4->init(gui, var3, rect, true, varWindow, "Var 4");
             var4->setTextScaling(1.5f);
+            variables.pushBack(var4);
 
             cX += var0->getExpandCollapseButtonSize();
             cW -= var0->getExpandCollapseButtonSize();
@@ -284,16 +299,19 @@ int main(const int argc, const char * argv[])
             var5->init(gui, var3, rect, true, varWindow, "Var 5");
             var5->setTextScaling(1.5f);
             var5->setButtonTextScaling(1.5f);
+            variables.pushBack(var5);
 
             auto var6 = new ntb::VarDisplayWidget{};
             rect.set(cX, y, cX + cW, y + varHeight); y += varHeight + varOffsY;
             var6->init(gui, var5, rect, true, varWindow, "Var 6");
             var6->setTextScaling(1.5f);
+            variables.pushBack(var6);
 
             auto var7 = new ntb::VarDisplayWidget{};
             rect.set(cX, y, cX + cW, y + varHeight); y += varHeight + varOffsY;
             var7->init(gui, var5, rect, true, varWindow, "Var 7");
             var7->setTextScaling(1.5f);
+            variables.pushBack(var7);
 
             #if NEO_TWEAK_BAR_DEBUG
             varWindow->printHierarchy();
@@ -368,6 +386,14 @@ int main(const int argc, const char * argv[])
             geoBatch.endDraw();
             ctx.framePresent(&ctx);
         }
+
+        // Cleanup:
+        variables.forEach<ntb::VarDisplayWidget *>(
+            [](ntb::VarDisplayWidget * var, void * /*unused*/)
+            {
+                delete var;
+                return true;
+            }, nullptr);
 
         widgets.forEach<ntb::Widget *>(
             [](ntb::Widget * widget, void * /*unused*/)
