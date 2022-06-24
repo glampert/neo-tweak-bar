@@ -219,6 +219,7 @@ public:
     std::uint8_t  shouldDrawCursor : 1; // "Ping Pong" flag to switch cursor draw between frames
     std::uint8_t  endKeySel        : 1; // Set when [SHIFT]+[END]  is hit to select all the way to the end
     std::uint8_t  homeKeySel       : 1; // Set when [SHIFT]+[HOME] is hit to select all the way to the beginning
+    std::uint8_t  isVisisble       : 1;
 
     // Cursor bar draw once every this many milliseconds.
     static constexpr std::int64_t CursorBlinkIntervalMs = 500;
@@ -295,8 +296,8 @@ public:
 
         // Var display widgets:
         Flag_WithValueEditButtons    = 1 << 11,
-        Flag_ValueEditButtonsEnabled = 1 << 12,
-        Flag_ValueClickAndHold       = 1 << 13,
+        Flag_WithEditPopupButton     = 1 << 12,
+        Flag_WithCheckmarkButton     = 1 << 13,
 
         // Windows:
         Flag_NoResizing              = 1 << 14,
@@ -446,7 +447,7 @@ public:
 
     ButtonWidget();
     void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
-              Icon myIcon, EventListener * myListener = nullptr);
+              Icon myIcon, EventListener * myListener = nullptr, bool isValueEditButton = false);
 
     void onDraw(GeometryBatch & geoBatch) const override;
     bool onMouseButton(MouseButton button, int clicks) override;
@@ -472,6 +473,7 @@ private:
     EventListener * eventListener; // Not owned by the button.
     Icon            icon;          // Button type and visuals.
     bool            state;         // Flipped at each click event. Starts as false.
+    bool            valueEditButton;
 };
 
 // ========================================================
@@ -847,7 +849,7 @@ public:
     virtual ~VarDisplayWidget();
 
     void init(GUI * myGUI, VarDisplayWidget * myParent, const Rectangle & myRect,
-              bool visible, WindowWidget * myWindow, const char * name);
+              bool visible, WindowWidget * myWindow, const char * name, std::uint32_t varWidgetFlags = 0);
 
     virtual void onDraw(GeometryBatch & geoBatch) const override;
     virtual void onMove(int displacementX, int displacementY) override;
@@ -883,8 +885,6 @@ public:
     void setVarName(const SmallStr & name);
     void setVarName(const char * name);
 
-    EditField & getEditField() const { return editField; }
-
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const override;
     #endif // NEO_TWEAK_BAR_DEBUG
@@ -892,18 +892,21 @@ public:
 protected:
 
     virtual void drawVarName(GeometryBatch & geoBatch)  const;
-    virtual void drawVarValue(GeometryBatch & geoBatch) const; // Unimplemented in the base
+    virtual void drawVarValue(GeometryBatch & geoBatch) const;
     virtual void drawValueEditButtons(GeometryBatch & geoBatch) const;
 
-private:
+    virtual void onIncrementButton() {}
+    virtual void onDecrementButton() {}
+    virtual void onEditPopupButton() {}
+    virtual void onCheckmarkButton(bool) {}
 
     void setHierarchyVisibility(VarDisplayWidget * child, bool visible) const;
     void setExpandCollapseState(bool expanded);
 
     int getMinDataDisplayRectWidth() const;
-    Rectangle makeDataDisplayAndButtonRects(bool editButtons);
+    Rectangle makeDataDisplayAndButtonRects(bool withValueEditButtons, bool withEditPopupButton, bool withCheckmarkButton);
 
-private:
+protected:
 
     // Need the extra reference to the parent window because the
     // 'parent' field of a VarDisplayWidget might be another
@@ -914,16 +917,28 @@ private:
     Color32 customTextColor;
 
     // Cached rectangles:
-    Rectangle incrButton;
-    Rectangle decrButton;
-    Rectangle editPopupButton;
+    Rectangle incrButtonRect;
+    Rectangle decrButtonRect;
+    Rectangle editPopupButtonRect;
+    Rectangle checkmarkButtonRect;
     Rectangle dataDisplayRect;
     int initialHeight;
+    int titleWidth;
 
     // Button state true if hierarchy open, false if collapsed.
     // Note that the button will be made a child of the parent widget (Window), so the
     // VarDisplayWidget::children list only containers nested child VarDisplayWidgets.
     mutable ButtonWidget expandCollapseButton;
+
+    // [+][-] edit buttons for numbers.
+    mutable ButtonWidget incrButton;
+    mutable ButtonWidget decrButton;
+
+    // Open edit popup window for colors/vectors/enums.
+    mutable ButtonWidget editPopupButton;
+
+    // Boolean variables get a checkmark button.
+    mutable ButtonWidget checkmarkButton;
 
     // Mutable because EditField::drawSelf() needs to update some internal state.
     mutable EditField editField;
@@ -1166,6 +1181,7 @@ inline void Widget::setColors(const ColorScheme * newColors)
 inline void Widget::setRect(const Rectangle & newRect)
 {
     rect = newRect;
+    onAdjustLayout();
 }
 
 inline const ColorScheme & Widget::getColors() const
@@ -1605,6 +1621,7 @@ inline const SmallStr & VarDisplayWidget::getVarName() const
 inline void VarDisplayWidget::setVarName(const SmallStr & name)
 {
     varName = name;
+    titleWidth = (int)GeometryBatch::calcTextWidth(varName.c_str(), varName.getLength(), gui->getGlobalTextScaling());
 }
 
 inline void VarDisplayWidget::setVarName(const char * name)

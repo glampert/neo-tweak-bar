@@ -51,15 +51,21 @@ public:
 
 protected:
 
+    bool isNumberVar() const;
+    bool isEditPopupVar() const;
+    template<typename OP> void ApplyVarOp(OP op);
+
     // VarDisplayWidget overrides:
     void drawVarValue(GeometryBatch & geoBatch) const override;
+    void onIncrementButton() override;
+    void onDecrementButton() override;
+    void onCheckmarkButton(bool state) override;
 
 private:
 
     PanelImpl *          panel{ nullptr };
     std::uint32_t        hashCode{ 0 };
     bool                 readOnly{ false };
-    int                  titleWidth{ 0 };
     int                  elementCount{ 0 };
     VariableType         varType{ VariableType::Undefined };
     void               * varData{ nullptr };

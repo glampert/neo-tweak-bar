@@ -729,6 +729,7 @@ void EditField::reset()
     shouldDrawCursor   = false;
     endKeySel          = false;
     homeKeySel         = false;
+    isVisisble         = false;
 
     cursorRect.setZero();
     prevCursorRect.setZero();
@@ -792,10 +793,11 @@ void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const c
     textLength = inTextLength;
 
     // Background text-box:
-    displayBox = displayBox.shrunk(Widget::uiScaleBy(1, uiScaling), Widget::uiScaleBy(1, uiScaling));
+    const auto bgBox = displayBox.shrunk(Widget::uiScaleBy(1, uiScaling), Widget::uiScaleBy(1, uiScaling));
     if (bgColor != 0)
     {
-        geoBatch.drawRectFilled(displayBox, (isActive ? lighthenRGB(bgColor, 40) : bgColor));
+        geoBatch.drawRectFilled(bgBox, (isActive ? lighthenRGB(bgColor, 40) : bgColor));
+        geoBatch.drawRectOutline(bgBox, darkenRGB(bgColor, 50));
     }
 
     // Active means mouse click on the EditField.
@@ -836,8 +838,14 @@ void EditField::drawSelf(GeometryBatch & geoBatch, Rectangle displayBox, const c
     // The text string itself (centered in the box):
     const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
     const Float32 boxMid = displayBox.getHeight() * 0.5f;
-    displayBox.moveBy(0, boxMid - chrMid);
+    displayBox.moveBy(Widget::uiScaleBy(4, uiScaling), boxMid - chrMid);
     geoBatch.drawTextConstrained(inText, inTextLength, displayBox, displayBox, textScaling, textColor, TextAlign::Left);
+
+    // Outline
+    if (bgColor != 0)
+    {
+        geoBatch.drawRectOutline(bgBox, darkenRGB(bgColor, 50));
+    }
 }
 
 EditField::EditCommand EditField::handleSpecialKey(const Rectangle & displayBox, KeyCode key, KeyModFlags modifiers,
@@ -1469,17 +1477,17 @@ void Widget::setMouseDragEnabled(bool enabled)
 void Widget::setNormalColors()
 {
     // TODO: This is temporary for testing only. User should set this instead.
-    static const ColorScheme test_colors_normal = {
+    static const ColorScheme defaultColorsNormal = {
         // box
         {
         packColor(100, 100, 100, 255),
         packColor(100, 100, 100, 255),
         packColor(100, 100, 100, 255),
         packColor(100, 100, 100, 255),
-        packColor(000, 000, 000, 255), //top
-        packColor(000, 000, 000, 255), //bottom
-        packColor(80, 80, 80, 255),    //left
-        packColor(000, 000, 000, 255), //right
+        packColor(0,   0,   0,   255), // top
+        packColor(0,   0,   0,   255), // bottom
+        packColor(80,  80,  80,  255), // left
+        packColor(0,   0,   0,   255), // right
         },
         // shadow
         {
@@ -1503,11 +1511,11 @@ void Widget::setNormalColors()
         packColor(180, 180, 180),
         },
 
-        //checkmark
+        // checkmark
         packColor(0, 255, 0),
         packColor(255, 255, 255, 255),
 
-        //scrollbar line
+        // scrollbar line
         packColor(50, 50, 50),
         packColor(80, 80, 80),
 
@@ -1516,26 +1524,26 @@ void Widget::setNormalColors()
         packColor(255, 255, 0),
         packColor(0, 128, 128),
 
-        //resizeHandle
+        // resizeHandle
         packColor(255, 255, 255),
     };
-    colors = &test_colors_normal;
+    colors = &defaultColorsNormal;
 }
 
 void Widget::setHighlightedColors()
 {
     // TODO: This is temporary for testing only. User should set this instead.
-    static const ColorScheme test_colors_mousehover = {
+    static const ColorScheme defaultColorsMouseHover = {
         // box
         {
         packColor(110, 110, 110, 255),
         packColor(110, 110, 110, 255),
         packColor(110, 110, 110, 255),
         packColor(110, 110, 110, 255),
-        packColor(000, 000, 000, 255), //top
-        packColor(000, 000, 000, 255), //bottom
-        packColor(80,  80,  80,  255), //left
-        packColor(000, 000, 000, 255), //right
+        packColor(0,   0,   0,   255), // top
+        packColor(0,   0,   0,   255), // bottom
+        packColor(80,  80,  80,  255), // left
+        packColor(0,   0,   0,   255), // right
         },
         // shadow
         {
@@ -1559,11 +1567,11 @@ void Widget::setHighlightedColors()
         packColor(180, 180, 180),
         },
 
-        //checkmark
+        // checkmark
         packColor(0, 255, 0),
         packColor(255, 255, 255, 255),
 
-        //scrollbar line
+        // scrollbar line
         packColor(50, 50, 50),
         packColor(80, 80, 80),
 
@@ -1572,10 +1580,10 @@ void Widget::setHighlightedColors()
         packColor(255, 255, 0),
         packColor(0, 128, 128),
 
-        //resizeHandle
+        // resizeHandle
         packColor(255, 255, 255),
     };
-    colors = &test_colors_mousehover;
+    colors = &defaultColorsMouseHover;
 }
 
 bool Widget::isChild(const Widget * widget) const
@@ -1667,15 +1675,17 @@ ButtonWidget::ButtonWidget()
     : eventListener(nullptr)
     , icon(Icon::None)
     , state(false)
+    , valueEditButton(false)
 {
 }
 
 void ButtonWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
-                        Icon myIcon, EventListener * myListener)
+                        Icon myIcon, EventListener * myListener, bool isValueEditButton)
 {
     Widget::init(myGUI, myParent, myRect, visible);
     eventListener = myListener;
     icon = myIcon;
+    valueEditButton = isValueEditButton;
 }
 
 void ButtonWidget::onDraw(GeometryBatch & geoBatch) const
@@ -1727,20 +1737,23 @@ void ButtonWidget::onDraw(GeometryBatch & geoBatch) const
             "«", // DblLeftArrow
             "»", // DblRightArrow
             "?", // QuestionMark
-            "-"  // CheckMark (unselected)
+            ""   // CheckMark (unselected)
         };
         static_assert(lengthOfArray(buttonIcons) == static_cast<int>(Icon::Count),
                       "Keep size in sync with Icon enum declaration!");
 
-        Rectangle charBox{ rect };
+        if (!isCheckBoxButton())
+        {
+            Rectangle charBox{ rect };
 
-        // Top/center offset
-        const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
-        const Float32 boxMid = charBox.getHeight() * 0.5f;
-        charBox.moveBy(0, boxMid - chrMid);
+            // Top/center offset
+            const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+            const Float32 boxMid = charBox.getHeight() * 0.5f;
+            charBox.moveBy(0, boxMid - chrMid);
 
-        geoBatch.drawTextConstrained(buttonIcons[static_cast<int>(icon)], 1, charBox, charBox,
-                                     textScaling, getColors().text.normal, TextAlign::Center);
+            geoBatch.drawTextConstrained(buttonIcons[static_cast<int>(icon)], 1, charBox, charBox,
+                                         textScaling, getColors().text.normal, TextAlign::Center);
+        }
 
         // Still draw the border for an unselected check box.
         if (isCheckBoxButton() && getColors().checkBoxBorder != 0)
@@ -1780,27 +1793,54 @@ bool ButtonWidget::onMouseButton(MouseButton button, int clicks)
 
 void ButtonWidget::onResize(int displacementX, int displacementY, Corner corner)
 {
-    switch (corner)
+    if (valueEditButton)
     {
-    case TopLeft:
-        rect.moveBy(displacementX, displacementY);
-        break;
+        switch (corner)
+        {
+        case TopLeft:
+            rect.moveBy(0, displacementY);
+            break;
 
-    case BottomLeft:
-        rect.moveBy(displacementX, 0);
-        break;
+        case BottomLeft:
+            break;
 
-    case TopRight:
-        rect.moveBy(0, displacementY);
-        break;
+        case TopRight:
+            rect.moveBy(displacementX, displacementY);
+            break;
 
-    case BottomRight:
-        break;
+        case BottomRight:
+            rect.moveBy(displacementX, 0);
+            break;
 
-    default:
-        errorF("Bad corner enum in ButtonWidget!");
-        break;
-    } // switch (corner)
+        default:
+            errorF("Bad corner enum in ButtonWidget!");
+            break;
+        } // switch (corner)
+    }
+    else
+    {
+        switch (corner)
+        {
+        case TopLeft:
+            rect.moveBy(displacementX, displacementY);
+            break;
+
+        case BottomLeft:
+            rect.moveBy(displacementX, 0);
+            break;
+
+        case TopRight:
+            rect.moveBy(0, displacementY);
+            break;
+
+        case BottomRight:
+            break;
+
+        default:
+            errorF("Bad corner enum in ButtonWidget!");
+            break;
+        } // switch (corner)
+    }
 }
 
 // ========================================================
@@ -3401,10 +3441,12 @@ VarDisplayWidget::VarDisplayWidget()
     : parentWindow(nullptr)
     , customTextColor(0)
     , initialHeight(0)
+    , titleWidth(0)
 {
-    incrButton.setZero();
-    decrButton.setZero();
-    editPopupButton.setZero();
+    incrButtonRect.setZero();
+    decrButtonRect.setZero();
+    editPopupButtonRect.setZero();
+    checkmarkButtonRect.setZero();
     dataDisplayRect.setZero();
 }
 
@@ -3418,17 +3460,19 @@ VarDisplayWidget::~VarDisplayWidget()
 }
 
 void VarDisplayWidget::init(GUI * myGUI, VarDisplayWidget * myParent, const Rectangle & myRect,
-                            bool visible, WindowWidget * myWindow, const char * name)
+                            bool visible, WindowWidget * myWindow, const char * name, std::uint32_t varWidgetFlags)
 {
     auto parentWidget = (myParent != nullptr) ? static_cast<Widget *>(myParent) : static_cast<Widget *>(myWindow);
     Widget::init(myGUI, parentWidget, myRect, visible);
 
+    flags |= varWidgetFlags;
     parentWindow  = myWindow;
     initialHeight = myRect.getHeight();
 
     if (name != nullptr && *name != '\0')
     {
         varName = name;
+        titleWidth = (int)GeometryBatch::calcTextWidth(varName.c_str(), varName.getLength(), myGUI->getGlobalTextScaling());
     }
 
     if (myParent != nullptr)
@@ -3443,7 +3487,32 @@ void VarDisplayWidget::init(GUI * myGUI, VarDisplayWidget * myParent, const Rect
         myWindow->addChild(this);
     }
 
-    dataDisplayRect = makeDataDisplayAndButtonRects(false);
+    const bool withValueEditButtons = testFlag(Flag_WithValueEditButtons);
+    const bool withEditPopupButton  = testFlag(Flag_WithEditPopupButton);
+    const bool withCheckmarkButton  = testFlag(Flag_WithCheckmarkButton);
+    dataDisplayRect = makeDataDisplayAndButtonRects(withValueEditButtons, withEditPopupButton, withCheckmarkButton);
+
+    if (withValueEditButtons)
+    {
+        // NOTE: Parented to the window - VarWidget children are other nested vars only.
+        incrButton.init(myGUI, myWindow, incrButtonRect, withValueEditButtons, ButtonWidget::Icon::Plus,  this, true);
+        incrButton.setFlag(Flag_NoRectShadow, true);
+
+        decrButton.init(myGUI, myWindow, decrButtonRect, withValueEditButtons, ButtonWidget::Icon::Minus, this, true);
+        decrButton.setFlag(Flag_NoRectShadow, true);
+    }
+
+    if (withEditPopupButton)
+    {
+        editPopupButton.init(myGUI, myWindow, editPopupButtonRect, withEditPopupButton, ButtonWidget::Icon::DblRightArrow, this, true);
+        editPopupButton.setFlag(Flag_NoRectShadow, true);
+    }
+
+    if (withCheckmarkButton)
+    {
+        checkmarkButton.init(myGUI, myWindow, checkmarkButtonRect, withEditPopupButton, ButtonWidget::Icon::CheckMark, this, true);
+        checkmarkButton.setFlag(Flag_NoRectShadow, true);
+    }
 
     if (parentWindow != nullptr)
     {
@@ -3472,11 +3541,41 @@ void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
 
         if (!shouldDraw)
         {
+            editField.isVisisble = false;
             expandCollapseButton.setVisible(false);
+            incrButton.setVisible(false);
+            decrButton.setVisible(false);
+            editPopupButton.setVisible(false);
+            checkmarkButton.setVisible(false);
             return;
         }
         else
         {
+            // EditField and editor buttons might be fully clipped out.
+            bool shouldDrawEditField = true;
+            if (parentWindow != nullptr)
+            {
+                const Rectangle parentRect = parentWindow->getUsableRect();
+                if (dataDisplayRect.xMins > dataDisplayRect.xMaxs)
+                {
+                    shouldDrawEditField = false;
+                }
+                else if (dataDisplayRect.xMins > parentRect.xMaxs || dataDisplayRect.xMaxs < parentRect.xMins)
+                {
+                    shouldDrawEditField = false;
+                }
+                else if (dataDisplayRect.yMins > parentRect.yMaxs || dataDisplayRect.yMaxs < parentRect.yMins || dataDisplayRect.yMaxs > parentRect.yMaxs)
+                {
+                    shouldDrawEditField = false;
+                }
+            }
+
+            editField.isVisisble = shouldDrawEditField;
+            incrButton.setVisible(shouldDrawEditField);
+            decrButton.setVisible(shouldDrawEditField);
+            editPopupButton.setVisible(shouldDrawEditField);
+            checkmarkButton.setVisible(shouldDrawEditField);
+
             expandCollapseButton.setVisible(true);
         }
 
@@ -3514,45 +3613,117 @@ void VarDisplayWidget::drawVarValue(GeometryBatch & /*geoBatch*/) const
     // Unimplemented in the base class.
 }
 
-void VarDisplayWidget::drawValueEditButtons(GeometryBatch & /*geoBatch*/) const
+void VarDisplayWidget::drawValueEditButtons(GeometryBatch & geoBatch) const
 {
-    // Unimplemented in the base class.
+    incrButton.onDraw(geoBatch);
+    decrButton.onDraw(geoBatch);
+    editPopupButton.onDraw(geoBatch);
+    checkmarkButton.onDraw(geoBatch);
 }
 
 void VarDisplayWidget::onMove(int displacementX, int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
 
-    incrButton.moveBy(displacementX, displacementY);
-    decrButton.moveBy(displacementX, displacementY);
-    editPopupButton.moveBy(displacementX, displacementY);
+    incrButtonRect.moveBy(displacementX, displacementY);
+    decrButtonRect.moveBy(displacementX, displacementY);
+    editPopupButtonRect.moveBy(displacementX, displacementY);
+    checkmarkButtonRect.moveBy(displacementX, displacementY);
     dataDisplayRect.moveBy(displacementX, displacementY);
+
+    if (testFlag(Flag_WithValueEditButtons))
+    {
+        incrButton.onMove(displacementX, displacementY);
+        decrButton.onMove(displacementX, displacementY);
+    }
+
+    if (testFlag(Flag_WithEditPopupButton))
+    {
+        editPopupButton.onMove(displacementX, displacementY);
+    }
+
+    if (testFlag(Flag_WithCheckmarkButton))
+    {
+        checkmarkButton.onMove(displacementX, displacementY);
+    }
 }
 
 void VarDisplayWidget::onResize(int displacementX, int displacementY, Corner corner)
 {
+    const int originalDataRectHeight        = dataDisplayRect.getHeight();
+    const int originalButtonHeight          = editPopupButtonRect.getHeight();
+    const int originalCheckmarkButtonHeight = checkmarkButtonRect.getHeight();
+
     switch (corner)
     {
     case TopLeft :
         rect.xMins += displacementX;
         rect.yMins += displacementY;
         rect.yMaxs = rect.yMins + initialHeight;
+
         dataDisplayRect.xMins += displacementX;
+        dataDisplayRect.yMins += displacementY;
+        dataDisplayRect.yMaxs = dataDisplayRect.yMins + originalDataRectHeight;
+
+        incrButtonRect.xMins += displacementX;
+        incrButtonRect.yMins += displacementY;
+        incrButtonRect.yMaxs = incrButtonRect.yMins + originalButtonHeight;
+
+        decrButtonRect.xMins += displacementX;
+        decrButtonRect.yMins += displacementY;
+        decrButtonRect.yMaxs = decrButtonRect.yMins + originalButtonHeight;
+
+        editPopupButtonRect.xMins += displacementX;
+        editPopupButtonRect.yMins += displacementY;
+        editPopupButtonRect.yMaxs = editPopupButtonRect.yMins + originalButtonHeight;
+
+        checkmarkButtonRect.xMins += displacementX;
+        checkmarkButtonRect.yMins += displacementY;
+        checkmarkButtonRect.yMaxs = checkmarkButtonRect.yMins + originalCheckmarkButtonHeight;
         break;
 
     case BottomLeft :
         rect.xMins += displacementX;
         dataDisplayRect.xMins += displacementX;
+        incrButtonRect.xMins += displacementX;
+        decrButtonRect.xMins += displacementX;
+        editPopupButtonRect.xMins += displacementX;
+        checkmarkButtonRect.xMins += displacementX;
         break;
 
     case TopRight :
         rect.xMaxs += displacementX;
         rect.yMins += displacementY;
         rect.yMaxs = rect.yMins + initialHeight;
+
+        dataDisplayRect.xMaxs += displacementX;
+        dataDisplayRect.yMins += displacementY;
+        dataDisplayRect.yMaxs = dataDisplayRect.yMins + originalDataRectHeight;
+
+        incrButtonRect.xMaxs += displacementX;
+        incrButtonRect.yMins += displacementY;
+        incrButtonRect.yMaxs = incrButtonRect.yMins + originalButtonHeight;
+
+        decrButtonRect.xMaxs += displacementX;
+        decrButtonRect.yMins += displacementY;
+        decrButtonRect.yMaxs = decrButtonRect.yMins + originalButtonHeight;
+
+        editPopupButtonRect.xMaxs += displacementX;
+        editPopupButtonRect.yMins += displacementY;
+        editPopupButtonRect.yMaxs = editPopupButtonRect.yMins + originalButtonHeight;
+
+        checkmarkButtonRect.xMaxs += displacementX;
+        checkmarkButtonRect.yMins += displacementY;
+        checkmarkButtonRect.yMaxs = checkmarkButtonRect.yMins + originalCheckmarkButtonHeight;
         break;
 
     case BottomRight :
         rect.xMaxs += displacementX;
+        dataDisplayRect.xMaxs += displacementX;
+        incrButtonRect.xMaxs += displacementX;
+        decrButtonRect.xMaxs += displacementX;
+        editPopupButtonRect.xMaxs += displacementX;
+        checkmarkButtonRect.xMaxs += displacementX;
         break;
 
     default :
@@ -3566,38 +3737,30 @@ void VarDisplayWidget::onResize(int displacementX, int displacementY, Corner cor
     {
         getChild(c)->onResize(displacementX, displacementY, corner);
     }
+
+    if (testFlag(Flag_WithValueEditButtons))
+    {
+        incrButton.onResize(displacementX, displacementY, corner);
+        decrButton.onResize(displacementX, displacementY, corner);
+    }
+
+    if (testFlag(Flag_WithEditPopupButton))
+    {
+        editPopupButton.onResize(displacementX, displacementY, corner);
+    }
+
+    if (testFlag(Flag_WithCheckmarkButton))
+    {
+        checkmarkButton.onResize(displacementX, displacementY, corner);
+    }
 }
 
 void VarDisplayWidget::onAdjustLayout()
 {
-    dataDisplayRect = makeDataDisplayAndButtonRects(testFlag(Flag_ValueEditButtonsEnabled));
-
-    // Only if edit buttons are allowed for this variable type.
-    if (testFlag(Flag_WithValueEditButtons))
-    {
-        // See if we need to disable the value edit buttons and reset the data display rect:
-        if (dataDisplayRect.getWidth() <= getMinDataDisplayRectWidth())
-        {
-            setFlag(Flag_ValueEditButtonsEnabled, false);
-            dataDisplayRect = makeDataDisplayAndButtonRects(false);
-        }
-        // Or if the width is now big enough, restore the buttons:
-        else if (!testFlag(Flag_ValueEditButtonsEnabled))
-        {
-            setFlag(Flag_ValueEditButtonsEnabled, true);
-            const Rectangle newRect = makeDataDisplayAndButtonRects(true);
-
-            // If re-enabling the buttons violates the min width. Don't do it.
-            if (newRect.getWidth() <= getMinDataDisplayRectWidth())
-            {
-                setFlag(Flag_ValueEditButtonsEnabled, false);
-            }
-            else
-            {
-                dataDisplayRect = newRect;
-            }
-        }
-    }
+    const bool withValueEditButtons = testFlag(Flag_WithValueEditButtons);
+    const bool withEditPopupButton  = testFlag(Flag_WithEditPopupButton);
+    const bool withCheckmarkButton  = testFlag(Flag_WithCheckmarkButton);
+    dataDisplayRect = makeDataDisplayAndButtonRects(withValueEditButtons, withEditPopupButton, withCheckmarkButton);
 
     // This button is only present on variable hierarchies.
     if (hasExpandCollapseButton())
@@ -3608,7 +3771,7 @@ void VarDisplayWidget::onAdjustLayout()
 
 void VarDisplayWidget::onDisableEditing()
 {
-    // Sine we have EditFields, do nothing.
+    // Since we have EditFields, do nothing.
     // Only WindowWidgets should handle this event.
 }
 
@@ -3620,14 +3783,48 @@ void VarDisplayWidget::setVisible(bool visible)
 
 bool VarDisplayWidget::onMouseButton(MouseButton button, int clicks)
 {
-    // TODO
-    return Widget::onMouseButton(button, clicks);
+    bool isMouseIntersecting = Widget::onMouseButton(button, clicks);
+
+    if (testFlag(Flag_WithValueEditButtons))
+    {
+        isMouseIntersecting |= incrButton.onMouseButton(button, clicks);
+        isMouseIntersecting |= decrButton.onMouseButton(button, clicks);
+    }
+
+    if (testFlag(Flag_WithEditPopupButton))
+    {
+        isMouseIntersecting |= editPopupButton.onMouseButton(button, clicks);
+    }
+
+    if (testFlag(Flag_WithCheckmarkButton))
+    {
+        isMouseIntersecting |= checkmarkButton.onMouseButton(button, clicks);
+    }
+
+    return isMouseIntersecting;
 }
 
 bool VarDisplayWidget::onMouseMotion(int mx, int my)
 {
-    // TODO
-    return Widget::onMouseMotion(mx, my);
+    bool isMouseIntersecting = Widget::onMouseMotion(mx, my);
+
+    if (testFlag(Flag_WithValueEditButtons))
+    {
+        isMouseIntersecting |= incrButton.onMouseMotion(mx, my);
+        isMouseIntersecting |= decrButton.onMouseMotion(mx, my);
+    }
+
+    if (testFlag(Flag_WithEditPopupButton))
+    {
+        isMouseIntersecting |= editPopupButton.onMouseMotion(mx, my);
+    }
+
+    if (testFlag(Flag_WithCheckmarkButton))
+    {
+        isMouseIntersecting |= checkmarkButton.onMouseMotion(mx, my);
+    }
+
+    return isMouseIntersecting;
 }
 
 bool VarDisplayWidget::onMouseScroll(int yScroll)
@@ -3649,6 +3846,39 @@ bool VarDisplayWidget::onButtonDown(ButtonWidget & button)
         setExpandCollapseState(expandCollapseButton.getState());
         return true;
     }
+
+    if (testFlag(Flag_WithValueEditButtons))
+    {
+        if (&button == &incrButton)
+        {
+            onIncrementButton();
+            return true;
+        }
+        else if (&button == &decrButton)
+        {
+            onDecrementButton();
+            return true;
+        }
+    }
+
+    if (testFlag(Flag_WithEditPopupButton))
+    {
+        if (&button == &editPopupButton)
+        {
+            onEditPopupButton();
+            return true;
+        }
+    }
+
+    if (testFlag(Flag_WithCheckmarkButton))
+    {
+        if (&button == &checkmarkButton)
+        {
+            onCheckmarkButton(checkmarkButton.getState());
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -3716,35 +3946,75 @@ int VarDisplayWidget::getMinDataDisplayRectWidth() const
     return (GeometryBatch::getCharWidth() * 3 * textScaling) + Widget::uiScaled(4);
 }
 
-Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(bool editButtons)
+Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(bool withValueEditButtons, bool withEditPopupButton, bool withCheckmarkButton)
 {
-    const int buttonWidth = Widget::uiScaled(8);
-    int xMins = rect.xMins + (rect.getWidth() / 2) + Widget::uiScaled(10);
-    int yMins = rect.yMins;
-    int xMaxs = rect.xMaxs;
-    int yMaxs = rect.yMaxs;
+    const int borderOffset = Widget::uiScaled(2);
+    int xMins, yMins, xMaxs, yMaxs;
 
-    // The offsets are really just one pixel, I didn't forget to use uiScaled()!
-    editPopupButton.xMins = xMaxs - buttonWidth;
-    editPopupButton.yMins = yMins + 1;
-    editPopupButton.xMaxs = xMaxs - 1;
-    editPopupButton.yMaxs = yMaxs - 1;
-
-    decrButton = editPopupButton;
-    decrButton.xMins -= buttonWidth + 1;
-    decrButton.xMaxs -= buttonWidth + 1;
-
-    incrButton = decrButton;
-    incrButton.xMins -= buttonWidth + 1;
-    incrButton.xMaxs -= buttonWidth + 1;
-
-    if (editButtons)
+    if (withCheckmarkButton)
     {
-        const int buttonsWidthTotal = incrButton.getWidth() +
-                                      decrButton.getWidth() +
-                                      editPopupButton.getWidth();
-        xMaxs -= buttonsWidthTotal;
-        xMaxs -= Widget::uiScaled(4);
+        const int buttonWidth = Widget::uiScaled(25);
+
+        xMins = rect.xMins + Widget::uiScaled(titleWidth) + borderOffset + 1;
+        yMins = rect.yMins + borderOffset;
+        xMaxs = rect.xMaxs - borderOffset;
+        yMaxs = rect.yMaxs - borderOffset;
+
+        checkmarkButtonRect.xMins = xMaxs - buttonWidth;
+        checkmarkButtonRect.yMins = yMins + borderOffset;
+        checkmarkButtonRect.xMaxs = xMaxs - borderOffset;
+        checkmarkButtonRect.yMaxs = yMaxs - borderOffset;
+    }
+    else
+    {
+        const int buttonWidth = Widget::uiScaled(16);
+
+        xMins = rect.xMins + Widget::uiScaled(titleWidth) + borderOffset + 1;
+        yMins = rect.yMins + borderOffset;
+        xMaxs = rect.xMaxs - borderOffset;
+        yMaxs = rect.yMaxs - borderOffset;
+
+        if (withValueEditButtons)
+        {
+            decrButtonRect.xMins = xMaxs - buttonWidth;
+            decrButtonRect.yMins = yMins + borderOffset;
+            decrButtonRect.xMaxs = xMaxs - borderOffset;
+            decrButtonRect.yMaxs = yMaxs - borderOffset;
+
+            incrButtonRect = decrButtonRect;
+            incrButtonRect.xMins -= buttonWidth + borderOffset;
+            incrButtonRect.xMaxs -= buttonWidth + borderOffset;
+        }
+
+        if (withEditPopupButton)
+        {
+            if (withValueEditButtons)
+            {
+                editPopupButtonRect = incrButtonRect;
+                editPopupButtonRect.xMins -= buttonWidth + borderOffset;
+                editPopupButtonRect.xMaxs -= buttonWidth + borderOffset;
+            }
+            else
+            {
+                editPopupButtonRect.xMins = xMaxs - buttonWidth;
+                editPopupButtonRect.yMins = yMins + borderOffset;
+                editPopupButtonRect.xMaxs = xMaxs - borderOffset;
+                editPopupButtonRect.yMaxs = yMaxs - borderOffset;
+            }
+        }
+
+        if (withValueEditButtons)
+        {
+            xMaxs -= incrButtonRect.getWidth();
+            xMaxs -= decrButtonRect.getWidth();
+            xMaxs -= Widget::uiScaled(8);
+        }
+
+        if (withEditPopupButton)
+        {
+            xMaxs -= editPopupButtonRect.getWidth();
+            xMaxs -= Widget::uiScaled(4);
+        }
     }
 
     return { xMins, yMins, xMaxs, yMaxs };

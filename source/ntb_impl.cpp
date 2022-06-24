@@ -12,8 +12,12 @@
 namespace ntb
 {
 
+// ========================================================
+// Constants:
+// TODO: Make these configurable?
+// ========================================================
+
 // This effectively limits the length of C strings from callbacks.
-// TODO: Make configurable?
 constexpr int kVarCallbackDataMaxSize = 256;
 
 constexpr int kVarHeight             = 30;
@@ -29,6 +33,9 @@ constexpr int kPanelTitleBarHeight   = 40;
 constexpr int kPanelTitleBarBtnSize  = 28;
 constexpr int kPanelScrollBarWidth   = 40;
 constexpr int kPanelScrollBarBtnSize = 25;
+
+constexpr const char * kBoolTrueStr  = "On";
+constexpr const char * kBoolFalseStr = "Off";
 
 // ========================================================
 // class VariableImpl:
@@ -46,6 +53,7 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
                         void * varData, int elementCount, const EnumConstant * enumConstants, const VarCallbacksAny * optionalCallbacks)
 {
     this->panel         = myPanel;
+    this->hashCode      = hashString(myName);
     this->readOnly      = readOnly;
     this->varType       = varType;
     this->varData       = varData;
@@ -57,11 +65,23 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
         this->optionalCallbacks = *optionalCallbacks;
 
         // Need to query the specific type from the callbacks for these.
-        if (varType == VariableType::NumberCB || varType == VariableType::StringCB)
+        if (this->varType == VariableType::NumberCB)
         {
             this->varType = this->optionalCallbacks.getVariableType();
         }
-        else if (varType == VariableType::ColorCB)
+        else if (this->varType == VariableType::StringCB)
+        {
+            const auto stringType = this->optionalCallbacks.getVariableType();
+            if (stringType == VariableType::Char)
+            {
+                this->varType = VariableType::CString;
+            }
+            else
+            {
+                this->varType = stringType; // StdString
+            }
+        }
+        else if (this->varType == VariableType::ColorCB)
         {
             const auto colorStorageType = this->optionalCallbacks.getVariableType();
             switch (colorStorageType)
@@ -114,23 +134,48 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
         varRect.yMaxs = varRect.yMins + window->uiScaled(kVarHeight);
     }
 
-    VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, window, myName);
+    std::uint32_t varWidgetFlags = 0;
+    if (!this->readOnly)
+    {
+        if (varType == VariableType::Bool)
+        {
+            varWidgetFlags |= VarDisplayWidget::Flag_WithCheckmarkButton;
 
-    hashCode = hashString(myName);
-    titleWidth = (int)GeometryBatch::calcTextWidth(getVarName().c_str(), getVarName().getLength(), getGUI()->getGlobalTextScaling());
+            if (this->varData != nullptr)
+            {
+                auto b = reinterpret_cast<bool *>(varData);
+                checkmarkButton.setState(*b);
+            }
+            else
+            {
+                bool boolFromCallback = false;
+                this->optionalCallbacks.callGetter(&boolFromCallback);
+                checkmarkButton.setState(boolFromCallback);
+            }
+        }
+        else if (isNumberVar())
+        {
+            varWidgetFlags |= VarDisplayWidget::Flag_WithValueEditButtons;
+        }
+        else if (isEditPopupVar())
+        {
+            varWidgetFlags |= VarDisplayWidget::Flag_WithEditPopupButton;
+        }
+    }
+
+    VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, window, myName, varWidgetFlags);
 }
 
 Variable * VariableImpl::setName(const char * newName)
 {
-    setVarName(newName);
+    VarDisplayWidget::setVarName(newName);
     hashCode = hashString(newName);
-    titleWidth = (int)GeometryBatch::calcTextWidth(getVarName().c_str(), getVarName().getLength(), getGUI()->getGlobalTextScaling());
     return this;
 }
 
 const char * VariableImpl::getName() const
 {
-    return getVarName().c_str();
+    return VarDisplayWidget::getVarName().c_str();
 }
 
 std::uint32_t VariableImpl::getHashCode() const
@@ -168,28 +213,19 @@ bool VariableImpl::isReadOnly() const
     return readOnly;
 }
 
+bool VariableImpl::isNumberVar() const
+{
+    return varType >= VariableType::Ptr && varType <= VariableType::Flt64;
+}
+
+bool VariableImpl::isEditPopupVar() const
+{
+    return varType >= VariableType::Enum && varType <= VariableType::ColorU32;
+}
+
 void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
 {
-    Rectangle editBox = getRect().shrunk(uiScaled(4), uiScaled(4));
-    editBox.moveBy(uiScaled(titleWidth) + uiScaled(2), 0);
-    editBox.xMaxs = std::min(editBox.xMaxs, getRect().xMaxs - uiScaled(2));
-
-    bool shouldDraw = true;
-    const Rectangle parentRect = panel->getWindow()->getUsableRect();
-
-    if (editBox.xMins > editBox.xMaxs)
-    {
-        shouldDraw = false;
-    }
-    else if (editBox.xMins > parentRect.xMaxs || editBox.xMaxs < parentRect.xMins)
-    {
-        shouldDraw = false;
-    }
-    else if (editBox.yMins > parentRect.yMaxs || editBox.yMaxs < parentRect.yMins || editBox.yMaxs > parentRect.yMaxs)
-    {
-        shouldDraw = false;
-    }
-    if (!shouldDraw)
+    if (!editField.isVisisble)
     {
         return;
     }
@@ -208,8 +244,6 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
     }
     else
     {
-        NTB_ASSERT(!optionalCallbacks.isNull());
-
         #if NEO_TWEAK_BAR_STD_STRING_INTEROP
         if (varType == VariableType::StdString)
         {
@@ -234,12 +268,6 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
     case VariableType::StringCB:
         {
             NTB_ASSERT(false && "Invalid variable type!");
-            break;
-        }
-    case VariableType::Ptr:
-        {
-            auto v = reinterpret_cast<const void * const *>(valuePtr);
-            valueText = SmallStr::fromPointer(*v);
             break;
         }
     case VariableType::Enum:
@@ -319,7 +347,13 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
     case VariableType::Bool:
         {
             auto b = reinterpret_cast<const bool *>(valuePtr);
-            valueText = (*b ? "true" : "false");
+            valueText = (*b ? kBoolTrueStr : kBoolFalseStr);
+            break;
+        }
+    case VariableType::Ptr:
+        {
+            auto v = reinterpret_cast<const void * const *>(valuePtr);
+            valueText = SmallStr::fromPointer(*v);
             break;
         }
     case VariableType::Int8:
@@ -407,10 +441,129 @@ void VariableImpl::drawVarValue(GeometryBatch & geoBatch) const
     const ColorScheme & myColors = getColors();
     const Color32 editBackground = lighthenRGB(myColors.box.bgTopLeft, 30);
 
-    EditField & editField = getEditField();
-    editField.drawSelf(geoBatch, editBox, valueText.c_str(), valueText.getLength(),
+    editField.drawSelf(geoBatch, dataDisplayRect, valueText.c_str(), valueText.getLength(),
                        myColors.text.normal, myColors.text.selection, myColors.text.cursor,
                        editBackground, getTextScaling(), getScaling());
+}
+
+struct VarOpIncrement
+{
+    template<typename T>
+    static void Apply(void * valuePtr)
+    {
+        auto v = reinterpret_cast<T *>(valuePtr);
+        (*v) += T(1);
+    }
+};
+
+struct VarOpDecrement
+{
+    template<typename T>
+    static void Apply(void * valuePtr)
+    {
+        auto v = reinterpret_cast<T *>(valuePtr);
+        (*v) -= T(1);
+    }
+};
+
+template<typename OP>
+void VariableImpl::ApplyVarOp(OP op)
+{
+    NTB_ASSERT(isNumberVar());
+
+    void* valuePtr = nullptr;
+    std::uint64_t numberFromCallback = 0;
+
+    if (varData != nullptr)
+    {
+        valuePtr = varData;
+    }
+    else
+    {
+        optionalCallbacks.callGetter(&numberFromCallback);
+        valuePtr = &numberFromCallback;
+    }
+
+    switch (varType)
+    {
+    case VariableType::Ptr:
+        op.Apply<std::uintptr_t>(valuePtr);
+        break;
+
+    case VariableType::Int8:
+        op.Apply<std::int8_t>(valuePtr);
+        break;
+
+    case VariableType::UInt8:
+        op.Apply<std::uint8_t>(valuePtr);
+        break;
+
+    case VariableType::Int16:
+        op.Apply<std::int16_t>(valuePtr);
+        break;
+
+    case VariableType::UInt16:
+        op.Apply<std::uint16_t>(valuePtr);
+        break;
+
+    case VariableType::Int32:
+        op.Apply<std::int32_t>(valuePtr);
+        break;
+
+    case VariableType::UInt32:
+        op.Apply<std::uint32_t>(valuePtr);
+        break;
+
+    case VariableType::Int64:
+        op.Apply<std::int64_t>(valuePtr);
+        break;
+
+    case VariableType::UInt64:
+        op.Apply<std::uint64_t>(valuePtr);
+        break;
+
+    case VariableType::Flt32:
+        op.Apply<Float32>(valuePtr);
+        break;
+
+    case VariableType::Flt64:
+        op.Apply<Float64>(valuePtr);
+        break;
+
+    default:
+        NTB_ASSERT(false && "Invalid variable type!");
+    }
+
+    if (!optionalCallbacks.isNull())
+    {
+        optionalCallbacks.callSetter(valuePtr);
+    }
+}
+
+void VariableImpl::onIncrementButton()
+{
+    ApplyVarOp(VarOpIncrement{});
+}
+
+void VariableImpl::onDecrementButton()
+{
+    ApplyVarOp(VarOpDecrement{});
+}
+
+void VariableImpl::onCheckmarkButton(bool state)
+{
+    NTB_ASSERT(varType  == VariableType::Bool);
+    NTB_ASSERT(readOnly == false);
+
+    if (!optionalCallbacks.isNull())
+    {
+        optionalCallbacks.callSetter(&state);
+    }
+    else
+    {
+        auto b = reinterpret_cast<bool *>(varData);
+        *b = state;
+    }
 }
 
 // ========================================================
@@ -570,9 +723,6 @@ Panel * PanelImpl::setPosition(int newPosX, int newPosY)
         newPosX, newPosY,
         newPosX + oldRect.getWidth(), newPosY + oldRect.getHeight()
     });
-
-    // TODO: Should this be automatic when calling setRect?
-    window.onAdjustLayout();
     return this;
 }
 
@@ -583,9 +733,6 @@ Panel * PanelImpl::setSize(int newWidth, int newHeight)
         oldRect.getX(), oldRect.getY(),
         oldRect.getX() + newWidth, oldRect.getY() + newHeight
     });
-
-    // TODO: Should this be automatic when calling setRect?
-    window.onAdjustLayout();
     return this;
 }
 

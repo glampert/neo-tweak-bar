@@ -346,7 +346,6 @@ enum class VariableType
     NumberCB,
     ColorCB,
     StringCB,
-    Ptr,
     Enum,
     VecF,
     DirVec3,
@@ -355,6 +354,7 @@ enum class VariableType
     Color8B,
     ColorU32,
     Bool,
+    Ptr,
     Int8,
     UInt8,
     Int16,
@@ -398,6 +398,7 @@ template<typename T> struct VarTypeFromCppType { static constexpr VariableType T
 
 // NumberCB
 template<> struct VarTypeFromCppType<bool>         { static constexpr VariableType Type = VariableType::Bool;   };
+template<> struct VarTypeFromCppType<char>         { static constexpr VariableType Type = VariableType::Char;   };
 template<> struct VarTypeFromCppType<      void *> { static constexpr VariableType Type = VariableType::Ptr;    };
 template<> struct VarTypeFromCppType<const void *> { static constexpr VariableType Type = VariableType::Ptr;    };
 template<> struct VarTypeFromCppType<int8_t>       { static constexpr VariableType Type = VariableType::Int8;   };
