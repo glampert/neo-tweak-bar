@@ -54,12 +54,14 @@ protected:
     bool isNumberVar() const;
     bool isEditPopupVar() const;
     template<typename OP> void ApplyNumberVarOp(OP op);
+    static void onSetEnumValue(ListWidget & listWidget, int selectedEntry);
 
     // VarDisplayWidget overrides:
     bool onGetVarValueText(SmallStr & valueText) const override;
     void onSetVarValueText(const SmallStr & valueText) override;
     void onIncrementButton() override;
     void onDecrementButton() override;
+    void onEditPopupButton(bool state) override;
     void onCheckboxButton(bool state) override;
 
 private:

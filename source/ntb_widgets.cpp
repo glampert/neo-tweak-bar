@@ -2522,12 +2522,14 @@ ListWidget::ListWidget()
     : entries(sizeof(Entry))
     , selectedEntry(None)
     , hoveredEntry(None)
+    , onEntrySelectedCallback(nullptr)
 {
 }
 
-void ListWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible)
+void ListWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, OnEntrySelectedCallback cb)
 {
     Widget::init(myGUI, myParent, myRect, visible);
+    onEntrySelectedCallback = cb;
 }
 
 void ListWidget::onDraw(GeometryBatch & geoBatch) const
@@ -2576,6 +2578,56 @@ void ListWidget::onMove(int displacementX, int displacementY)
     }
 }
 
+void ListWidget::onResize(int displacementX, int displacementY, Corner corner)
+{
+    auto adjustRect = [&](Rectangle & rect)
+    {
+        const int initialHeight = rect.getHeight();
+        switch (corner)
+        {
+        case TopLeft:
+            rect.xMins += displacementX;
+            rect.yMins += displacementY;
+            rect.yMaxs = rect.yMins + initialHeight;
+            break;
+
+        case BottomLeft:
+            rect.xMins += displacementX;
+            break;
+
+        case TopRight:
+            rect.xMaxs += displacementX;
+            rect.yMins += displacementY;
+            rect.yMaxs = rect.yMins + initialHeight;
+            break;
+
+        case BottomRight:
+            rect.xMaxs += displacementX;
+            break;
+
+        default:
+            errorF("Bad corner enum in ListWidget!");
+            break;
+        } // switch (corner)
+    };
+
+    int widest = 0;
+    const int entryCount = entries.getSize();
+    for (int e = 0; e < entryCount; ++e)
+    {
+        Entry & entry = entries.get<Entry>(e);
+        adjustRect(entry.rect);
+
+        if (entry.rect.xMaxs > widest)
+        {
+            widest = entry.rect.xMaxs;
+        }
+    }
+
+    adjustRect(rect);
+    rect.xMaxs = widest + Widget::uiScaled(4);
+}
+
 bool ListWidget::onMouseButton(MouseButton button, int clicks)
 {
     bool eventHandled = Widget::onMouseButton(button, clicks);
@@ -2588,6 +2640,11 @@ bool ListWidget::onMouseButton(MouseButton button, int clicks)
         {
             selectedEntry = index;
             eventHandled  = true;
+
+            if (onEntrySelectedCallback != nullptr)
+            {
+                onEntrySelectedCallback(*this, selectedEntry);
+            }
         }
     }
 
@@ -2686,6 +2743,8 @@ void ListWidget::addEntryRect(int entryIndex, int entryLengthInChars)
     {
         entries.get<Entry>(e).rect.xMaxs = widest;
     }
+
+    rect.xMaxs = widest + spacing;
 }
 
 // ========================================================
@@ -3429,14 +3488,9 @@ void View3DWidget::refreshProjectionViewport()
 
 VarDisplayWidget::VarDisplayWidget()
     : parentWindow(nullptr)
-    , customTextColor(0)
     , initialHeight(0)
     , titleWidth(0)
 {
-    incrButtonRect.setZero();
-    decrButtonRect.setZero();
-    editPopupButtonRect.setZero();
-    checkboxButtonRect.setZero();
     dataDisplayRect.setZero();
 }
 
@@ -3481,27 +3535,29 @@ void VarDisplayWidget::init(GUI * myGUI, VarDisplayWidget * myParent, const Rect
     const bool withValueEditButtons = testFlag(Flag_WithValueEditButtons);
     const bool withEditPopupButton  = testFlag(Flag_WithEditPopupButton);
     const bool withCheckboxButton   = testFlag(Flag_WithCheckboxButton);
-    dataDisplayRect = makeDataDisplayAndButtonRects(withValueEditButtons, withEditPopupButton, withCheckboxButton);
+
+    ButtonRects btnRects = {};
+    dataDisplayRect = makeDataDisplayAndButtonRects(btnRects, withValueEditButtons, withEditPopupButton, withCheckboxButton);
 
     if (withValueEditButtons)
     {
         // NOTE: Parented to the window - VarWidget children are other nested vars only.
-        incrButton.init(myGUI, myWindow, incrButtonRect, withValueEditButtons, ButtonWidget::Icon::Plus,  this, true);
+        incrButton.init(myGUI, myWindow, btnRects.incrButtonRect, withValueEditButtons, ButtonWidget::Icon::Plus,  this, true);
         incrButton.setFlag(Flag_NoRectShadow, true);
 
-        decrButton.init(myGUI, myWindow, decrButtonRect, withValueEditButtons, ButtonWidget::Icon::Minus, this, true);
+        decrButton.init(myGUI, myWindow, btnRects.decrButtonRect, withValueEditButtons, ButtonWidget::Icon::Minus, this, true);
         decrButton.setFlag(Flag_NoRectShadow, true);
     }
 
     if (withEditPopupButton)
     {
-        editPopupButton.init(myGUI, myWindow, editPopupButtonRect, withEditPopupButton, ButtonWidget::Icon::DblRightArrow, this, true);
+        editPopupButton.init(myGUI, myWindow, btnRects.editPopupButtonRect, withEditPopupButton, ButtonWidget::Icon::DblRightArrow, this, true);
         editPopupButton.setFlag(Flag_NoRectShadow, true);
     }
 
     if (withCheckboxButton)
     {
-        checkboxButton.init(myGUI, myWindow, checkboxButtonRect, withEditPopupButton, ButtonWidget::Icon::CheckMark, this, true);
+        checkboxButton.init(myGUI, myWindow, btnRects.checkboxButtonRect, withEditPopupButton, ButtonWidget::Icon::CheckMark, this, true);
         checkboxButton.setFlag(Flag_NoRectShadow, true);
         checkboxButton.setState(checkboxInitialState);
     }
@@ -3539,6 +3595,12 @@ void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
             decrButton.setVisible(false);
             editPopupButton.setVisible(false);
             checkboxButton.setVisible(false);
+
+            if (auto popupWidget = parentWindow->getPopupWidget())
+            {
+                popupWidget->setVisible(false);
+            }
+
             return;
         }
         else
@@ -3548,7 +3610,7 @@ void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
             if (parentWindow != nullptr)
             {
                 const Rectangle parentRect = parentWindow->getUsableRect();
-                if (dataDisplayRect.xMins > dataDisplayRect.xMaxs)
+                if (dataDisplayRect.xMins >= dataDisplayRect.xMaxs)
                 {
                     shouldDrawEditField = false;
                 }
@@ -3562,13 +3624,26 @@ void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
                 }
             }
 
+            expandCollapseButton.setVisible(true);
+
             editField.isVisisble = shouldDrawEditField;
             incrButton.setVisible(shouldDrawEditField);
             decrButton.setVisible(shouldDrawEditField);
             editPopupButton.setVisible(shouldDrawEditField);
             checkboxButton.setVisible(shouldDrawEditField);
 
-            expandCollapseButton.setVisible(true);
+            if (auto popupWidget = parentWindow->getPopupWidget())
+            {
+                auto popupRect = popupWidget->getRect();
+                if (popupRect.xMins >= popupRect.xMaxs)
+                {
+                    popupWidget->setVisible(false);
+                }
+                else
+                {
+                    popupWidget->setVisible(shouldDrawEditField && !popupWidget->isMinimized());
+                }
+            }
         }
 
         drawSelf(geoBatch);             // Border rectangle
@@ -3632,11 +3707,6 @@ void VarDisplayWidget::drawValueEditButtons(GeometryBatch & geoBatch) const
 void VarDisplayWidget::onMove(int displacementX, int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
-
-    incrButtonRect.moveBy(displacementX, displacementY);
-    decrButtonRect.moveBy(displacementX, displacementY);
-    editPopupButtonRect.moveBy(displacementX, displacementY);
-    checkboxButtonRect.moveBy(displacementX, displacementY);
     dataDisplayRect.moveBy(displacementX, displacementY);
 
     if (testFlag(Flag_WithValueEditButtons))
@@ -3658,9 +3728,7 @@ void VarDisplayWidget::onMove(int displacementX, int displacementY)
 
 void VarDisplayWidget::onResize(int displacementX, int displacementY, Corner corner)
 {
-    const int originalDataRectHeight       = dataDisplayRect.getHeight();
-    const int originalButtonHeight         = editPopupButtonRect.getHeight();
-    const int originalCheckboxButtonHeight = checkboxButtonRect.getHeight();
+    const int originalDataRectHeight = dataDisplayRect.getHeight();
 
     switch (corner)
     {
@@ -3672,31 +3740,11 @@ void VarDisplayWidget::onResize(int displacementX, int displacementY, Corner cor
         dataDisplayRect.xMins += displacementX;
         dataDisplayRect.yMins += displacementY;
         dataDisplayRect.yMaxs = dataDisplayRect.yMins + originalDataRectHeight;
-
-        incrButtonRect.xMins += displacementX;
-        incrButtonRect.yMins += displacementY;
-        incrButtonRect.yMaxs = incrButtonRect.yMins + originalButtonHeight;
-
-        decrButtonRect.xMins += displacementX;
-        decrButtonRect.yMins += displacementY;
-        decrButtonRect.yMaxs = decrButtonRect.yMins + originalButtonHeight;
-
-        editPopupButtonRect.xMins += displacementX;
-        editPopupButtonRect.yMins += displacementY;
-        editPopupButtonRect.yMaxs = editPopupButtonRect.yMins + originalButtonHeight;
-
-        checkboxButtonRect.xMins += displacementX;
-        checkboxButtonRect.yMins += displacementY;
-        checkboxButtonRect.yMaxs = checkboxButtonRect.yMins + originalCheckboxButtonHeight;
         break;
 
     case BottomLeft :
         rect.xMins += displacementX;
         dataDisplayRect.xMins += displacementX;
-        incrButtonRect.xMins += displacementX;
-        decrButtonRect.xMins += displacementX;
-        editPopupButtonRect.xMins += displacementX;
-        checkboxButtonRect.xMins += displacementX;
         break;
 
     case TopRight :
@@ -3707,31 +3755,11 @@ void VarDisplayWidget::onResize(int displacementX, int displacementY, Corner cor
         dataDisplayRect.xMaxs += displacementX;
         dataDisplayRect.yMins += displacementY;
         dataDisplayRect.yMaxs = dataDisplayRect.yMins + originalDataRectHeight;
-
-        incrButtonRect.xMaxs += displacementX;
-        incrButtonRect.yMins += displacementY;
-        incrButtonRect.yMaxs = incrButtonRect.yMins + originalButtonHeight;
-
-        decrButtonRect.xMaxs += displacementX;
-        decrButtonRect.yMins += displacementY;
-        decrButtonRect.yMaxs = decrButtonRect.yMins + originalButtonHeight;
-
-        editPopupButtonRect.xMaxs += displacementX;
-        editPopupButtonRect.yMins += displacementY;
-        editPopupButtonRect.yMaxs = editPopupButtonRect.yMins + originalButtonHeight;
-
-        checkboxButtonRect.xMaxs += displacementX;
-        checkboxButtonRect.yMins += displacementY;
-        checkboxButtonRect.yMaxs = checkboxButtonRect.yMins + originalCheckboxButtonHeight;
         break;
 
     case BottomRight :
         rect.xMaxs += displacementX;
         dataDisplayRect.xMaxs += displacementX;
-        incrButtonRect.xMaxs += displacementX;
-        decrButtonRect.xMaxs += displacementX;
-        editPopupButtonRect.xMaxs += displacementX;
-        checkboxButtonRect.xMaxs += displacementX;
         break;
 
     default :
@@ -3768,7 +3796,14 @@ void VarDisplayWidget::onAdjustLayout()
     const bool withValueEditButtons = testFlag(Flag_WithValueEditButtons);
     const bool withEditPopupButton  = testFlag(Flag_WithEditPopupButton);
     const bool withCheckboxButton   = testFlag(Flag_WithCheckboxButton);
-    dataDisplayRect = makeDataDisplayAndButtonRects(withValueEditButtons, withEditPopupButton, withCheckboxButton);
+
+    ButtonRects btnRects = {};
+    dataDisplayRect = makeDataDisplayAndButtonRects(btnRects, withValueEditButtons, withEditPopupButton, withCheckboxButton);
+
+    incrButton.setRect(btnRects.incrButtonRect);
+    decrButton.setRect(btnRects.decrButtonRect);
+    editPopupButton.setRect(btnRects.editPopupButtonRect);
+    checkboxButton.setRect(btnRects.checkboxButtonRect);
 
     // This button is only present on variable hierarchies.
     if (hasExpandCollapseButton())
@@ -3873,7 +3908,7 @@ bool VarDisplayWidget::onButtonDown(ButtonWidget & button)
     {
         if (&button == &editPopupButton)
         {
-            onEditPopupButton();
+            onEditPopupButton(editPopupButton.getState());
             return true;
         }
     }
@@ -3941,6 +3976,12 @@ void VarDisplayWidget::setExpandCollapseState(bool expanded)
     expandCollapseButton.setIcon(expanded ? ButtonWidget::Icon::Minus : ButtonWidget::Icon::Plus);
     expandCollapseButton.setState(expanded);
 
+    if (auto popupWidget = parentWindow->getPopupWidget())
+    {
+        popupWidget->setVisible(expanded);
+        popupWidget->setMinimized(!expanded);
+    }
+
     // Collapse the hidden variables in the window to fill the gaps.
     if (parentWindow != nullptr)
     {
@@ -3954,7 +3995,7 @@ int VarDisplayWidget::getMinDataDisplayRectWidth() const
     return (GeometryBatch::getCharWidth() * 3 * textScaling) + Widget::uiScaled(4);
 }
 
-Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton)
+Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(ButtonRects & outBtnRects, bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton)
 {
     const int borderOffset = Widget::uiScaled(2);
     int xMins, yMins, xMaxs, yMaxs;
@@ -3968,10 +4009,10 @@ Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(bool withValueEditButt
         xMaxs = rect.xMaxs - borderOffset;
         yMaxs = rect.yMaxs - borderOffset;
 
-        checkboxButtonRect.xMins = xMaxs - buttonWidth;
-        checkboxButtonRect.yMins = yMins + borderOffset;
-        checkboxButtonRect.xMaxs = xMaxs - borderOffset;
-        checkboxButtonRect.yMaxs = yMaxs - borderOffset;
+        outBtnRects.checkboxButtonRect.xMins = xMaxs - buttonWidth;
+        outBtnRects.checkboxButtonRect.yMins = yMins + borderOffset;
+        outBtnRects.checkboxButtonRect.xMaxs = xMaxs - borderOffset;
+        outBtnRects.checkboxButtonRect.yMaxs = yMaxs - borderOffset;
     }
     else
     {
@@ -3984,48 +4025,48 @@ Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(bool withValueEditButt
 
         if (withValueEditButtons)
         {
-            decrButtonRect.xMins = xMaxs - buttonWidth;
-            decrButtonRect.yMins = yMins + borderOffset;
-            decrButtonRect.xMaxs = xMaxs - borderOffset;
-            decrButtonRect.yMaxs = yMaxs - borderOffset;
+            outBtnRects.decrButtonRect.xMins = xMaxs - buttonWidth;
+            outBtnRects.decrButtonRect.yMins = yMins + borderOffset;
+            outBtnRects.decrButtonRect.xMaxs = xMaxs - borderOffset;
+            outBtnRects.decrButtonRect.yMaxs = yMaxs - borderOffset;
 
-            incrButtonRect = decrButtonRect;
-            incrButtonRect.xMins -= buttonWidth + borderOffset;
-            incrButtonRect.xMaxs -= buttonWidth + borderOffset;
+            outBtnRects.incrButtonRect = outBtnRects.decrButtonRect;
+            outBtnRects.incrButtonRect.xMins -= buttonWidth + borderOffset;
+            outBtnRects.incrButtonRect.xMaxs -= buttonWidth + borderOffset;
         }
 
         if (withEditPopupButton)
         {
             if (withValueEditButtons)
             {
-                editPopupButtonRect = incrButtonRect;
-                editPopupButtonRect.xMins -= buttonWidth + borderOffset;
-                editPopupButtonRect.xMaxs -= buttonWidth + borderOffset;
+                outBtnRects.editPopupButtonRect = outBtnRects.incrButtonRect;
+                outBtnRects.editPopupButtonRect.xMins -= buttonWidth + borderOffset;
+                outBtnRects.editPopupButtonRect.xMaxs -= buttonWidth + borderOffset;
             }
             else
             {
-                editPopupButtonRect.xMins = xMaxs - buttonWidth;
-                editPopupButtonRect.yMins = yMins + borderOffset;
-                editPopupButtonRect.xMaxs = xMaxs - borderOffset;
-                editPopupButtonRect.yMaxs = yMaxs - borderOffset;
+                outBtnRects.editPopupButtonRect.xMins = xMaxs - buttonWidth;
+                outBtnRects.editPopupButtonRect.yMins = yMins + borderOffset;
+                outBtnRects.editPopupButtonRect.xMaxs = xMaxs - borderOffset;
+                outBtnRects.editPopupButtonRect.yMaxs = yMaxs - borderOffset;
             }
         }
 
         if (withValueEditButtons)
         {
-            xMaxs -= incrButtonRect.getWidth();
-            xMaxs -= decrButtonRect.getWidth();
+            xMaxs -= outBtnRects.incrButtonRect.getWidth();
+            xMaxs -= outBtnRects.decrButtonRect.getWidth();
             xMaxs -= Widget::uiScaled(8);
         }
 
         if (withEditPopupButton)
         {
-            xMaxs -= editPopupButtonRect.getWidth();
+            xMaxs -= outBtnRects.editPopupButtonRect.getWidth();
             xMaxs -= Widget::uiScaled(4);
         }
     }
 
-    return { xMins, yMins, xMaxs, yMaxs };
+    return { xMins, yMins, xMaxs, yMaxs }; // dataDisplayRect
 }
 
 Rectangle VarDisplayWidget::getExpandCollapseButtonRect() const
@@ -4072,6 +4113,7 @@ WindowWidget::WindowWidget()
 
 WindowWidget::~WindowWidget()
 {
+    destroyPopupWidget();
 }
 
 void WindowWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, bool resizeable,
@@ -4147,7 +4189,7 @@ void WindowWidget::onDraw(GeometryBatch & geoBatch) const
     }
 
     // The popup still has to be above the resize handles.
-    if (popupWidget != nullptr)
+    if (popupWidget != nullptr && popupWidget->isVisible())
     {
         popupWidget->onDraw(geoBatch);
     }
@@ -4157,6 +4199,11 @@ void WindowWidget::onMove(int displacementX, int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
     refreshUsableRect(); // Keep the effective usable area up-to-date.
+
+    if (popupWidget != nullptr)
+    {
+        popupWidget->onMove(displacementX, displacementY);
+    }
 }
 
 void WindowWidget::onAdjustLayout()
@@ -4196,6 +4243,11 @@ bool WindowWidget::onMouseButton(MouseButton button, int clicks)
     if (!isVisible())
     {
         return false;
+    }
+
+    if (popupWidget != nullptr && popupWidget->onMouseButton(button, clicks))
+    {
+        return true;
     }
 
     resizingCorner = CornerNone;
@@ -4274,6 +4326,11 @@ bool WindowWidget::onMouseMotion(int mx, int my)
         }
     }
 
+    if (popupWidget != nullptr && popupWidget->onMouseMotion(mx, clampedY))
+    {
+        return true;
+    }
+
     // Handle resizing each corner:
     switch (resizingCorner)
     {
@@ -4343,6 +4400,16 @@ bool WindowWidget::onKeyPressed(KeyCode key, KeyModFlags modifiers)
         }
     }
     return false;
+}
+
+void WindowWidget::destroyPopupWidget()
+{
+    if (popupWidget != nullptr)
+    {
+        destroy(popupWidget);
+        implFree(popupWidget);
+        popupWidget = nullptr;
+    }
 }
 
 void WindowWidget::drawResizeHandles(GeometryBatch & geoBatch) const
@@ -4424,6 +4491,12 @@ void WindowWidget::resizeWithMin(Corner corner, int & x, int & y, int offsetX, i
         {
             getChild(c)->onResize(offsetX, offsetY, corner);
         }
+
+        if (popupWidget != nullptr)
+        {
+            popupWidget->onResize(offsetX, offsetY, corner);
+        }
+
         onAdjustLayout();
     }
 }

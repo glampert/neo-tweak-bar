@@ -625,11 +625,14 @@ class ListWidget final
 {
 public:
 
+    using OnEntrySelectedCallback = void (*)(ListWidget & listWidget, int selectedEntry);
+
     ListWidget();
-    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible);
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, OnEntrySelectedCallback cb = nullptr);
 
     void onDraw(GeometryBatch & geoBatch) const override;
     void onMove(int displacementX, int displacementY) override;
+    void onResize(int displacementX, int displacementY, Corner corner) override;
     bool onMouseButton(MouseButton button, int clicks) override;
     bool onMouseMotion(int mx, int my) override;
 
@@ -667,6 +670,7 @@ private:
     static constexpr int None = -1;
     int selectedEntry;
     int hoveredEntry;
+    OnEntrySelectedCallback onEntrySelectedCallback;
 
     // All strings in the list entries/buttons are
     // packed into this string, no spacing in between.
@@ -849,19 +853,19 @@ public:
               bool visible, WindowWidget * myWindow, const char * name,
               std::uint32_t varWidgetFlags = 0, bool checkboxInitialState = false);
 
-    virtual void onDraw(GeometryBatch & geoBatch) const override final;
-    virtual void onMove(int displacementX, int displacementY) override final;
-    virtual void onResize(int displacementX, int displacementY, Corner corner) override final;
+    void onDraw(GeometryBatch & geoBatch) const override final;
+    void onMove(int displacementX, int displacementY) override final;
+    void onResize(int displacementX, int displacementY, Corner corner) override final;
 
-    virtual void onAdjustLayout() override final;
-    virtual void onDisableEditing() override final;
-    virtual void setVisible(bool visible) override final;
+    void onAdjustLayout() override final;
+    void onDisableEditing() override final;
+    void setVisible(bool visible) override final;
 
-    virtual bool onMouseButton(MouseButton button, int clicks) override final;
-    virtual bool onMouseMotion(int mx, int my) override final;
-    virtual bool onMouseScroll(int yScroll) override final;
-    virtual bool onKeyPressed(KeyCode key, KeyModFlags modifiers) override final;
-    virtual bool onButtonDown(ButtonWidget & button) override final;
+    bool onMouseButton(MouseButton button, int clicks) override final;
+    bool onMouseMotion(int mx, int my) override final;
+    bool onMouseScroll(int yScroll) override final;
+    bool onKeyPressed(KeyCode key, KeyModFlags modifiers) override final;
+    bool onButtonDown(ButtonWidget & button) override final;
 
     void setButtonTextScaling(Float32 s);
     int getExpandCollapseButtonSize() const;
@@ -869,9 +873,6 @@ public:
     void addExpandCollapseButton();
     bool hasExpandCollapseButton() const;
     bool isHierarchyCollapsed() const;
-
-    void setCustomTextColor(Color32 newColor);
-    Color32 getCustomTextColor() const;
 
     const Rectangle & getDataDisplayRect() const;
     void setDataDisplayRect(const Rectangle & newRect);
@@ -894,15 +895,23 @@ protected:
 
     virtual void onIncrementButton() {}
     virtual void onDecrementButton() {}
-    virtual void onEditPopupButton() {}
-    virtual void onCheckboxButton(bool) {}
+    virtual void onEditPopupButton(bool) {}
+    virtual void onCheckboxButton(bool)  {}
 
     void setExpandCollapseState(bool expanded);
 
 private:
 
+    struct ButtonRects
+    {
+        Rectangle incrButtonRect;
+        Rectangle decrButtonRect;
+        Rectangle editPopupButtonRect;
+        Rectangle checkboxButtonRect;
+    };
+
     int getMinDataDisplayRectWidth() const;
-    Rectangle makeDataDisplayAndButtonRects(bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton);
+    Rectangle makeDataDisplayAndButtonRects(ButtonRects & outBtnRects, bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton);
     void setHierarchyVisibility(VarDisplayWidget* child, bool visible) const;
 
     void drawVarName(GeometryBatch& geoBatch) const;
@@ -916,14 +925,7 @@ private:
     // VarDisplayWidget for nested var instances.
     WindowWidget * parentWindow;
 
-    // Allows setting a custom color for the variable value text of this particular instance.
-    Color32 customTextColor;
-
-    // Cached rectangles:
-    Rectangle incrButtonRect;
-    Rectangle decrButtonRect;
-    Rectangle editPopupButtonRect;
-    Rectangle checkboxButtonRect;
+    // Cached data:
     Rectangle dataDisplayRect;
     int initialHeight;
     int titleWidth;
@@ -989,6 +991,11 @@ public:
 
     void addEditField(EditField * editField);
     void removeEditField(EditField * editField);
+
+    // NOTE: Window takes ownership of the Widget and will deleted when itself is destroyed.
+    void setPopupWidget(Widget * popup);
+    Widget * getPopupWidget() const;
+    void destroyPopupWidget();
 
     int getMinWindowWidth() const;
     int getMinWindowHeight() const;
@@ -1594,16 +1601,6 @@ inline bool VarDisplayWidget::isHierarchyCollapsed() const
     return hasExpandCollapseButton() && (expandCollapseButton.getState() == false);
 }
 
-inline void VarDisplayWidget::setCustomTextColor(const Color32 newColor)
-{
-    customTextColor = newColor;
-}
-
-inline Color32 VarDisplayWidget::getCustomTextColor() const
-{
-    return customTextColor;
-}
-
 inline const Rectangle & VarDisplayWidget::getDataDisplayRect() const
 {
     return dataDisplayRect;
@@ -1677,6 +1674,16 @@ inline void WindowWidget::addEditField(EditField * editField)
 inline void WindowWidget::removeEditField(EditField * editField)
 {
     editFieldsList.unlink(editField);
+}
+
+inline void WindowWidget::setPopupWidget(Widget * popup)
+{
+    popupWidget = popup;
+}
+
+inline Widget * WindowWidget::getPopupWidget() const
+{
+    return popupWidget;
 }
 
 inline int WindowWidget::getMinWindowWidth() const

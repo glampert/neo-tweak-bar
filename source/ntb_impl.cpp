@@ -565,6 +565,89 @@ void VariableImpl::onDecrementButton()
     ApplyNumberVarOp(VarOpDecrement{});
 }
 
+void VariableImpl::onSetEnumValue(ListWidget & listWidget, int selectedEntry)
+{
+    auto thisVar = static_cast<VariableImpl *>(listWidget.getParent());
+    NTB_ASSERT(thisVar != nullptr);
+
+    NTB_ASSERT(thisVar->varType == VariableType::Enum);
+    NTB_ASSERT(!thisVar->readOnly);
+
+    NTB_ASSERT(thisVar->enumConstants != nullptr);
+    NTB_ASSERT(thisVar->elementCount > 1);
+
+    auto entryText = listWidget.getEntryText(selectedEntry);
+    int enumConstantIndex = -1;
+
+    for (int i = 1; i < thisVar->elementCount; ++i)
+    {
+        if (entryText == thisVar->enumConstants[i].name)
+        {
+            enumConstantIndex = i;
+            break;
+        }
+    }
+
+    NTB_ASSERT(enumConstantIndex >= 0);
+    const std::int64_t enumVal = thisVar->enumConstants[enumConstantIndex].value;
+
+    if (thisVar->varData != nullptr)
+    {
+        const EnumConstant & enumTypeSize = thisVar->enumConstants[0];
+        switch (enumTypeSize.value)
+        {
+        case sizeof(std::int8_t)  : *reinterpret_cast<std::int8_t  *>(thisVar->varData) = static_cast<std::int8_t >(enumVal); break;
+        case sizeof(std::int16_t) : *reinterpret_cast<std::int16_t *>(thisVar->varData) = static_cast<std::int16_t>(enumVal); break;
+        case sizeof(std::int32_t) : *reinterpret_cast<std::int32_t *>(thisVar->varData) = static_cast<std::int32_t>(enumVal); break;
+        case sizeof(std::int64_t) : *reinterpret_cast<std::int64_t *>(thisVar->varData) = static_cast<std::int64_t>(enumVal); break;
+        default : NTB_ASSERT(false);
+        }
+    }
+    else
+    {
+        thisVar->optionalCallbacks.callSetter(&enumVal);
+    }
+}
+
+void VariableImpl::onEditPopupButton(bool state)
+{
+    WindowWidget * window = panel->getWindow();
+
+    // In case we already have a popup open, close it first.
+    window->destroyPopupWidget();
+
+    if (state) // New popup opened
+    {
+        switch (varType)
+        {
+        case VariableType::Enum:
+            if (elementCount > 1)
+            {
+                auto rect = getDataDisplayRect();
+                rect.xMaxs -= Widget::uiScaled(2);
+                rect.moveBy(0, rect.getHeight());
+
+                auto listWidget = construct(implAllocT<ListWidget>());
+                listWidget->init(gui, this, rect, true, &VariableImpl::onSetEnumValue);
+
+                listWidget->allocEntries(elementCount - 1);
+                for (int i = 1; i < elementCount; ++i)
+                {
+                    listWidget->addEntryText(i - 1, enumConstants[i].name);
+                }
+
+                window->setPopupWidget(listWidget);
+            }
+            break;
+
+            // TODO: Handle other variable types
+
+        default:
+            break;
+        }
+    }
+}
+
 void VariableImpl::onCheckboxButton(bool state)
 {
     NTB_ASSERT(varType == VariableType::Bool);
