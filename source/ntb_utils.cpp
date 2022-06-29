@@ -847,12 +847,12 @@ SmallStr SmallStr::fromPointer(const void * const ptr, const int base)
     }
 }
 
-SmallStr SmallStr::fromNumber(const Float64 num, const int base)
+SmallStr SmallStr::fromNumber(const Float64 num, const int base, const char * const format)
 {
     if (base == 10)
     {
         char buffer[NumConvBufSize];
-        std::snprintf(buffer, sizeof(buffer), "%f", num);
+        std::snprintf(buffer, sizeof(buffer), format, num);
         buffer[sizeof(buffer) - 1] = '\0';
 
         // Trim trailing zeros to the right of the decimal point:
@@ -904,7 +904,7 @@ SmallStr SmallStr::fromNumber(const std::uint64_t num, const int base)
     return buffer;
 }
 
-SmallStr SmallStr::fromFloatVec(const Float32 vec[], const int elemCount, const char * const prefix)
+SmallStr SmallStr::fromFloatVec(const Float32 vec[], const int elemCount, const char * const prefix, const char * const format)
 {
     NTB_ASSERT(elemCount > 0);
 
@@ -912,7 +912,7 @@ SmallStr SmallStr::fromFloatVec(const Float32 vec[], const int elemCount, const 
     str += "{";
     for (int i = 0; i < elemCount; ++i)
     {
-        str += fromNumber(static_cast<Float64>(vec[i]));
+        str += fromNumber(static_cast<Float64>(vec[i]), 10, format);
         if (i != elemCount - 1)
         {
             str += ",";

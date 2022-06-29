@@ -1700,10 +1700,20 @@ void ButtonWidget::onDraw(GeometryBatch & geoBatch) const
     // Body box:
     if (!testFlag(Flag_NoRectBackground))
     {
-        geoBatch.drawRectFilled(rect, myColors.box.bgTopLeft,
-                                      myColors.box.bgBottomLeft,
-                                      myColors.box.bgTopRight,
-                                      myColors.box.bgBottomRight);
+        if (state == true) // Hightlight when clicked
+        {
+            geoBatch.drawRectFilled(rect, lighthenRGB(myColors.box.bgTopLeft,     20),
+                                          lighthenRGB(myColors.box.bgBottomLeft,  20),
+                                          lighthenRGB(myColors.box.bgTopRight,    20),
+                                          lighthenRGB(myColors.box.bgBottomRight, 20));
+        }
+        else
+        {
+            geoBatch.drawRectFilled(rect, myColors.box.bgTopLeft,
+                                          myColors.box.bgBottomLeft,
+                                          myColors.box.bgTopRight,
+                                          myColors.box.bgBottomRight);
+        }
     }
 
     // A selected check box fully overrides the widget drawing logic.
@@ -1853,11 +1863,14 @@ ButtonWidget::EventListener::~EventListener()
 
 void TitleBarWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
                           const char * myTitle, bool minimizeButton, bool maximizeButton,
-                          int buttonOffsX, int buttonOffsY, int buttonSize, int buttonSpacing)
+                          int buttonOffsX, int buttonOffsY, int buttonSize, int buttonSpacing,
+                          ButtonWidget::EventListener * fwdBtnListener)
 {
     Widget::init(myGUI, myParent, myRect, visible);
 
     initialHeight = myRect.getHeight();
+    forwadBtnListener = fwdBtnListener;
+
     if (myTitle != nullptr)
     {
         titleText = myTitle;
@@ -1886,6 +1899,8 @@ void TitleBarWidget::buttonSetup(bool minimizeButton, bool maximizeButton,
         {
             addChild(&buttons[BtnMinimize]);
         }
+
+        buttons[BtnMinimize].setState(!isVisible());
     }
 
     if (maximizeButton)
@@ -1898,6 +1913,8 @@ void TitleBarWidget::buttonSetup(bool minimizeButton, bool maximizeButton,
         {
             addChild(&buttons[BtnMaximize]);
         }
+
+        buttons[BtnMaximize].setState(isVisible());
     }
 }
 
@@ -2015,6 +2032,19 @@ void TitleBarWidget::onResize(int displacementX, int displacementY, Corner corne
     } // switch (corner)
 }
 
+void TitleBarWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+
+    if (!isMouseDragEnabled())
+    {
+        for (ButtonWidget & btn : buttons)
+        {
+            btn.onMove(displacementX, displacementY);
+        }
+    }
+}
+
 bool TitleBarWidget::onButtonDown(ButtonWidget & button)
 {
     if (&buttons[BtnMinimize] == &button)
@@ -2031,6 +2061,13 @@ bool TitleBarWidget::onButtonDown(ButtonWidget & button)
             child->setMinimized(true);
         }
 
+        if (forwadBtnListener != nullptr)
+        {
+            forwadBtnListener->onButtonDown(button);
+        }
+
+        buttons[BtnMinimize].setState(true);
+        buttons[BtnMaximize].setState(false);
         return true;
     }
 
@@ -2048,6 +2085,13 @@ bool TitleBarWidget::onButtonDown(ButtonWidget & button)
             child->setMinimized(false);
         }
 
+        if (forwadBtnListener != nullptr)
+        {
+            forwadBtnListener->onButtonDown(button);
+        }
+
+        buttons[BtnMaximize].setState(true);
+        buttons[BtnMinimize].setState(false);
         return true;
     }
 
@@ -2522,14 +2566,13 @@ ListWidget::ListWidget()
     : entries(sizeof(Entry))
     , selectedEntry(None)
     , hoveredEntry(None)
-    , onEntrySelectedCallback(nullptr)
 {
 }
 
-void ListWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, OnEntrySelectedCallback cb)
+void ListWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, OnEntrySelectedDelegate onEntrySelected)
 {
     Widget::init(myGUI, myParent, myRect, visible);
-    onEntrySelectedCallback = cb;
+    onEntrySelectedDelegate = onEntrySelected;
 }
 
 void ListWidget::onDraw(GeometryBatch & geoBatch) const
@@ -2641,9 +2684,9 @@ bool ListWidget::onMouseButton(MouseButton button, int clicks)
             selectedEntry = index;
             eventHandled  = true;
 
-            if (onEntrySelectedCallback != nullptr)
+            if (!onEntrySelectedDelegate.isNull())
             {
-                onEntrySelectedCallback(*this, selectedEntry);
+                onEntrySelectedDelegate.invoke(this, selectedEntry);
             }
         }
     }
@@ -2760,10 +2803,15 @@ ColorPickerWidget::ColorPickerWidget()
 
 void ColorPickerWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
                              int titleBarHeight, int titleBarButtonSize, int scrollBarWidth,
-                             int scrollBarButtonSize, int clrButtonSize)
+                             int scrollBarButtonSize, int clrButtonSize,
+                             OnColorSelectedDelegate onColorSelected,
+                             OnClosedDelegate onClosed)
 {
     Widget::init(myGUI, myParent, myRect, visible);
-    colorButtonSize = clrButtonSize;
+
+    colorButtonSize         = clrButtonSize;
+    onColorSelectedDelegate = onColorSelected;
+    onClosedDelegate        = onClosed;
 
     // Vertical scroll bar (right side):
     Rectangle barRect{ rect.xMaxs - scrollBarWidth, rect.yMins + titleBarHeight + Widget::uiScaled(1), rect.xMaxs, rect.yMaxs };
@@ -2771,7 +2819,7 @@ void ColorPickerWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & m
 
     // Title bar:
     barRect.set(rect.xMins, rect.yMins, rect.xMaxs, rect.yMins + titleBarHeight);
-    titleBar.init(myGUI, this, barRect, visible, "Color Picker", true, false, Widget::uiScaled(4), Widget::uiScaled(4), titleBarButtonSize, 0);
+    titleBar.init(myGUI, this, barRect, visible, "Color Picker", true, false, Widget::uiScaled(4), Widget::uiScaled(4), titleBarButtonSize, 0, this);
 
     addChild(&scrollBar);
     addChild(&titleBar);
@@ -2847,11 +2895,24 @@ void ColorPickerWidget::onMove(int displacementX, int displacementY)
 {
     Widget::onMove(displacementX, displacementY);
     usableRect.moveBy(displacementX, displacementY);
+
+    if (!isMouseDragEnabled())
+    {
+        titleBar.onMove(displacementX, displacementY);
+        scrollBar.onMove(displacementX, displacementY);
+    }
 }
 
-bool ColorPickerWidget::onButtonDown(ButtonWidget & /*button*/)
+bool ColorPickerWidget::onButtonDown(ButtonWidget & button)
 {
-    // TODO: Handle the close button at the top bar
+    if (&button == &titleBar.getMinimizeButton())
+    {
+        if (!onClosedDelegate.isNull())
+        {
+            onClosedDelegate.invoke(this);
+        }
+        return true;
+    }
     return false;
 }
 
@@ -2861,8 +2922,15 @@ bool ColorPickerWidget::onMouseButton(MouseButton button, int clicks)
     {
         if (forEachColorButton(&ColorPickerWidget::testColorButtonClick, nullptr))
         {
-            // TODO: Handle color selection!
-            titleBar.setTitle(detail::g_colorTable[selectedColorIndex].name);
+            const auto & selectedColor = detail::g_colorTable[selectedColorIndex];
+
+            titleBar.setTitle(selectedColor.name);
+
+            if (!onColorSelectedDelegate.isNull())
+            {
+                onColorSelectedDelegate.invoke(this, selectedColor.value);
+            }
+
             return true; // Got a button click.
         }
     }
@@ -3598,7 +3666,10 @@ void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
 
             if (auto popupWidget = parentWindow->getPopupWidget())
             {
-                popupWidget->setVisible(false);
+                if (popupWidget->getParent() == this)
+                {
+                    popupWidget->setVisible(false);
+                }
             }
 
             return;
@@ -3634,14 +3705,17 @@ void VarDisplayWidget::onDraw(GeometryBatch & geoBatch) const
 
             if (auto popupWidget = parentWindow->getPopupWidget())
             {
-                auto popupRect = popupWidget->getRect();
-                if (popupRect.xMins >= popupRect.xMaxs)
+                if (popupWidget->getParent() == this)
                 {
-                    popupWidget->setVisible(false);
-                }
-                else
-                {
-                    popupWidget->setVisible(shouldDrawEditField && !popupWidget->isMinimized());
+                    auto popupRect = popupWidget->getRect();
+                    if (popupRect.xMins >= popupRect.xMaxs)
+                    {
+                        popupWidget->setVisible(false);
+                    }
+                    else
+                    {
+                        popupWidget->setVisible(shouldDrawEditField && !popupWidget->isMinimized());
+                    }
                 }
             }
         }
@@ -3959,6 +4033,15 @@ void VarDisplayWidget::setHierarchyVisibility(VarDisplayWidget * child, bool vis
             setHierarchyVisibility(static_cast<VarDisplayWidget *>(child->getChild(c)), visible);
         }
     }
+
+    if (auto popupWidget = child->parentWindow->getPopupWidget())
+    {
+        if (popupWidget->getParent() == child)
+        {
+            popupWidget->setVisible(visible);
+            popupWidget->setMinimized(!visible);
+        }
+    }
 }
 
 void VarDisplayWidget::setExpandCollapseState(bool expanded)
@@ -3972,15 +4055,18 @@ void VarDisplayWidget::setExpandCollapseState(bool expanded)
         setHierarchyVisibility(static_cast<VarDisplayWidget *>(getChild(c)), expanded);
     }
 
+    if (auto popupWidget = parentWindow->getPopupWidget())
+    {
+        if (popupWidget->getParent() == this)
+        {
+            popupWidget->setVisible(expanded);
+            popupWidget->setMinimized(!expanded);
+        }
+    }
+
     // Change the icon appropriately:
     expandCollapseButton.setIcon(expanded ? ButtonWidget::Icon::Minus : ButtonWidget::Icon::Plus);
     expandCollapseButton.setState(expanded);
-
-    if (auto popupWidget = parentWindow->getPopupWidget())
-    {
-        popupWidget->setVisible(expanded);
-        popupWidget->setMinimized(!expanded);
-    }
 
     // Collapse the hidden variables in the window to fill the gaps.
     if (parentWindow != nullptr)
@@ -3995,7 +4081,7 @@ int VarDisplayWidget::getMinDataDisplayRectWidth() const
     return (GeometryBatch::getCharWidth() * 3 * textScaling) + Widget::uiScaled(4);
 }
 
-Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(ButtonRects & outBtnRects, bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton)
+Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(ButtonRects & outBtnRects, bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton) const
 {
     const int borderOffset = Widget::uiScaled(2);
     int xMins, yMins, xMaxs, yMaxs;

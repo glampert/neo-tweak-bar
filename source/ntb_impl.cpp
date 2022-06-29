@@ -232,6 +232,11 @@ bool VariableImpl::isNumberVar() const
     return varType >= VariableType::Ptr && varType <= VariableType::Flt64;
 }
 
+bool VariableImpl::isColorVar() const
+{
+    return varType >= VariableType::ColorF && varType <= VariableType::ColorU32;
+}
+
 bool VariableImpl::isEditPopupVar() const
 {
     return varType >= VariableType::Enum && varType <= VariableType::ColorU32;
@@ -327,7 +332,7 @@ bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
             auto v = reinterpret_cast<const Float32 *>(valuePtr);
             for (int i = 0; i < elementCount; ++i)
             {
-                valueText += SmallStr::fromNumber(v[i]);
+                valueText += SmallStr::fromNumber(v[i], 10, "%.3f");
                 if (i != (elementCount - 1))
                     valueText.append(',');
             }
@@ -463,7 +468,7 @@ void VariableImpl::onSetVarValueText(const SmallStr & valueText)
 struct VarOpIncrement
 {
     template<typename T>
-    static void Apply(void * valuePtr)
+    static void apply(void * valuePtr)
     {
         auto v = reinterpret_cast<T *>(valuePtr);
         (*v) += T(1);
@@ -473,7 +478,7 @@ struct VarOpIncrement
 struct VarOpDecrement
 {
     template<typename T>
-    static void Apply(void * valuePtr)
+    static void apply(void * valuePtr)
     {
         auto v = reinterpret_cast<T *>(valuePtr);
         (*v) -= T(1);
@@ -481,7 +486,7 @@ struct VarOpDecrement
 };
 
 template<typename OP>
-void VariableImpl::ApplyNumberVarOp(OP op)
+void VariableImpl::applyNumberVarOp(OP op)
 {
     NTB_ASSERT(isNumberVar());
     NTB_ASSERT(!readOnly);
@@ -502,47 +507,47 @@ void VariableImpl::ApplyNumberVarOp(OP op)
     switch (varType)
     {
     case VariableType::Ptr:
-        op.Apply<std::uintptr_t>(valuePtr);
+        op.apply<std::uintptr_t>(valuePtr);
         break;
 
     case VariableType::Int8:
-        op.Apply<std::int8_t>(valuePtr);
+        op.apply<std::int8_t>(valuePtr);
         break;
 
     case VariableType::UInt8:
-        op.Apply<std::uint8_t>(valuePtr);
+        op.apply<std::uint8_t>(valuePtr);
         break;
 
     case VariableType::Int16:
-        op.Apply<std::int16_t>(valuePtr);
+        op.apply<std::int16_t>(valuePtr);
         break;
 
     case VariableType::UInt16:
-        op.Apply<std::uint16_t>(valuePtr);
+        op.apply<std::uint16_t>(valuePtr);
         break;
 
     case VariableType::Int32:
-        op.Apply<std::int32_t>(valuePtr);
+        op.apply<std::int32_t>(valuePtr);
         break;
 
     case VariableType::UInt32:
-        op.Apply<std::uint32_t>(valuePtr);
+        op.apply<std::uint32_t>(valuePtr);
         break;
 
     case VariableType::Int64:
-        op.Apply<std::int64_t>(valuePtr);
+        op.apply<std::int64_t>(valuePtr);
         break;
 
     case VariableType::UInt64:
-        op.Apply<std::uint64_t>(valuePtr);
+        op.apply<std::uint64_t>(valuePtr);
         break;
 
     case VariableType::Flt32:
-        op.Apply<Float32>(valuePtr);
+        op.apply<Float32>(valuePtr);
         break;
 
     case VariableType::Flt64:
-        op.Apply<Float64>(valuePtr);
+        op.apply<Float64>(valuePtr);
         break;
 
     default:
@@ -557,31 +562,28 @@ void VariableImpl::ApplyNumberVarOp(OP op)
 
 void VariableImpl::onIncrementButton()
 {
-    ApplyNumberVarOp(VarOpIncrement{});
+    applyNumberVarOp(VarOpIncrement{});
 }
 
 void VariableImpl::onDecrementButton()
 {
-    ApplyNumberVarOp(VarOpDecrement{});
+    applyNumberVarOp(VarOpDecrement{});
 }
 
-void VariableImpl::onSetEnumValue(ListWidget & listWidget, int selectedEntry)
+void VariableImpl::onSetEnumValue(const ListWidget * listWidget, int selectedEntry)
 {
-    auto thisVar = static_cast<VariableImpl *>(listWidget.getParent());
-    NTB_ASSERT(thisVar != nullptr);
+    NTB_ASSERT(this == listWidget->getParent());
+    NTB_ASSERT(varType == VariableType::Enum);
+    NTB_ASSERT(!readOnly);
+    NTB_ASSERT(enumConstants != nullptr);
+    NTB_ASSERT(elementCount > 1);
 
-    NTB_ASSERT(thisVar->varType == VariableType::Enum);
-    NTB_ASSERT(!thisVar->readOnly);
-
-    NTB_ASSERT(thisVar->enumConstants != nullptr);
-    NTB_ASSERT(thisVar->elementCount > 1);
-
-    auto entryText = listWidget.getEntryText(selectedEntry);
+    auto entryText = listWidget->getEntryText(selectedEntry);
     int enumConstantIndex = -1;
 
-    for (int i = 1; i < thisVar->elementCount; ++i)
+    for (int i = 1; i < elementCount; ++i)
     {
-        if (entryText == thisVar->enumConstants[i].name)
+        if (entryText == enumConstants[i].name)
         {
             enumConstantIndex = i;
             break;
@@ -589,32 +591,129 @@ void VariableImpl::onSetEnumValue(ListWidget & listWidget, int selectedEntry)
     }
 
     NTB_ASSERT(enumConstantIndex >= 0);
-    const std::int64_t enumVal = thisVar->enumConstants[enumConstantIndex].value;
+    const std::int64_t enumVal = enumConstants[enumConstantIndex].value;
 
-    if (thisVar->varData != nullptr)
+    if (varData != nullptr)
     {
-        const EnumConstant & enumTypeSize = thisVar->enumConstants[0];
+        const EnumConstant & enumTypeSize = enumConstants[0];
         switch (enumTypeSize.value)
         {
-        case sizeof(std::int8_t)  : *reinterpret_cast<std::int8_t  *>(thisVar->varData) = static_cast<std::int8_t >(enumVal); break;
-        case sizeof(std::int16_t) : *reinterpret_cast<std::int16_t *>(thisVar->varData) = static_cast<std::int16_t>(enumVal); break;
-        case sizeof(std::int32_t) : *reinterpret_cast<std::int32_t *>(thisVar->varData) = static_cast<std::int32_t>(enumVal); break;
-        case sizeof(std::int64_t) : *reinterpret_cast<std::int64_t *>(thisVar->varData) = static_cast<std::int64_t>(enumVal); break;
+        case sizeof(std::int8_t)  : *reinterpret_cast<std::int8_t  *>(varData) = static_cast<std::int8_t >(enumVal); break;
+        case sizeof(std::int16_t) : *reinterpret_cast<std::int16_t *>(varData) = static_cast<std::int16_t>(enumVal); break;
+        case sizeof(std::int32_t) : *reinterpret_cast<std::int32_t *>(varData) = static_cast<std::int32_t>(enumVal); break;
+        case sizeof(std::int64_t) : *reinterpret_cast<std::int64_t *>(varData) = static_cast<std::int64_t>(enumVal); break;
         default : NTB_ASSERT(false);
         }
     }
     else
     {
-        thisVar->optionalCallbacks.callSetter(&enumVal);
+        optionalCallbacks.callSetter(&enumVal);
     }
+}
+
+void VariableImpl::onColorPickerColorSelected(const ColorPickerWidget * colorPicker, Color32 selectedColor)
+{
+    NTB_ASSERT(this == colorPicker->getParent());
+    NTB_ASSERT(isColorVar());
+    NTB_ASSERT(!readOnly);
+
+    Float32 tempColorF[4] = {}; // Largest color value we need to handle.
+    void * valuePtr = tempColorF;
+    size_t valueSize = 0;
+
+    switch (varType)
+    {
+    case VariableType::ColorF:
+        {
+            std::uint8_t r, g, b, a;
+            unpackColor(selectedColor, r, g, b, a);
+
+            const Float32 fR = byteToFloat(r);
+            const Float32 fG = byteToFloat(g);
+            const Float32 fB = byteToFloat(b);
+            const Float32 fA = byteToFloat(a);
+
+            auto * dest = reinterpret_cast<Float32 *>(valuePtr);
+            dest[0] = fR;
+            dest[1] = fG;
+            dest[2] = fB;
+            dest[3] = fA;
+
+            valueSize = sizeof(Float32) * 4;
+        }
+        break;
+
+    case VariableType::Color8B:
+        {
+            std::uint8_t r, g, b, a;
+            unpackColor(selectedColor, r, g, b, a);
+
+            auto * dest = reinterpret_cast<std::uint8_t *>(valuePtr);
+            dest[0] = r;
+            dest[1] = g;
+            dest[2] = b;
+            dest[3] = a;
+
+            valueSize = sizeof(std::uint8_t) * 4;
+        }
+        break;
+
+    case VariableType::ColorU32:
+        {
+            auto * dest = reinterpret_cast<Color32 *>(valuePtr);
+            *dest = selectedColor;
+
+            valueSize = sizeof(Color32);
+        }
+        break;
+
+    default:
+        NTB_ASSERT(false);
+        break;
+    }
+
+    if (varData != nullptr)
+    {
+        std::memcpy(varData, valuePtr, valueSize);
+    }
+    else
+    {
+        optionalCallbacks.callSetter(valuePtr);
+    }
+}
+
+void VariableImpl::onColorPickerClosed(const ColorPickerWidget * colorPicker)
+{
+    NTB_ASSERT(this == colorPicker->getParent());
+    NTB_ASSERT(isColorVar());
+
+    WindowWidget * window = panel->getWindow();
+    window->destroyPopupWidget();
+
+    getEditPopupButton().setState(false);
 }
 
 void VariableImpl::onEditPopupButton(bool state)
 {
+    NTB_ASSERT(!readOnly);
+
     WindowWidget * window = panel->getWindow();
 
     // In case we already have a popup open, close it first.
     window->destroyPopupWidget();
+
+    // Reset all other edit buttons in the hierarchy:
+    panel->enumerateAllVariables([](Variable * var, void * userData)
+    {
+        auto varImpl = static_cast<VariableImpl *>(var);
+        auto thisVar = static_cast<VariableImpl *>(userData);
+
+        if (varImpl != thisVar)
+        {
+            varImpl->getEditPopupButton().setState(false);
+        }
+        return true;
+    }, this);
 
     if (state) // New popup opened
     {
@@ -627,8 +726,10 @@ void VariableImpl::onEditPopupButton(bool state)
                 rect.xMaxs -= Widget::uiScaled(2);
                 rect.moveBy(0, rect.getHeight());
 
+                auto onEntrySelected = ListWidget::OnEntrySelectedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onSetEnumValue>(this);
+
                 auto listWidget = construct(implAllocT<ListWidget>());
-                listWidget->init(gui, this, rect, true, &VariableImpl::onSetEnumValue);
+                listWidget->init(gui, this, rect, true, onEntrySelected);
 
                 listWidget->allocEntries(elementCount - 1);
                 for (int i = 1; i < elementCount; ++i)
@@ -637,6 +738,36 @@ void VariableImpl::onEditPopupButton(bool state)
                 }
 
                 window->setPopupWidget(listWidget);
+            }
+            break;
+
+        case VariableType::ColorF:
+        case VariableType::Color8B:
+        case VariableType::ColorU32:
+            {
+                const int colorPickerWidth  = Widget::uiScaled(360);
+                const int colorPickerHeight = Widget::uiScaled(500);
+                const int colorPickerXStart = getEditPopupButton().getRect().xMins + Widget::uiScaled(20);
+                const int colorPickerYStart = getEditPopupButton().getRect().yMins;
+
+                const Rectangle colorPickerRect = {
+                    colorPickerXStart,
+                    colorPickerYStart,
+                    colorPickerXStart + colorPickerWidth,
+                    colorPickerYStart + colorPickerHeight
+                };
+
+                auto onColorSelected = ColorPickerWidget::OnColorSelectedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onColorPickerColorSelected>(this);
+                auto onClosed = ColorPickerWidget::OnClosedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onColorPickerClosed>(this);
+
+                auto colorPicker = construct(implAllocT<ColorPickerWidget>());
+
+                colorPicker->init(gui, this, colorPickerRect, true,
+                    Widget::uiScaled(40), Widget::uiScaled(28),
+                    Widget::uiScaled(40), Widget::uiScaled(25),
+                    Widget::uiScaled(40), onColorSelected, onClosed);
+
+                window->setPopupWidget(colorPicker);
             }
             break;
 

@@ -485,17 +485,22 @@ public:
     TitleBarWidget() = default;
     void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
               const char * myTitle, bool minimizeButton, bool maximizeButton,
-              int buttonOffsX, int buttonOffsY, int buttonSize, int buttonSpacing);
+              int buttonOffsX, int buttonOffsY, int buttonSize, int buttonSpacing,
+              ButtonWidget::EventListener * fwdBtnListener = nullptr);
 
     void onDraw(GeometryBatch & geoBatch) const override;
     bool onMouseButton(MouseButton button, int clicks) override;
     void onResize(int displacementX, int displacementY, Corner corner) override;
+    void onMove(int displacementX, int displacementY) override;
     bool onButtonDown(ButtonWidget & button) override;
 
     void setButtonTextScaling(Float32 s);
     void setTitle(const char * newTitle);
     const char * getTitle() const;
     int getBarHeight() const;
+
+    ButtonWidget & getMinimizeButton() { return buttons[BtnMinimize]; }
+    ButtonWidget & getMaximizeButton() { return buttons[BtnMaximize]; }
 
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const override;
@@ -516,7 +521,10 @@ private:
 
     ButtonWidget buttons[BtnCount];
     SmallStr     titleText;
-    int          initialHeight;
+    int          initialHeight{ 0 };
+
+    // If set, forwards the minimize/maximize button events to this listener.
+    ButtonWidget::EventListener * forwadBtnListener{ nullptr };
 };
 
 // ========================================================
@@ -625,10 +633,12 @@ class ListWidget final
 {
 public:
 
-    using OnEntrySelectedCallback = void (*)(ListWidget & listWidget, int selectedEntry);
+    // Callback signature:
+    // - void onEntrySelected(void * userData, const ListWidget * listWidget, int selectedEntry)
+    using OnEntrySelectedDelegate = Delegate<void *, void, const ListWidget *, int>;
 
     ListWidget();
-    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, OnEntrySelectedCallback cb = nullptr);
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible, OnEntrySelectedDelegate onEntrySelected = {});
 
     void onDraw(GeometryBatch & geoBatch) const override;
     void onMove(int displacementX, int displacementY) override;
@@ -670,7 +680,9 @@ private:
     static constexpr int None = -1;
     int selectedEntry;
     int hoveredEntry;
-    OnEntrySelectedCallback onEntrySelectedCallback;
+
+    // Invoked when user clicks on an entry.
+    OnEntrySelectedDelegate onEntrySelectedDelegate;
 
     // All strings in the list entries/buttons are
     // packed into this string, no spacing in between.
@@ -686,10 +698,20 @@ class ColorPickerWidget final
 {
 public:
 
+    // Callback signature:
+    // - void onColorSelected(void * userData, const ColorPickerWidget * colorPicker, Color32 selectedColor)
+    using OnColorSelectedDelegate = Delegate<void *, void, const ColorPickerWidget *, Color32>;
+
+    // Callback signature:
+    // - void onClosed(void * userData, const ColorPickerWidget * colorPicker)
+    using OnClosedDelegate = Delegate<void *, void, const ColorPickerWidget *>;
+
     ColorPickerWidget();
     void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
               int titleBarHeight, int titleBarButtonSize, int scrollBarWidth,
-              int scrollBarButtonSize, int clrButtonSize);
+              int scrollBarButtonSize, int clrButtonSize,
+              OnColorSelectedDelegate onColorSelected = {},
+              OnClosedDelegate onClosed = {});
 
     void onDraw(GeometryBatch & geoBatch) const override;
     void onMove(int displacementX, int displacementY) override;
@@ -727,6 +749,9 @@ private:
 
     TitleBarWidget  titleBar;
     ScrollBarWidget scrollBar;
+
+    OnColorSelectedDelegate onColorSelectedDelegate;
+    OnClosedDelegate        onClosedDelegate;
 };
 
 // ========================================================
@@ -899,6 +924,7 @@ protected:
     virtual void onCheckboxButton(bool)  {}
 
     void setExpandCollapseState(bool expanded);
+    ButtonWidget & getEditPopupButton() { return editPopupButton; }
 
 private:
 
@@ -911,7 +937,7 @@ private:
     };
 
     int getMinDataDisplayRectWidth() const;
-    Rectangle makeDataDisplayAndButtonRects(ButtonRects & outBtnRects, bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton);
+    Rectangle makeDataDisplayAndButtonRects(ButtonRects & outBtnRects, bool withValueEditButtons, bool withEditPopupButton, bool withCheckboxButton) const;
     void setHierarchyVisibility(VarDisplayWidget* child, bool visible) const;
 
     void drawVarName(GeometryBatch& geoBatch) const;
@@ -1678,6 +1704,7 @@ inline void WindowWidget::removeEditField(EditField * editField)
 
 inline void WindowWidget::setPopupWidget(Widget * popup)
 {
+    NTB_ASSERT(popupWidget == nullptr); // should call destroyPopupWidget first.
     popupWidget = popup;
 }
 

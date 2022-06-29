@@ -120,16 +120,17 @@ int main(const int argc, const char * argv[])
         auto var3 = panel1->addStringRW(var2, "a writable str", buf, ntb::lengthOfArray(buf));
         auto var4 = panel1->addPointerRW(var2, "a ptr", &ptr);
         auto var5 = panel1->addNumberRW(var2, "an int", &i);
+        auto var6 = panel1->addEnumRW("an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
 
         // Read-only variables
-        auto var6  = panel2->addNumberRO("an int", &i);
-        auto var7  = panel2->addStringRO(var6, "a string", s);
-        auto var8  = panel2->addPointerRO(var7, "a pointer", &ptr);
-        auto var9  = panel2->addColorRO("a color", c, 3);
-        auto var10 = panel2->addEnumRO(var9, "an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
-        auto var11 = panel2->addColorRO(var9, "a color32", &c32);
-        auto var12 = panel2->addRotationQuatRO(var9, "a quaternion", quat);
-        auto var13 = panel2->addBoolRO("a bool", &b);
+        auto var7  = panel2->addNumberRO("an int", &i);
+        auto var8  = panel2->addStringRO(var7, "a string", s);
+        auto var9  = panel2->addPointerRO(var8, "a pointer", &ptr);
+        auto var10 = panel2->addColorRO("a color", c, 3);
+        auto var11 = panel2->addEnumRO(var10, "an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
+        auto var12 = panel2->addColorRO(var10, "a color32", &c32);
+        auto var13 = panel2->addRotationQuatRO(var10, "a quaternion", quat);
+        auto var14 = panel2->addBoolRO("a bool", &b);
 
         struct Test
         {

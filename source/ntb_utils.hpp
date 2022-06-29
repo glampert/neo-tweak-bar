@@ -496,10 +496,10 @@ public:
 
     // Covert numbers/pointers/vectors to string:
     static SmallStr fromPointer(const void * ptr, int base = 16);
-    static SmallStr fromNumber(Float64 num, int base = 10);
+    static SmallStr fromNumber(Float64 num, int base = 10, const char * format = "%f");
     static SmallStr fromNumber(std::int64_t num, int base = 10);
     static SmallStr fromNumber(std::uint64_t num, int base = 10);
-    static SmallStr fromFloatVec(const Float32 vec[], int elemCount, const char * prefix = "");
+    static SmallStr fromFloatVec(const Float32 vec[], int elemCount, const char * prefix = "", const char * format = "%f");
 
 private:
 
@@ -790,6 +790,48 @@ private:
 
     T * head; // Head of list, null if list empty. Circularly referenced.
     int size; // Number of items currently in the list. 0 if list empty.
+};
+
+// ========================================================
+// class Delegate:
+// ========================================================
+
+template<typename UserData, typename Ret, typename... Args>
+class Delegate final
+{
+    using CallbackSignature = Ret (*)(UserData, Args...);
+
+    CallbackSignature callback{};
+    UserData          userData{};
+
+public:
+
+    Delegate() = default;
+    Delegate(CallbackSignature cb, UserData ud)
+        : callback(cb)
+        , userData(ud)
+    {}
+
+    bool isNull() const
+    {
+        return callback == nullptr;
+    }
+
+    Ret invoke(Args... args) const
+    {
+        NTB_ASSERT(!isNull());
+        return callback(userData, args...);
+    }
+
+    template<typename T, Ret (T::*method)(Args...)>
+    static Delegate fromClassMethod(T * thisPtr)
+    {
+        return Delegate([](UserData userData, Args... args)
+        {
+            T * thisPtr = reinterpret_cast<T *>(userData);
+            (thisPtr->*method)(args...);
+        }, thisPtr);
+    }
 };
 
 // ========================================================

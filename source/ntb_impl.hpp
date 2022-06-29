@@ -49,12 +49,17 @@ public:
     Variable * collapseHierarchy() override;
     Variable * expandHierarchy() override;
 
-protected:
+private:
 
     bool isNumberVar() const;
+    bool isColorVar() const;
     bool isEditPopupVar() const;
-    template<typename OP> void ApplyNumberVarOp(OP op);
-    static void onSetEnumValue(ListWidget & listWidget, int selectedEntry);
+    template<typename OP> void applyNumberVarOp(OP op);
+
+    // Delegates:
+    void onSetEnumValue(const ListWidget * listWidget, int selectedEntry);
+    void onColorPickerColorSelected(const ColorPickerWidget * colorPicker, Color32 selectedColor);
+    void onColorPickerClosed(const ColorPickerWidget * colorPicker);
 
     // VarDisplayWidget overrides:
     bool onGetVarValueText(SmallStr & valueText) const override;
