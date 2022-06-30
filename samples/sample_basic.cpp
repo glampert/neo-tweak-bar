@@ -79,7 +79,7 @@ static void myAppEventCallback(const AppEvent & event, void * userContext)
 int main(const int argc, const char * argv[])
 {
 #if defined(_MSC_VER) && defined(_DEBUG)
-    // Memory leak checking when main() return.
+    // Memory leak checking when main() returns.
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif // _MSC_VER && _DEBUG
 
@@ -113,7 +113,7 @@ int main(const int argc, const char * argv[])
         ntb::Color32  c32     = ntb::packColor(255, 0, 0);
         float         quat[4] = { 1.1f, 1.2f, 1.3f, 1.4f };
 
-        // Read-write variables
+        // Read-write variables ("Sample panel 1 (RW)")
         auto var0 = panel1->addBoolRW("a boolean", &b);
         auto var1 = panel1->addFloatVecRW(var0, "a vec4", v, 4);
         auto var2 = panel1->addNumberRW("a float", &f);
@@ -122,13 +122,13 @@ int main(const int argc, const char * argv[])
         auto var5 = panel1->addNumberRW(var2, "an int", &i);
         auto var6 = panel1->addEnumRW("an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
 
-        // Read-only variables
+        // Read-only variables ("Sample panel 2 (RO)")
         auto var7  = panel2->addNumberRO("an int", &i);
         auto var8  = panel2->addStringRO(var7, "a string", s);
         auto var9  = panel2->addPointerRO(var8, "a pointer", &ptr);
-        auto var10 = panel2->addColorRO("a color", c, 3);
+        auto var10 = panel2->addColorRO("a color as text", c, 3)->displayColorAsText(true);
         auto var11 = panel2->addEnumRO(var10, "an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
-        auto var12 = panel2->addColorRO(var10, "a color32", &c32);
+        auto var12 = panel2->addColorRO(var10, "a color32 as text", &c32)->displayColorAsText(true);
         auto var13 = panel2->addRotationQuatRO(var10, "a quaternion", quat);
         auto var14 = panel2->addBoolRO("a bool", &b);
 
@@ -176,6 +176,7 @@ int main(const int argc, const char * argv[])
             void setEnumVal(TestEnumClass val) { en = val; }
         } testObj;
 
+        // "Sample panel 3 (CB)"
         const char ch = 'G';
         panel3->addCharRO("a char", &ch);
 
@@ -186,7 +187,7 @@ int main(const int argc, const char * argv[])
         panel3->addBoolRW("Test::b",    ntb::callbacks(&testObj, &Test::getBoolVal,      &Test::setBoolVal));
         panel3->addNumberRW("Test::i",  ntb::callbacks(&testObj, &Test::getIntVal,       &Test::setIntVal));
         panel3->addStringRW("Test::s",  ntb::callbacks(&testObj, &Test::getStdStringRef, &Test::setStdStringRef));
-        panel3->addColorRW("Test::c32", ntb::callbacks(&testObj, &Test::getColor32Val,   &Test::setColor32Val), 4);
+        panel3->addColorRW("Test::c32", ntb::callbacks(&testObj, &Test::getColor32Val,   &Test::setColor32Val), 1);
         panel3->addColorRW("Test::c4f", ntb::callbacks(&testObj, &Test::getColor4FPtr,   &Test::setColor4FPtr), 4);
         panel3->addColorRW("Test::c8b", ntb::callbacks(&testObj, &Test::getColor8BPtr,   &Test::setColor8BPtr), 4);
 

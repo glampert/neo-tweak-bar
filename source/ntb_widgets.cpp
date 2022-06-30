@@ -3558,6 +3558,7 @@ VarDisplayWidget::VarDisplayWidget()
     : parentWindow(nullptr)
     , initialHeight(0)
     , titleWidth(0)
+    , editFieldBackground(0)
 {
     dataDisplayRect.setZero();
 }
@@ -3756,18 +3757,30 @@ void VarDisplayWidget::drawVarValue(GeometryBatch & geoBatch) const
         return;
     }
 
-    cachedValueText.clear();
-    if (!onGetVarValueText(cachedValueText))
+    // Draw a dummy edit field filled with the variable's color (editFieldBackground):
+    if (testFlag(Flag_ColorDisplayVar))
     {
-        return;
+        editField.isActive = false;
+        const ColorScheme & myColors = getColors();
+        editField.drawSelf(geoBatch, dataDisplayRect, "", 0,
+                           myColors.text.normal, myColors.text.selection, myColors.text.cursor,
+                           editFieldBackground, getTextScaling(), getScaling());
     }
+    else // Normal text display editor field:
+    {
+        cachedValueText.clear();
+        if (!onGetVarValueText(cachedValueText))
+        {
+            return;
+        }
 
-    const ColorScheme & myColors = getColors();
-    const Color32 editBackground = lighthenRGB(myColors.box.bgTopLeft, 30);
+        const ColorScheme & myColors = getColors();
+        const Color32 backgroundColor = (editFieldBackground != 0) ? editFieldBackground : lighthenRGB(myColors.box.bgTopLeft, 30);
 
-    editField.drawSelf(geoBatch, dataDisplayRect, cachedValueText.c_str(), cachedValueText.getLength(),
-                       myColors.text.normal, myColors.text.selection, myColors.text.cursor,
-                       editBackground, getTextScaling(), getScaling());
+        editField.drawSelf(geoBatch, dataDisplayRect, cachedValueText.c_str(), cachedValueText.getLength(),
+                           myColors.text.normal, myColors.text.selection, myColors.text.cursor,
+                           backgroundColor, getTextScaling(), getScaling());
+    }
 }
 
 void VarDisplayWidget::drawValueEditButtons(GeometryBatch & geoBatch) const

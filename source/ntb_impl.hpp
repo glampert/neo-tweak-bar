@@ -48,6 +48,7 @@ public:
 
     Variable * collapseHierarchy() override;
     Variable * expandHierarchy() override;
+    Variable * displayColorAsText(bool displayAsRgbaNumbers) override;
 
 private:
 
@@ -55,6 +56,7 @@ private:
     bool isColorVar() const;
     bool isEditPopupVar() const;
     template<typename OP> void applyNumberVarOp(OP op);
+    Color32 getVarColorValue() const;
 
     // Delegates:
     void onSetEnumValue(const ListWidget * listWidget, int selectedEntry);
@@ -72,13 +74,13 @@ private:
 private:
 
     PanelImpl *          panel{ nullptr };
-    std::uint32_t        hashCode{ 0 };
-    bool                 readOnly{ false };
+    std::uint32_t        hashCode{ 0 }; // Hash of name for fast lookup.
     int                  elementCount{ 0 };
     VariableType         varType{ VariableType::Undefined };
     void               * varData{ nullptr };
     const EnumConstant * enumConstants{ nullptr };
-    VarCallbacksAny      optionalCallbacks;
+    VarCallbacksAny      optionalCallbacks{};
+    bool                 readOnly{ false };
 };
 
 // ========================================================
@@ -139,16 +141,15 @@ public:
     const GUI * getGUI() const override { return window.getGUI(); }
     GUI * getGUI() override { return window.getGUI(); }
 
-    Panel * setName(const char * newName) override { name = newName; hashCode = hashString(newName); return this; }
-    const char * getName() const override { return name.c_str(); }
+    Panel * setName(const char * newName) override;
+    const char * getName() const override { return window.getTitle(); }
     std::uint32_t getHashCode() const override { return hashCode; }
 
 private:
 
-    std::uint32_t hashCode{ 0 };
-    SmallStr      name;
+    std::uint32_t hashCode{ 0 }; // Hash of name/window title for fast lookup.
     PODArray      variables{ sizeof(VariableImpl *) };
-    WindowWidget  window;
+    WindowWidget  window{};
 };
 
 // ========================================================
@@ -194,10 +195,10 @@ public:
 
 private:
 
-    std::uint32_t hashCode{ 0 };
-    SmallStr      name;
+    std::uint32_t hashCode{ 0 }; // Hash of name for fast lookup.
+    SmallStr      name{};
     PODArray      panels{ sizeof(PanelImpl *) };
-    GeometryBatch geoBatch;
+    GeometryBatch geoBatch{};
     Float32       globalUIScaling{ 1.0f };
     Float32       globalTextScaling{ 1.0f };
 };

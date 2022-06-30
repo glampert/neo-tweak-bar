@@ -55,11 +55,11 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
 {
     this->panel         = myPanel;
     this->hashCode      = hashString(myName);
-    this->readOnly      = readOnly;
     this->varType       = varType;
     this->varData       = varData;
     this->elementCount  = elementCount;
     this->enumConstants = enumConstants;
+    this->readOnly      = readOnly;
 
     if (optionalCallbacks != nullptr)
     {
@@ -89,13 +89,21 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
             {
             case VariableType::UInt32:
                 this->varType = VariableType::ColorU32;
+                if (this->elementCount != 1)
+                {
+                    errorF("ColorU32 from callback must specify size = 1, got %i", this->elementCount);
+                }
+                NTB_ASSERT(this->elementCount == 1);
                 break;
+
             case VariableType::Flt32:
                 this->varType = VariableType::ColorF;
                 break;
+
             case VariableType::UInt8:
                 this->varType = VariableType::Color8B;
                 break;
+
             default:
                 NTB_ASSERT(false);
             }
@@ -166,6 +174,9 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
     }
 
     VarDisplayWidget::init(panel->getGUI(), parentVarImpl, varRect, visible, window, myName, varWidgetFlags, checkboxInitialState);
+
+    // This is the default for colors - display as a colored rectangle.
+    displayColorAsText(false);
 }
 
 Variable * VariableImpl::setName(const char * newName)
@@ -214,6 +225,25 @@ Variable * VariableImpl::collapseHierarchy()
 Variable * VariableImpl::expandHierarchy()
 {
     VarDisplayWidget::setExpandCollapseState(true);
+    return this;
+}
+
+Variable * VariableImpl::displayColorAsText(bool displayAsRgbaNumbers)
+{
+    if (isColorVar())
+    {
+        if (!displayAsRgbaNumbers) // Display as a colored rectangle?
+        {
+            const Color32 varColor = getVarColorValue();
+            VarDisplayWidget::setEditFieldBackground(varColor);
+            VarDisplayWidget::setFlag(VarDisplayWidget::Flag_ColorDisplayVar, true);
+        }
+        else
+        {
+            VarDisplayWidget::setEditFieldBackground(0);
+            VarDisplayWidget::setFlag(VarDisplayWidget::Flag_ColorDisplayVar, false);
+        }
+    }
     return this;
 }
 
@@ -286,7 +316,7 @@ bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
     case VariableType::StringCB:
         {
             NTB_ASSERT(false && "Invalid variable type!");
-            break;
+            return false;
         }
     case VariableType::Enum:
         {
@@ -465,6 +495,86 @@ void VariableImpl::onSetVarValueText(const SmallStr & valueText)
     // TODO
 }
 
+Color32 VariableImpl::getVarColorValue() const
+{
+    NTB_ASSERT(isColorVar());
+
+    Color32 tempColorBuffer[4] = {}; // Largest color value we need to handle.
+    void * colorValuePtr = tempColorBuffer;
+
+    if (varData != nullptr)
+    {
+        size_t colorElementSize = 0;
+        switch (varType)
+        {
+        case VariableType::ColorF:
+            NTB_ASSERT(elementCount == 3 || elementCount == 4); // RGB or RGBA
+            colorElementSize = sizeof(Float32);
+            break;
+
+        case VariableType::Color8B:
+            NTB_ASSERT(elementCount == 3 || elementCount == 4); // RGB or RGBA
+            colorElementSize = sizeof(std::uint8_t);
+            break;
+
+        case VariableType::ColorU32:
+            NTB_ASSERT(elementCount == 1); // Packed RGBA
+            colorElementSize = sizeof(Color32);
+            break;
+
+        default:
+            NTB_ASSERT(false);
+            return Color32{ 0 };
+        }
+
+        const size_t colorValueSize = elementCount * colorElementSize;
+        std::memcpy(colorValuePtr, varData, colorValueSize);
+    }
+    else
+    {
+        optionalCallbacks.callGetter(colorValuePtr);
+    }
+
+    // Convert to Color32:
+    Color32 result{ 0 };
+    switch (varType)
+    {
+    case VariableType::ColorF:
+        {
+            NTB_ASSERT(elementCount == 3 || elementCount == 4); // RGB or RGBA
+            auto src = reinterpret_cast<const Float32 *>(colorValuePtr);
+            const std::uint8_t r = floatToByte(src[0]);
+            const std::uint8_t g = floatToByte(src[1]);
+            const std::uint8_t b = floatToByte(src[2]);
+            const std::uint8_t a = (elementCount == 4) ? floatToByte(src[3]) : 255;
+            result = packColor(r, g, b, a);
+        }
+        break;
+
+    case VariableType::Color8B:
+        {
+            NTB_ASSERT(elementCount == 3 || elementCount == 4); // RGB or RGBA
+            auto src = reinterpret_cast<const std::uint8_t *>(colorValuePtr);
+            result = packColor(src[0], src[1], src[2], (elementCount == 4) ? src[3] : 255);
+        }
+        break;
+
+    case VariableType::ColorU32:
+        {
+            NTB_ASSERT(elementCount == 1); // Packed RGBA
+            auto src = reinterpret_cast<const Color32 *>(colorValuePtr);
+            result = *src;
+        }
+        break;
+
+    default:
+        NTB_ASSERT(false);
+        return Color32{ 0 };
+    }
+
+    return result;
+}
+
 struct VarOpIncrement
 {
     template<typename T>
@@ -617,14 +727,17 @@ void VariableImpl::onColorPickerColorSelected(const ColorPickerWidget * colorPic
     NTB_ASSERT(isColorVar());
     NTB_ASSERT(!readOnly);
 
-    Float32 tempColorF[4] = {}; // Largest color value we need to handle.
-    void * valuePtr = tempColorF;
-    size_t valueSize = 0;
+    Color32 tempColorBuffer[4] = {}; // Largest color value we need to handle.
+    void * colorValuePtr = tempColorBuffer;
+    size_t colorElementSize = 0;
 
     switch (varType)
     {
     case VariableType::ColorF:
         {
+            NTB_ASSERT(elementCount == 3 || elementCount == 4); // RGB or RGBA
+            colorElementSize = sizeof(Float32);
+
             std::uint8_t r, g, b, a;
             unpackColor(selectedColor, r, g, b, a);
 
@@ -633,52 +746,58 @@ void VariableImpl::onColorPickerColorSelected(const ColorPickerWidget * colorPic
             const Float32 fB = byteToFloat(b);
             const Float32 fA = byteToFloat(a);
 
-            auto * dest = reinterpret_cast<Float32 *>(valuePtr);
+            auto dest = reinterpret_cast<Float32 *>(colorValuePtr);
             dest[0] = fR;
             dest[1] = fG;
             dest[2] = fB;
             dest[3] = fA;
-
-            valueSize = sizeof(Float32) * 4;
         }
         break;
 
     case VariableType::Color8B:
         {
+            NTB_ASSERT(elementCount == 3 || elementCount == 4); // RGB or RGBA
+            colorElementSize = sizeof(std::uint8_t);
+
             std::uint8_t r, g, b, a;
             unpackColor(selectedColor, r, g, b, a);
 
-            auto * dest = reinterpret_cast<std::uint8_t *>(valuePtr);
+            auto dest = reinterpret_cast<std::uint8_t *>(colorValuePtr);
             dest[0] = r;
             dest[1] = g;
             dest[2] = b;
             dest[3] = a;
-
-            valueSize = sizeof(std::uint8_t) * 4;
         }
         break;
 
     case VariableType::ColorU32:
         {
-            auto * dest = reinterpret_cast<Color32 *>(valuePtr);
-            *dest = selectedColor;
+            NTB_ASSERT(elementCount == 1); // Packed RGBA
+            colorElementSize = sizeof(Color32);
 
-            valueSize = sizeof(Color32);
+            auto dest = reinterpret_cast<Color32 *>(colorValuePtr);
+            *dest = selectedColor;
         }
         break;
 
     default:
         NTB_ASSERT(false);
-        break;
+        return;
     }
 
     if (varData != nullptr)
     {
-        std::memcpy(varData, valuePtr, valueSize);
+        const size_t colorValueSize = elementCount * colorElementSize;
+        std::memcpy(varData, colorValuePtr, colorValueSize);
     }
     else
     {
-        optionalCallbacks.callSetter(valuePtr);
+        optionalCallbacks.callSetter(colorValuePtr);
+    }
+
+    if (VarDisplayWidget::testFlag(VarDisplayWidget::Flag_ColorDisplayVar))
+    {
+        VarDisplayWidget::setEditFieldBackground(selectedColor);
     }
 }
 
@@ -811,10 +930,10 @@ PanelImpl::~PanelImpl()
 
 void PanelImpl::init(GUIImpl * myGUI, const char * myName)
 {
-    setName(myName);
+    hashCode = hashString(myName);
 
     // Guess our window size based on the title length:
-    const Float32 titleWidth = GeometryBatch::calcTextWidth(name.c_str(), name.getLength(), myGUI->getGlobalTextScaling());
+    const Float32 titleWidth = GeometryBatch::calcTextWidth(myName, lengthOfString(myName), myGUI->getGlobalTextScaling());
 
     // TODO: Make these configurable?
     const auto scale = myGUI->getGlobalUIScaling();
@@ -822,7 +941,7 @@ void PanelImpl::init(GUIImpl * myGUI, const char * myName)
     const bool visible = true;
     const bool resizeable = true;
 
-    window.init(myGUI, nullptr, rect, visible, resizeable, name.c_str(),
+    window.init(myGUI, nullptr, rect, visible, resizeable, myName,
                 Widget::uiScaleBy(kPanelTitleBarHeight, scale), Widget::uiScaleBy(kPanelTitleBarBtnSize, scale),
                 Widget::uiScaleBy(kPanelScrollBarWidth, scale), Widget::uiScaleBy(kPanelScrollBarBtnSize, scale));
 }
@@ -903,6 +1022,13 @@ int PanelImpl::getVariablesCount() const
 void PanelImpl::enumerateAllVariables(VariableEnumerateCallback enumCallback, void * userContext)
 {
     variables.forEach<VariableImpl *>(enumCallback, userContext);
+}
+
+Panel * PanelImpl::setName(const char * newName)
+{
+    window.setTitle(newName);
+    hashCode = hashString(newName);
+    return this;
 }
 
 bool PanelImpl::onKeyPressed(KeyCode key, KeyModFlags modifiers)

@@ -210,7 +210,7 @@ static void c_setVoidPtr(void * /*userData*/, void * const * inPtr)
 int main()
 {
 #if defined(_MSC_VER) && defined(_DEBUG)
-    // Memory leak checking when main() return.
+    // Memory leak checking when main() returns.
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif // _MSC_VER && _DEBUG
 

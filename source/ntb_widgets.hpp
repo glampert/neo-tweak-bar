@@ -294,10 +294,11 @@ public:
         Flag_WithValueEditButtons    = 1 << 10,
         Flag_WithEditPopupButton     = 1 << 11,
         Flag_WithCheckboxButton      = 1 << 12,
+        Flag_ColorDisplayVar         = 1 << 13,
 
         // Windows:
-        Flag_NoResizing              = 1 << 13,
-        Flag_NoInfoBar               = 1 << 14,
+        Flag_NoResizing              = 1 << 14,
+        Flag_NoInfoBar               = 1 << 15,
     };
 
     enum Corner
@@ -924,6 +925,7 @@ protected:
     virtual void onCheckboxButton(bool)  {}
 
     void setExpandCollapseState(bool expanded);
+    void setEditFieldBackground(Color32 bg) { editFieldBackground = bg; }
     ButtonWidget & getEditPopupButton() { return editPopupButton; }
 
 private:
@@ -973,6 +975,7 @@ private:
 
     // Mutable because EditField::drawSelf() needs to update some internal state.
     mutable EditField editField;
+    Color32 editFieldBackground;
 
     // Last value queried form the user variable as text. Updated by drawVarValue().
     mutable SmallStr cachedValueText;
@@ -1012,6 +1015,8 @@ public:
     void setUsableRect(const Rectangle & newRect);
 
     const char * getTitle() const;
+    void setTitle(const char * newTitle);
+
     ScrollBarWidget & getScrollBar();
     IntrusiveList<EditField> & getEditFieldList();
 
@@ -1680,6 +1685,11 @@ inline void WindowWidget::setUsableRect(const Rectangle & newRect)
 inline const char * WindowWidget::getTitle() const
 {
     return titleBar.getTitle();
+}
+
+inline void WindowWidget::setTitle(const char * newTitle)
+{
+    titleBar.setTitle(newTitle);
 }
 
 inline ScrollBarWidget & WindowWidget::getScrollBar()

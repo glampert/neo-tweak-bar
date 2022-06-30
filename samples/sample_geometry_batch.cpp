@@ -89,7 +89,7 @@ static void makeScreenProjectedBox(ntb::PODArray * scrProjectedVerts, ntb::PODAr
 int main(const int argc, const char * argv[])
 {
 #if defined(_MSC_VER) && defined(_DEBUG)
-    // Memory leak checking when main() return.
+    // Memory leak checking when main() returns.
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif // _MSC_VER && _DEBUG
 

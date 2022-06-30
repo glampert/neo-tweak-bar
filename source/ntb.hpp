@@ -813,6 +813,10 @@ public:
     virtual Variable * setName(const char * newName) = 0;
     virtual Variable * collapseHierarchy() = 0;
     virtual Variable * expandHierarchy() = 0;
+
+    // Display color variable as [R,G,B,A] numbers or as a colored rectangle?
+    // Default behavior is to display color values as a colored rectangle.
+    virtual Variable * displayColorAsText(bool displayAsRgbaNumbers) = 0;
 };
 
 // Callback for Panel::enumerateAllVariables().
@@ -836,10 +840,10 @@ public:
     //
 
     Variable * addBoolRO(const char * name, const bool * var) { return addVariableRO(VariableType::Bool, nullptr, name, var); }
-    Variable * addBoolRW(const char * name, bool * var)       { return addVariableRW(VariableType::Bool, nullptr, name, var); }
+    Variable * addBoolRW(const char * name,       bool * var) { return addVariableRW(VariableType::Bool, nullptr, name, var); }
 
     Variable * addBoolRO(Variable * parent, const char * name, const bool * var) { return addVariableRO(VariableType::Bool, parent, name, var); }
-    Variable * addBoolRW(Variable * parent, const char * name, bool * var)       { return addVariableRW(VariableType::Bool, parent, name, var); }
+    Variable * addBoolRW(Variable * parent, const char * name,       bool * var) { return addVariableRW(VariableType::Bool, parent, name, var); }
 
     Variable * addBoolRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::Bool, nullptr, name, callbacks, VarAccess::RO); }
     Variable * addBoolRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::Bool, nullptr, name, callbacks, VarAccess::RW); }
@@ -852,10 +856,10 @@ public:
     //
 
     Variable * addCharRO(const char * name, const char * var) { return addVariableRO(VariableType::Char, nullptr, name, var); }
-    Variable * addCharRW(const char * name, char * var)       { return addVariableRW(VariableType::Char, nullptr, name, var); }
+    Variable * addCharRW(const char * name,       char * var) { return addVariableRW(VariableType::Char, nullptr, name, var); }
 
     Variable * addCharRO(Variable * parent, const char * name, const char * var) { return addVariableRO(VariableType::Char, parent, name, var); }
-    Variable * addCharRW(Variable * parent, const char * name, char * var)       { return addVariableRW(VariableType::Char, parent, name, var); }
+    Variable * addCharRW(Variable * parent, const char * name,       char * var) { return addVariableRW(VariableType::Char, parent, name, var); }
 
     Variable * addCharRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::Char, nullptr, name, callbacks, VarAccess::RO); }
     Variable * addCharRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::Char, nullptr, name, callbacks, VarAccess::RW); }
@@ -868,64 +872,64 @@ public:
     //
 
     Variable * addNumberRO(const char * name, const std::int8_t * var) { return addVariableRO(VariableType::Int8, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, std::int8_t * var)       { return addVariableRW(VariableType::Int8, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       std::int8_t * var) { return addVariableRW(VariableType::Int8, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const std::int8_t * var) { return addVariableRO(VariableType::Int8, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, std::int8_t * var)       { return addVariableRW(VariableType::Int8, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       std::int8_t * var) { return addVariableRW(VariableType::Int8, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const std::uint8_t * var) { return addVariableRO(VariableType::UInt8, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, std::uint8_t * var)       { return addVariableRW(VariableType::UInt8, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       std::uint8_t * var) { return addVariableRW(VariableType::UInt8, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const std::uint8_t * var) { return addVariableRO(VariableType::UInt8, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, std::uint8_t * var)       { return addVariableRW(VariableType::UInt8, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       std::uint8_t * var) { return addVariableRW(VariableType::UInt8, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const std::int16_t * var) { return addVariableRO(VariableType::Int16, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, std::int16_t * var)       { return addVariableRW(VariableType::Int16, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       std::int16_t * var) { return addVariableRW(VariableType::Int16, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const std::int16_t * var) { return addVariableRO(VariableType::Int16, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, std::int16_t * var)       { return addVariableRW(VariableType::Int16, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       std::int16_t * var) { return addVariableRW(VariableType::Int16, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const std::uint16_t * var) { return addVariableRO(VariableType::UInt16, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, std::uint16_t * var)       { return addVariableRW(VariableType::UInt16, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       std::uint16_t * var) { return addVariableRW(VariableType::UInt16, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const std::uint16_t * var) { return addVariableRO(VariableType::UInt16, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, std::uint16_t * var)       { return addVariableRW(VariableType::UInt16, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       std::uint16_t * var) { return addVariableRW(VariableType::UInt16, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const std::int32_t * var) { return addVariableRO(VariableType::Int32, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, std::int32_t * var)       { return addVariableRW(VariableType::Int32, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       std::int32_t * var) { return addVariableRW(VariableType::Int32, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const std::int32_t * var) { return addVariableRO(VariableType::Int32, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, std::int32_t * var)       { return addVariableRW(VariableType::Int32, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       std::int32_t * var) { return addVariableRW(VariableType::Int32, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const std::uint32_t * var) { return addVariableRO(VariableType::UInt32, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, std::uint32_t * var)       { return addVariableRW(VariableType::UInt32, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       std::uint32_t * var) { return addVariableRW(VariableType::UInt32, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const std::uint32_t * var) { return addVariableRO(VariableType::UInt32, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, std::uint32_t * var)       { return addVariableRW(VariableType::UInt32, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       std::uint32_t * var) { return addVariableRW(VariableType::UInt32, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const std::int64_t * var) { return addVariableRO(VariableType::Int64, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, std::int64_t * var)       { return addVariableRW(VariableType::Int64, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       std::int64_t * var) { return addVariableRW(VariableType::Int64, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const std::int64_t * var) { return addVariableRO(VariableType::Int64, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, std::int64_t * var)       { return addVariableRW(VariableType::Int64, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       std::int64_t * var) { return addVariableRW(VariableType::Int64, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const std::uint64_t * var) { return addVariableRO(VariableType::UInt64, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, std::uint64_t * var)       { return addVariableRW(VariableType::UInt64, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       std::uint64_t * var) { return addVariableRW(VariableType::UInt64, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const std::uint64_t * var) { return addVariableRO(VariableType::UInt64, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, std::uint64_t * var)       { return addVariableRW(VariableType::UInt64, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       std::uint64_t * var) { return addVariableRW(VariableType::UInt64, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const Float32 * var) { return addVariableRO(VariableType::Flt32, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, Float32 * var)       { return addVariableRW(VariableType::Flt32, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       Float32 * var) { return addVariableRW(VariableType::Flt32, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const Float32 * var) { return addVariableRO(VariableType::Flt32, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, Float32 * var)       { return addVariableRW(VariableType::Flt32, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       Float32 * var) { return addVariableRW(VariableType::Flt32, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const Float64 * var) { return addVariableRO(VariableType::Flt64, nullptr, name, var); }
-    Variable * addNumberRW(const char * name, Float64 * var)       { return addVariableRW(VariableType::Flt64, nullptr, name, var); }
+    Variable * addNumberRW(const char * name,       Float64 * var) { return addVariableRW(VariableType::Flt64, nullptr, name, var); }
 
     Variable * addNumberRO(Variable * parent, const char * name, const Float64 * var) { return addVariableRO(VariableType::Flt64, parent, name, var); }
-    Variable * addNumberRW(Variable * parent, const char * name, Float64 * var)       { return addVariableRW(VariableType::Flt64, parent, name, var); }
+    Variable * addNumberRW(Variable * parent, const char * name,       Float64 * var) { return addVariableRW(VariableType::Flt64, parent, name, var); }
 
     Variable * addNumberRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::NumberCB, nullptr, name, callbacks, VarAccess::RO); }
     Variable * addNumberRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::NumberCB, nullptr, name, callbacks, VarAccess::RW); }
@@ -938,10 +942,10 @@ public:
     //
 
     Variable * addPointerRO(const char * name, const void * const * ptr) { return addVariableRO(VariableType::Ptr, nullptr, name, ptr); }
-    Variable * addPointerRW(const char * name, void ** ptr)              { return addVariableRW(VariableType::Ptr, nullptr, name, ptr); }
+    Variable * addPointerRW(const char * name,              void ** ptr) { return addVariableRW(VariableType::Ptr, nullptr, name, ptr); }
 
     Variable * addPointerRO(Variable * parent, const char * name, const void * const * ptr) { return addVariableRO(VariableType::Ptr, parent, name, ptr); }
-    Variable * addPointerRW(Variable * parent, const char * name, void ** ptr)              { return addVariableRW(VariableType::Ptr, parent, name, ptr); }
+    Variable * addPointerRW(Variable * parent, const char * name,              void ** ptr) { return addVariableRW(VariableType::Ptr, parent, name, ptr); }
 
     Variable * addPointerRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::Ptr, nullptr, name, callbacks, VarAccess::RO); }
     Variable * addPointerRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::Ptr, nullptr, name, callbacks, VarAccess::RW); }
@@ -954,10 +958,10 @@ public:
     //
 
     Variable * addFloatVecRO(const char * name, const Float32 * vec, int size) { return addVariableRO(VariableType::VecF, nullptr, name, vec, size); }
-    Variable * addFloatVecRW(const char * name, Float32 * vec, int size)       { return addVariableRW(VariableType::VecF, nullptr, name, vec, size); }
+    Variable * addFloatVecRW(const char * name,       Float32 * vec, int size) { return addVariableRW(VariableType::VecF, nullptr, name, vec, size); }
 
     Variable * addFloatVecRO(Variable * parent, const char * name, const Float32 * vec, int size) { return addVariableRO(VariableType::VecF, parent, name, vec, size); }
-    Variable * addFloatVecRW(Variable * parent, const char * name, Float32 * vec, int size)       { return addVariableRW(VariableType::VecF, parent, name, vec, size); }
+    Variable * addFloatVecRW(Variable * parent, const char * name,       Float32 * vec, int size) { return addVariableRW(VariableType::VecF, parent, name, vec, size); }
 
     Variable * addFloatVecRO(const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VariableType::VecF, nullptr, name, callbacks, VarAccess::RO, size); }
     Variable * addFloatVecRW(const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VariableType::VecF, nullptr, name, callbacks, VarAccess::RW, size); }
@@ -970,10 +974,10 @@ public:
     //
 
     Variable * addDirectionVecRO(const char * name, const Float32 * vec) { return addVariableRO(VariableType::DirVec3, nullptr, name, vec, 3); }
-    Variable * addDirectionVecRW(const char * name, Float32 * vec)       { return addVariableRW(VariableType::DirVec3, nullptr, name, vec, 3); }
+    Variable * addDirectionVecRW(const char * name,       Float32 * vec) { return addVariableRW(VariableType::DirVec3, nullptr, name, vec, 3); }
 
     Variable * addDirectionVecRO(Variable * parent, const char * name, const Float32 * vec) { return addVariableRO(VariableType::DirVec3, parent, name, vec, 3); }
-    Variable * addDirectionVecRW(Variable * parent, const char * name, Float32 * vec)       { return addVariableRW(VariableType::DirVec3, parent, name, vec, 3); }
+    Variable * addDirectionVecRW(Variable * parent, const char * name,       Float32 * vec) { return addVariableRW(VariableType::DirVec3, parent, name, vec, 3); }
 
     Variable * addDirectionVecRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::DirVec3, nullptr, name, callbacks, VarAccess::RO, 3); }
     Variable * addDirectionVecRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::DirVec3, nullptr, name, callbacks, VarAccess::RW, 3); }
@@ -986,10 +990,10 @@ public:
     //
 
     Variable * addRotationQuatRO(const char * name, const Float32 * quat) { return addVariableRO(VariableType::Quat4, nullptr, name, quat, 4); }
-    Variable * addRotationQuatRW(const char * name, Float32 * quat)       { return addVariableRW(VariableType::Quat4, nullptr, name, quat, 4); }
+    Variable * addRotationQuatRW(const char * name,       Float32 * quat) { return addVariableRW(VariableType::Quat4, nullptr, name, quat, 4); }
 
     Variable * addRotationQuatRO(Variable * parent, const char * name, const Float32 * quat) { return addVariableRO(VariableType::Quat4, parent, name, quat, 4); }
-    Variable * addRotationQuatRW(Variable * parent, const char * name, Float32 * quat)       { return addVariableRW(VariableType::Quat4, parent, name, quat, 4); }
+    Variable * addRotationQuatRW(Variable * parent, const char * name,       Float32 * quat) { return addVariableRW(VariableType::Quat4, parent, name, quat, 4); }
 
     Variable * addRotationQuatRO(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::Quat4, nullptr, name, callbacks, VarAccess::RO, 4); }
     Variable * addRotationQuatRW(const char * name, const VarCallbacksAny & callbacks) { return addVariableCB(VariableType::Quat4, nullptr, name, callbacks, VarAccess::RW, 4); }
@@ -1003,24 +1007,24 @@ public:
 
     // Byte-sized color components [0,255]:
     Variable * addColorRO(const char * name, const std::uint8_t * color, int size) { return addVariableRO(VariableType::Color8B, nullptr, name, color, size); }
-    Variable * addColorRW(const char * name, std::uint8_t * color, int size)       { return addVariableRW(VariableType::Color8B, nullptr, name, color, size); }
+    Variable * addColorRW(const char * name,       std::uint8_t * color, int size) { return addVariableRW(VariableType::Color8B, nullptr, name, color, size); }
 
     Variable * addColorRO(Variable * parent, const char * name, const std::uint8_t * color, int size) { return addVariableRO(VariableType::Color8B, parent, name, color, size); }
-    Variable * addColorRW(Variable * parent, const char * name, std::uint8_t * color, int size)       { return addVariableRW(VariableType::Color8B, parent, name, color, size); }
+    Variable * addColorRW(Variable * parent, const char * name,       std::uint8_t * color, int size) { return addVariableRW(VariableType::Color8B, parent, name, color, size); }
 
     // Floating-point color components [0,1]:
     Variable * addColorRO(const char * name, const Float32 * color, int size) { return addVariableRO(VariableType::ColorF, nullptr, name, color, size); }
-    Variable * addColorRW(const char * name, Float32 * color, int size)       { return addVariableRW(VariableType::ColorF, nullptr, name, color, size); }
+    Variable * addColorRW(const char * name,       Float32 * color, int size) { return addVariableRW(VariableType::ColorF, nullptr, name, color, size); }
 
     Variable * addColorRO(Variable * parent, const char * name, const Float32 * color, int size) { return addVariableRO(VariableType::ColorF, parent, name, color, size); }
-    Variable * addColorRW(Variable * parent, const char * name, Float32 * color, int size)       { return addVariableRW(VariableType::ColorF, parent, name, color, size); }
+    Variable * addColorRW(Variable * parent, const char * name,       Float32 * color, int size) { return addVariableRW(VariableType::ColorF, parent, name, color, size); }
 
     // Integer-packed 32 bits ARGB color:
-    Variable * addColorRO(const char * name, const Color32 * color) { return addVariableRO(VariableType::ColorU32, nullptr, name, color); }
-    Variable * addColorRW(const char * name, Color32 * color)       { return addVariableRW(VariableType::ColorU32, nullptr, name, color); }
+    Variable * addColorRO(const char * name, const Color32 * color) { return addVariableRO(VariableType::ColorU32, nullptr, name, color, 1); }
+    Variable * addColorRW(const char * name,       Color32 * color) { return addVariableRW(VariableType::ColorU32, nullptr, name, color, 1); }
 
-    Variable * addColorRO(Variable * parent, const char * name, const Color32 * color) { return addVariableRO(VariableType::ColorU32, parent, name, color); }
-    Variable * addColorRW(Variable * parent, const char * name, Color32 * color)       { return addVariableRW(VariableType::ColorU32, parent, name, color); }
+    Variable * addColorRO(Variable * parent, const char * name, const Color32 * color) { return addVariableRO(VariableType::ColorU32, parent, name, color, 1); }
+    Variable * addColorRW(Variable * parent, const char * name,       Color32 * color) { return addVariableRW(VariableType::ColorU32, parent, name, color, 1); }
 
     // Colors from callbacks:
     Variable * addColorRO(const char * name, const VarCallbacksAny & callbacks, int size) { return addVariableCB(VariableType::ColorCB, nullptr, name, callbacks, VarAccess::RO, size); }
@@ -1043,10 +1047,10 @@ public:
     // By pointer to std::string (optional interface):
     #if NEO_TWEAK_BAR_STD_STRING_INTEROP
     Variable * addStringRO(const char * name, const std::string * str) { return addVariableRO(VariableType::StdString, nullptr, name, str); }
-    Variable * addStringRW(const char * name, std::string * str)       { return addVariableRW(VariableType::StdString, nullptr, name, str); }
+    Variable * addStringRW(const char * name,       std::string * str) { return addVariableRW(VariableType::StdString, nullptr, name, str); }
 
     Variable * addStringRO(Variable * parent, const char * name, const std::string * str) { return addVariableRO(VariableType::StdString, parent, name, str); }
-    Variable * addStringRW(Variable * parent, const char * name, std::string * str)       { return addVariableRW(VariableType::StdString, parent, name, str); }
+    Variable * addStringRW(Variable * parent, const char * name,       std::string * str) { return addVariableRW(VariableType::StdString, parent, name, str); }
     #endif // NEO_TWEAK_BAR_STD_STRING_INTEROP
 
     // Strings from callbacks:
@@ -1061,10 +1065,10 @@ public:
     //
 
     Variable * addEnumRO(const char * name, const void * var, const EnumConstant * constants, int numOfConstants) { return addVariableRO(VariableType::Enum, nullptr, name, var, numOfConstants, constants); }
-    Variable * addEnumRW(const char * name, void * var, const EnumConstant * constants, int numOfConstants)       { return addVariableRW(VariableType::Enum, nullptr, name, var, numOfConstants, constants); }
+    Variable * addEnumRW(const char * name,       void * var, const EnumConstant * constants, int numOfConstants) { return addVariableRW(VariableType::Enum, nullptr, name, var, numOfConstants, constants); }
 
     Variable * addEnumRO(Variable * parent, const char * name, const void * var, const EnumConstant * constants, int numOfConstants) { return addVariableRO(VariableType::Enum, parent, name, var, numOfConstants, constants); }
-    Variable * addEnumRW(Variable * parent, const char * name, void * var, const EnumConstant * constants, int numOfConstants)       { return addVariableRW(VariableType::Enum, parent, name, var, numOfConstants, constants); }
+    Variable * addEnumRW(Variable * parent, const char * name,       void * var, const EnumConstant * constants, int numOfConstants) { return addVariableRW(VariableType::Enum, parent, name, var, numOfConstants, constants); }
 
     Variable * addEnumRO(const char * name, const VarCallbacksAny & callbacks, const EnumConstant * constants, int numOfConstants) { return addVariableCB(VariableType::Enum, nullptr, name, callbacks, VarAccess::RO, numOfConstants, constants); }
     Variable * addEnumRW(const char * name, const VarCallbacksAny & callbacks, const EnumConstant * constants, int numOfConstants) { return addVariableCB(VariableType::Enum, nullptr, name, callbacks, VarAccess::RW, numOfConstants, constants); }
