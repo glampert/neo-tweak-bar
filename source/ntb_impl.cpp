@@ -279,7 +279,7 @@ bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
         return false;
     }
 
-    void * valuePtr = nullptr;
+    const void * valuePtr = nullptr;
     NTB_ALIGNED(char tempValueBuffer[kVarCallbackDataMaxSize], 16) = {};
 
     // HACK: Std string needs to be default constructed so a raw byte buffer is not enough...
@@ -575,6 +575,36 @@ Color32 VariableImpl::getVarColorValue() const
     return result;
 }
 
+Vec3 VariableImpl::getVarRotationAnglesValue() const
+{
+    NTB_ASSERT(varType == VariableType::DirVec3 || varType == VariableType::Quat4);
+
+    const void * valuePtr = nullptr;
+    NTB_ALIGNED(Float32 tempValueBuffer[4], 16) = {}; // Vec3/Quat4
+
+    if (varData != nullptr)
+    {
+        valuePtr = varData;
+    }
+    else
+    {
+        optionalCallbacks.callGetter(tempValueBuffer);
+        valuePtr = tempValueBuffer;
+    }
+
+    if (varType == VariableType::DirVec3)
+    {
+        auto src = reinterpret_cast<const Vec3 *>(valuePtr);
+        return *src;
+    }
+    else // varType == VariableType::Quat4
+    {
+        auto src = reinterpret_cast<const Quat *>(valuePtr);
+        const Vec3 xyz = Quat::toAngles(*src);
+        return xyz;
+    }
+}
+
 struct VarOpIncrement
 {
     template<typename T>
@@ -680,7 +710,7 @@ void VariableImpl::onDecrementButton()
     applyNumberVarOp(VarOpDecrement{});
 }
 
-void VariableImpl::onSetEnumValue(const ListWidget * listWidget, int selectedEntry)
+void VariableImpl::onListEntrySelected(const ListWidget * listWidget, int selectedEntry)
 {
     NTB_ASSERT(this == listWidget->getParent());
     NTB_ASSERT(varType == VariableType::Enum);
@@ -812,6 +842,53 @@ void VariableImpl::onColorPickerClosed(const ColorPickerWidget * colorPicker)
     getEditPopupButton().setState(false);
 }
 
+void VariableImpl::onView3DAnglesChanged(const View3DWidget * view3d, const Vec3 & rotationDegrees)
+{
+    NTB_ASSERT(this == view3d->getParent());
+    NTB_ASSERT(varType == VariableType::DirVec3 || varType == VariableType::Quat4);
+    NTB_ASSERT(!readOnly);
+
+    if (varType == VariableType::DirVec3)
+    {
+        NTB_ALIGNED(const Vec3 src, 16) = rotationDegrees;
+
+        if (varData != nullptr)
+        {
+            auto dest = reinterpret_cast<Vec3 *>(varData);
+            *dest = src;
+        }
+        else
+        {
+            optionalCallbacks.callSetter(&src);
+        }
+    }
+    else // varType == VariableType::Quat4
+    {
+        NTB_ALIGNED(const Quat src, 16) = Quat::fromAngles(rotationDegrees);
+
+        if (varData != nullptr)
+        {
+            auto dest = reinterpret_cast<Quat *>(varData);
+            *dest = src;
+        }
+        else
+        {
+            optionalCallbacks.callSetter(&src);
+        }
+    }
+}
+
+void VariableImpl::onView3DClosed(const View3DWidget * view3d)
+{
+    NTB_ASSERT(this == view3d->getParent());
+    NTB_ASSERT(varType == VariableType::DirVec3 || varType == VariableType::Quat4);
+
+    WindowWidget * window = panel->getWindow();
+    window->destroyPopupWidget();
+
+    getEditPopupButton().setState(false);
+}
+
 void VariableImpl::onEditPopupButton(bool state)
 {
     NTB_ASSERT(!readOnly);
@@ -841,14 +918,14 @@ void VariableImpl::onEditPopupButton(bool state)
         case VariableType::Enum:
             if (elementCount > 1)
             {
-                auto rect = getDataDisplayRect();
-                rect.xMaxs -= Widget::uiScaled(2);
-                rect.moveBy(0, rect.getHeight());
+                Rectangle listRect = getDataDisplayRect();
+                listRect.xMaxs -= Widget::uiScaled(2);
+                listRect.moveBy(0, listRect.getHeight());
 
-                auto onEntrySelected = ListWidget::OnEntrySelectedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onSetEnumValue>(this);
+                auto onEntrySelected = ListWidget::OnEntrySelectedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onListEntrySelected>(this);
 
                 auto listWidget = construct(implAllocT<ListWidget>());
-                listWidget->init(gui, this, rect, true, onEntrySelected);
+                listWidget->init(gui, this, listRect, true, onEntrySelected);
 
                 listWidget->allocEntries(elementCount - 1);
                 for (int i = 1; i < elementCount; ++i)
@@ -890,7 +967,55 @@ void VariableImpl::onEditPopupButton(bool state)
             }
             break;
 
-            // TODO: Handle other variable types
+        case VariableType::DirVec3:
+        case VariableType::Quat4:
+            {
+                const int view3dWidth  = Widget::uiScaled(300);
+                const int view3dHeight = Widget::uiScaled(350);
+                const int view3dXStart = getEditPopupButton().getRect().xMins + Widget::uiScaled(20);
+                const int view3dYStart = getEditPopupButton().getRect().yMins;
+
+                View3DWidget::ProjectionParameters projParams = {};
+                projParams.fovYRadians      = degToRad(60.0f);
+                projParams.aspectRatio      = 0.0f; // auto computed
+                projParams.zNear            = 0.5f;
+                projParams.zFar             = 100.0f;
+                projParams.autoAdjustAspect = true;
+
+                const Rectangle view3dRect = {
+                    view3dXStart,
+                    view3dYStart,
+                    view3dXStart + view3dWidth,
+                    view3dYStart + view3dHeight
+                };
+
+                const View3DWidget::ObjectType type =
+                    (varType == VariableType::DirVec3) ?
+                    View3DWidget::ObjectType::Arrow :
+                    View3DWidget::ObjectType::Sphere;
+
+                auto onAnglesChanged = View3DWidget::OnAnglesChangedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onView3DAnglesChanged>(this);
+                auto onClosed = View3DWidget::OnClosedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onView3DClosed>(this);
+
+                auto view3d = construct(implAllocT<View3DWidget>());
+
+                view3d->init(gui, this, view3dRect, true, getVarName().c_str(),
+                    Widget::uiScaled(40), Widget::uiScaled(28), Widget::uiScaled(10),
+                    projParams, type, onAnglesChanged, onClosed);
+
+                view3d->setRotationDegrees(getVarRotationAnglesValue());
+
+                window->setPopupWidget(view3d);
+            }
+            break;
+
+        case VariableType::VecF:
+            // TODO: A popup window with 3/4 separate edit fields:
+            // X: [   ]
+            // Y: [   ]
+            // Z: [   ]
+            // W: [   ]
+            break;
 
         default:
             break;

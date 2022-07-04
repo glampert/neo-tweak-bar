@@ -57,11 +57,14 @@ private:
     bool isEditPopupVar() const;
     template<typename OP> void applyNumberVarOp(OP op);
     Color32 getVarColorValue() const;
+    Vec3 getVarRotationAnglesValue() const;
 
     // Delegates:
-    void onSetEnumValue(const ListWidget * listWidget, int selectedEntry);
+    void onListEntrySelected(const ListWidget * listWidget, int selectedEntry);
     void onColorPickerColorSelected(const ColorPickerWidget * colorPicker, Color32 selectedColor);
     void onColorPickerClosed(const ColorPickerWidget * colorPicker);
+    void onView3DAnglesChanged(const View3DWidget * view3d, const Vec3 & rotationDegrees);
+    void onView3DClosed(const View3DWidget * view3d);
 
     // VarDisplayWidget overrides:
     bool onGetVarValueText(SmallStr & valueText) const override;

@@ -107,11 +107,12 @@ int main(const int argc, const char * argv[])
         TestEnumClass e       = TestEnumClass::Const1;
         const char *  s       = "the variable value";
         float         v[4]    = { 1.0f, 2.0f, 3.0f, 4.0f };
-        unsigned char c[3]    = { 0, 128, 255 };
+        std::uint8_t  c[3]    = { 0, 128, 255 };
         char          buf[16] = "hello!";
         void *        ptr     = (void *)UINT64_C(0xCAFED00DDEADBEEF);
         ntb::Color32  c32     = ntb::packColor(255, 0, 0);
-        float         quat[4] = { 1.1f, 1.2f, 1.3f, 1.4f };
+        float         quat[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        float         dir[3]  = { 0.0f, 90.0f, 0.0f };
 
         // Read-write variables ("Sample panel 1 (RW)")
         auto var0 = panel1->addBoolRW("a boolean", &b);
@@ -121,16 +122,18 @@ int main(const int argc, const char * argv[])
         auto var4 = panel1->addPointerRW(var2, "a ptr", &ptr);
         auto var5 = panel1->addNumberRW(var2, "an int", &i);
         auto var6 = panel1->addEnumRW("an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
+        auto var7 = panel1->addRotationQuatRW("a quaternion", quat);
+        auto var8 = panel1->addDirectionVecRW("a dir vec", dir);
 
         // Read-only variables ("Sample panel 2 (RO)")
-        auto var7  = panel2->addNumberRO("an int", &i);
-        auto var8  = panel2->addStringRO(var7, "a string", s);
-        auto var9  = panel2->addPointerRO(var8, "a pointer", &ptr);
-        auto var10 = panel2->addColorRO("a color as text", c, 3)->displayColorAsText(true);
-        auto var11 = panel2->addEnumRO(var10, "an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
-        auto var12 = panel2->addColorRO(var10, "a color32 as text", &c32)->displayColorAsText(true);
-        auto var13 = panel2->addRotationQuatRO(var10, "a quaternion", quat);
-        auto var14 = panel2->addBoolRO("a bool", &b);
+        auto var9  = panel2->addNumberRO("an int", &i);
+        auto var10 = panel2->addStringRO(var9, "a c-string", s);
+        auto var11 = panel2->addPointerRO(var10, "a ptr", &ptr);
+        auto var12 = panel2->addColorRO("a color8b as text", c, 3)->displayColorAsText(true);
+        auto var13 = panel2->addEnumRO(var12, "an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
+        auto var14 = panel2->addColorRO(var12, "a color32 as text", &c32)->displayColorAsText(true);
+        auto var15 = panel2->addRotationQuatRO(var12, "a quaternion", quat);
+        auto var16 = panel2->addBoolRO("a bool", &b);
 
         struct Test
         {
@@ -178,26 +181,26 @@ int main(const int argc, const char * argv[])
 
         // "Sample panel 3 (CB)"
         const char ch = 'G';
-        panel3->addCharRO("a char", &ch);
+        panel3->addCharRO("char (RO)", &ch);
 
         const std::string str = "hello world";
-        panel3->addStringRO("std string", &str);
+        panel3->addStringRO("std-string (RO)", &str);
 
         // Variables with callbacks
-        panel3->addBoolRW("Test::b",    ntb::callbacks(&testObj, &Test::getBoolVal,      &Test::setBoolVal));
-        panel3->addNumberRW("Test::i",  ntb::callbacks(&testObj, &Test::getIntVal,       &Test::setIntVal));
-        panel3->addStringRW("Test::s",  ntb::callbacks(&testObj, &Test::getStdStringRef, &Test::setStdStringRef));
-        panel3->addColorRW("Test::c32", ntb::callbacks(&testObj, &Test::getColor32Val,   &Test::setColor32Val), 1);
-        panel3->addColorRW("Test::c4f", ntb::callbacks(&testObj, &Test::getColor4FPtr,   &Test::setColor4FPtr), 4);
-        panel3->addColorRW("Test::c8b", ntb::callbacks(&testObj, &Test::getColor8BPtr,   &Test::setColor8BPtr), 4);
+        panel3->addBoolRW("Test.bool",         ntb::callbacks(&testObj, &Test::getBoolVal,      &Test::setBoolVal));
+        panel3->addNumberRW("Test.int",        ntb::callbacks(&testObj, &Test::getIntVal,       &Test::setIntVal));
+        panel3->addStringRW("Test.std-string", ntb::callbacks(&testObj, &Test::getStdStringRef, &Test::setStdStringRef));
+        panel3->addColorRW("Test.color32",     ntb::callbacks(&testObj, &Test::getColor32Val,   &Test::setColor32Val), 1);
+        panel3->addColorRW("Test.color4f",     ntb::callbacks(&testObj, &Test::getColor4FPtr,   &Test::setColor4FPtr), 4);
+        panel3->addColorRW("Test.color8b",     ntb::callbacks(&testObj, &Test::getColor8BPtr,   &Test::setColor8BPtr), 4);
 
         // Nest all following variables under this dummy separator variable
         auto separator = panel3->addHierarchyParent("Separator");
 
-        panel3->addPointerRW(separator, "Test::p",  ntb::callbacks(&testObj, &Test::getVoidPtr,    &Test::setVoidPtr));
-        panel3->addCharRW(separator,    "Test::ch", ntb::callbacks(&testObj, &Test::getCharVal,    &Test::setCharVal));
-        panel3->addStringRW(separator,  "Test::cs", ntb::callbacks(&testObj, &Test::getCStringPtr, &Test::setCStringPtr));
-        panel3->addEnumRW(separator,    "Test::en", ntb::callbacks(&testObj, &Test::getEnumVal,    &Test::setEnumVal), testEnumConsts, ntb::lengthOfArray(testEnumConsts));
+        panel3->addPointerRW(separator, "Test.ptr",      ntb::callbacks(&testObj, &Test::getVoidPtr,    &Test::setVoidPtr));
+        panel3->addCharRW(separator,    "Test.char",     ntb::callbacks(&testObj, &Test::getCharVal,    &Test::setCharVal));
+        panel3->addStringRW(separator,  "Test.c-string", ntb::callbacks(&testObj, &Test::getCStringPtr, &Test::setCStringPtr));
+        panel3->addEnumRW(separator,    "Test.enum",     ntb::callbacks(&testObj, &Test::getEnumVal,    &Test::setEnumVal), testEnumConsts, ntb::lengthOfArray(testEnumConsts));
 
         // Start closed
         separator->collapseHierarchy();

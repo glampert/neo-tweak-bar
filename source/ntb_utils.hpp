@@ -61,6 +61,16 @@ inline int lengthOfString(const char * const str)
     return static_cast<int>(std::strlen(str));
 }
 
+constexpr Float32 degToRad(const Float32 degrees)
+{
+    return degrees * (3.1415926535897931f / 180.0f);
+}
+
+constexpr Float32 radToDeg(const Float32 radians)
+{
+    return radians * (180.0f / 3.1415926535897931f);
+}
+
 // Lightens/darkens the given color by a percentage. Alpha channel remains unaltered.
 // NOTE: The algorithm used is not very accurate!
 Color32 lighthenRGB(Color32 color, Float32 percent);
@@ -1019,6 +1029,67 @@ struct Vec4
 };
 
 // ========================================================
+// struct Quat:
+// ========================================================
+
+struct Quat final : public Vec4
+{
+    Quat() = default;
+    Quat(Float32 x, Float32 y, Float32 z, Float32 w)
+    {
+        this->x = x;
+        this->y = y;
+        this->z = z;
+        this->w = w;
+    }
+
+    // NOTE: Angles are in degrees.
+
+    static Quat fromAngles(const Vec3 & angles)
+    {
+        const Float32 x = degToRad(angles.x * 0.5f);
+        const Float32 y = degToRad(angles.y * 0.5f);
+        const Float32 z = degToRad(angles.z * 0.5f);
+
+        const Float32 cx = std::cosf(x);
+        const Float32 sx = std::sinf(x);
+        const Float32 cy = std::cosf(y);
+        const Float32 sy = std::sinf(y);
+        const Float32 cz = std::cosf(z);
+        const Float32 sz = std::sinf(z);
+
+        return Quat{
+            cz * sx * cy - sz * cx * sy,
+            cz * cx * sy + sz * sx * cy,
+            sz * cx * cy - cz * sx * sy,
+            cz * cx * cy + sz * sx * sy };
+    }
+
+    static Vec3 toAngles(const Quat & q)
+    {
+        const Float32 y_sq = q.y * q.y;
+
+        // X
+        const Float32 t0 = 2.0f * (q.w * q.x + q.y * q.z);
+        const Float32 t1 = 1.0f - 2.0f * (q.x * q.x + y_sq);
+
+        // Y
+        Float32 t2 = 2.0f * (q.w * q.y - q.z * q.x);
+        t2 = t2 > 1.0f ? 1.0f : t2;
+        t2 = t2 < -1.0f ? -1.0f : t2;
+
+        // Z
+        const Float32 t3 = 2.0f * (q.w * q.z + q.x * q.y);
+        const Float32 t4 = 1.0f - 2.0f * (y_sq + q.z * q.z);
+
+        return Vec3{
+            radToDeg(std::atan2f(t0, t1)),
+            radToDeg(std::asinf(t2)),
+            radToDeg(std::atan2f(t3, t4)) };
+    }
+};
+
+// ========================================================
 // struct Mat4x4:
 // ========================================================
 
@@ -1090,16 +1161,6 @@ struct BoxVert
     Float32 u, v;
     Color32 color;
 };
-
-constexpr Float32 degToRad(const Float32 degrees)
-{
-    return degrees * (3.1415926535897931f / 180.0f);
-}
-
-constexpr Float32 radToDeg(const Float32 radians)
-{
-    return radians * (180.0f / 3.1415926535897931f);
-}
 
 inline bool angleNearZero(const Float32 num)
 {

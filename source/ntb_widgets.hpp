@@ -760,9 +760,17 @@ private:
 // ========================================================
 
 class View3DWidget final
-    : public Widget
+    : public Widget, public ButtonWidget::EventListener
 {
 public:
+
+    // Callback signature:
+    // - void onAnglesChanged(void * userData, const View3DWidget * view3d, const Vec3 & rotationDegrees)
+    using OnAnglesChangedDelegate = Delegate<void *, void, const View3DWidget *, const Vec3 &>;
+
+    // Callback signature:
+    // - void onClosed(void * userData, const View3DWidget * colorPicker)
+    using OnClosedDelegate = Delegate<void *, void, const View3DWidget *>;
 
     struct ProjectionParameters
     {
@@ -789,11 +797,13 @@ public:
     View3DWidget();
     void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
               const char * myTitle, int titleBarHeight, int titleBarButtonSize,
-              int resetAnglesBtnSize, const ProjectionParameters & proj, ObjectType obj);
+              int resetAnglesBtnSize, const ProjectionParameters & proj, ObjectType obj,
+              OnAnglesChangedDelegate onAnglesChanged = {}, OnClosedDelegate onClosed = {});
 
     void onDraw(GeometryBatch & geoBatch) const override;
     void onMove(int displacementX, int displacementY) override;
 
+    bool onButtonDown(ButtonWidget & button) override;
     bool onMouseButton(MouseButton button, int clicks) override;
     bool onMouseMotion(int mx, int my) override;
     bool onMouseScroll(int yScroll) override;
@@ -814,6 +824,9 @@ public:
 
     void setInteractive(bool interactive);
     bool isInteractive() const;
+
+    const Vec3 & getRotationDegrees() const;
+    void setRotationDegrees(const Vec3 & degrees);
 
     #if NEO_TWEAK_BAR_DEBUG
     SmallStr getTypeString() const override;
@@ -861,6 +874,10 @@ private:
 
     // The (optional) title bar:
     TitleBarWidget titleBar;
+
+    // User callbacks:
+    OnAnglesChangedDelegate onAnglesChangedDelegate;
+    OnClosedDelegate        onClosedDelegate;
 };
 
 // ========================================================
@@ -1599,6 +1616,16 @@ inline void View3DWidget::setInteractive(bool interactive)
 inline bool View3DWidget::isInteractive() const
 {
     return interactiveControls;
+}
+
+inline const Vec3 & View3DWidget::getRotationDegrees() const
+{
+    return rotationDegrees;
+}
+
+inline void View3DWidget::setRotationDegrees(const Vec3 & degrees)
+{
+    rotationDegrees = degrees;
 }
 
 #if NEO_TWEAK_BAR_DEBUG

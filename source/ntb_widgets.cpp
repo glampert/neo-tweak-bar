@@ -3110,13 +3110,16 @@ View3DWidget::View3DWidget()
 
 void View3DWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
                         const char * myTitle, int titleBarHeight, int titleBarButtonSize,
-                        int resetAnglesBtnSize, const ProjectionParameters & proj, ObjectType obj)
+                        int resetAnglesBtnSize, const ProjectionParameters & proj, ObjectType obj,
+                        OnAnglesChangedDelegate onAnglesChanged, OnClosedDelegate onClosed)
 {
     Widget::init(myGUI, myParent, myRect, visible);
 
-    updateScrGeometry = true;
-    projParams = proj;
-    object = obj;
+    updateScrGeometry       = true;
+    projParams              = proj;
+    object                  = obj;
+    onAnglesChangedDelegate = onAnglesChanged;
+    onClosedDelegate        = onClosed;
 
     // Title bar is optional in this widget, so we can also use it as a component attached
     // to a WindowWidget or as a standalone popup-like window when a title/top-bar is provided.
@@ -3126,7 +3129,7 @@ void View3DWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect
                                  rect.xMaxs, rect.yMins + titleBarHeight };
 
         titleBar.init(myGUI, this, barRect, visible, myTitle, true, false,
-                      Widget::uiScaled(4), Widget::uiScaled(4), titleBarButtonSize, Widget::uiScaled(4));
+                      Widget::uiScaled(4), Widget::uiScaled(4), titleBarButtonSize, Widget::uiScaled(4), this);
     }
     else
     {
@@ -3193,6 +3196,11 @@ void View3DWidget::onDraw(GeometryBatch & geoBatch) const
         {
             rotationDegrees.setZero();
             resettingAngles = false;
+        }
+
+        if (!onAnglesChangedDelegate.isNull())
+        {
+            onAnglesChangedDelegate.invoke(this, rotationDegrees);
         }
     }
 
@@ -3277,6 +3285,24 @@ void View3DWidget::onMove(int displacementX, int displacementY)
 
     resetAnglesBtnRect.moveBy(displacementX, displacementY);
     refreshProjectionViewport();
+
+    if (!isMouseDragEnabled())
+    {
+        titleBar.onMove(displacementX, displacementY);
+    }
+}
+
+bool View3DWidget::onButtonDown(ButtonWidget & button)
+{
+    if (&button == &titleBar.getMinimizeButton())
+    {
+        if (!onClosedDelegate.isNull())
+        {
+            onClosedDelegate.invoke(this);
+        }
+        return true;
+    }
+    return false;
 }
 
 bool View3DWidget::onMouseButton(MouseButton button, int clicks)
@@ -3340,6 +3366,11 @@ bool View3DWidget::onMouseMotion(int mx, int my)
         resettingAngles   = false;
         updateScrGeometry = true;
         eventHandled      = true;
+
+        if (!onAnglesChangedDelegate.isNull())
+        {
+            onAnglesChangedDelegate.invoke(this, rotationDegrees);
+        }
     }
 
     return eventHandled;
@@ -3353,6 +3384,12 @@ bool View3DWidget::onMouseScroll(int yScroll)
         resettingAngles   = false;
         updateScrGeometry = true;
         rotationDegrees.z = normalizeAngle360(rotationDegrees.z + (yScroll * mouseSensitivity));
+
+        if (!onAnglesChangedDelegate.isNull())
+        {
+            onAnglesChangedDelegate.invoke(this, rotationDegrees);
+        }
+
         return true;
     }
     return false;
