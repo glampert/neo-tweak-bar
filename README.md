@@ -10,6 +10,8 @@ libraries for C and C++ check out [ImGUI](https://github.com/ocornut/imgui), [Na
 
 ---
 
+![sample_basic](https://github.com/glampert/neo-tweak-bar/blob/c085a2894c51fec59ed9fc25a0337388ed09c410/samples/misc/sample_basic.png "sample_basic")
+
 ![sample_widgets](https://github.com/glampert/neo-tweak-bar/blob/17639c14acf85874da2217f2e296183b31b62140/samples/misc/sample_geometry_widgets.png "sample_widgets")
 
 ![sample_geometry_batch](https://github.com/glampert/neo-tweak-bar/blob/17639c14acf85874da2217f2e296183b31b62140/samples/misc/sample_geometry_batch.png "sample_geometry_batch")
