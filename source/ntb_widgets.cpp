@@ -3588,6 +3588,142 @@ void View3DWidget::refreshProjectionViewport()
 }
 
 // ========================================================
+// class MultiEditFieldWidget:
+// ========================================================
+
+MultiEditFieldWidget::MultiEditFieldWidget()
+    : fields(sizeof(Field))
+{
+}
+
+void MultiEditFieldWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+                                const char * myTitle, int titleBarHeight, int titleBarButtonSize,
+                                OnGetFieldValueTextDelegate onGetFieldValueText, OnClosedDelegate onClosed)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+
+    onGetFieldValueTextDelegate = onGetFieldValueText;
+    onClosedDelegate = onClosed;
+
+    // Title bar is optional in this widget, so we can also use it as a component attached
+    // to a WindowWidget or as a standalone popup-like window when a title/top-bar is provided.
+    if (myTitle != nullptr)
+    {
+        const Rectangle barRect{ rect.xMins, rect.yMins,
+                                 rect.xMaxs, rect.yMins + titleBarHeight };
+
+        titleBar.init(myGUI, this, barRect, visible, myTitle, true, false,
+                      Widget::uiScaled(4), Widget::uiScaled(4), titleBarButtonSize, Widget::uiScaled(4), this);
+    }
+    else
+    {
+        titleBar.init(myGUI, this, Rectangle{ 0, 0, 0, 0 }, false, nullptr, false, false, 0, 0, 0, 0);
+    }
+
+    addChild(&titleBar);
+}
+
+void MultiEditFieldWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    Widget::onDraw(geoBatch);
+
+    const ColorScheme & myColors = getColors();
+    const int fieldCount = fields.getSize();
+
+    const int borderOffset = Widget::uiScaled(4);
+    const int fieldHeight  = Widget::uiScaled(25);
+
+    Rectangle fieldRect{};
+    fieldRect.yMins = titleBar.getRect().yMaxs + borderOffset;
+    fieldRect.xMaxs = rect.xMaxs - borderOffset;
+    fieldRect.yMaxs = fieldRect.yMins + fieldHeight;
+
+    SmallStr valueText;
+
+    for (int i = 0; i < fieldCount; ++i)
+    {
+        Field & f = fields.get<Field>(i);
+
+        fieldRect.xMins = rect.xMins + borderOffset;
+
+        // Text label:
+        {
+            Rectangle textRect{ fieldRect };
+            const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+            const Float32 boxMid = textRect.getHeight() * 0.5f;
+            textRect.moveBy(Widget::uiScaled(2), boxMid - chrMid); // Also move slightly on the X to avoid touching the border.
+
+            geoBatch.drawTextConstrained(f.labelText, f.labelTextLen, textRect, textRect,
+                                         textScaling, getColors().text.informational, TextAlign::Left);
+        }
+
+        fieldRect.xMins += f.labelWidth;
+
+        // Edit field:
+        {
+            if (!onGetFieldValueTextDelegate.isNull())
+            {
+                valueText.clear();
+                onGetFieldValueTextDelegate.invoke(this, i, &valueText);
+            }
+
+            const Color32 backgroundColor = lighthenRGB(myColors.box.bgTopLeft, 30);
+
+            f.editField.drawSelf(geoBatch, fieldRect, valueText.c_str(), valueText.getLength(),
+                                 myColors.text.normal, myColors.text.selection, myColors.text.cursor,
+                                 backgroundColor, getTextScaling(), getScaling());
+        }
+
+        fieldRect.moveBy(0, fieldRect.getHeight() + borderOffset);
+    }
+}
+
+void MultiEditFieldWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+
+    if (!isMouseDragEnabled())
+    {
+        titleBar.onMove(displacementX, displacementY);
+    }
+}
+
+bool MultiEditFieldWidget::onButtonDown(ButtonWidget & button)
+{
+    if (&button == &titleBar.getMinimizeButton())
+    {
+        if (!onClosedDelegate.isNull())
+        {
+            onClosedDelegate.invoke(this);
+        }
+        return true;
+    }
+    return false;
+}
+
+void MultiEditFieldWidget::allocFields(int count)
+{
+    fields.clear();
+    fields.resize(count);
+
+    // Auto adjust widget to match number of fields
+    const int borderOffset = Widget::uiScaled(4);
+    const int fieldHeight  = Widget::uiScaled(25);
+    const int widgetHeight = rect.yMins + titleBar.getRect().getHeight() + (count * fieldHeight) + (count * borderOffset) + borderOffset;
+    rect.yMaxs = widgetHeight;
+}
+
+void MultiEditFieldWidget::addFieldLabel(int index, const char * label)
+{
+    NTB_ASSERT(label != nullptr);
+    Field & f = fields.get<Field>(index);
+    f.editField.reset();
+    f.labelText    = label;
+    f.labelTextLen = lengthOfString(label);
+    f.labelWidth   = (int)GeometryBatch::calcTextWidth(label, f.labelTextLen, gui->getGlobalTextScaling());
+}
+
+// ========================================================
 // class VarDisplayWidget:
 // ========================================================
 

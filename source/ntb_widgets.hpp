@@ -881,6 +881,59 @@ private:
 };
 
 // ========================================================
+// class MultiEditFieldWidget:
+// ========================================================
+
+// Widget with multiple stacked edit fields for displaying the elements of a vector/color, e.g.:
+// X: [1.1______]
+// Y: [2.5______]
+// Z: [3.4______]
+class MultiEditFieldWidget final
+    : public Widget, public ButtonWidget::EventListener
+{
+public:
+
+    // Callback signature:
+    // - void onGetFieldValueTextDelegate(void * userData, const MultiEditFieldWidget * widget, int fieldIndex, SmallStr * outValueText)
+    using OnGetFieldValueTextDelegate = Delegate<void *, void, const MultiEditFieldWidget *, int, SmallStr *>;
+
+    // Callback signature:
+    // - void onClosed(void * userData, const MultiEditFieldWidget * widget)
+    using OnClosedDelegate = Delegate<void *, void, const MultiEditFieldWidget *>;
+
+    MultiEditFieldWidget();
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+              const char * myTitle, int titleBarHeight, int titleBarButtonSize,
+              OnGetFieldValueTextDelegate onGetFieldValueText = {}, OnClosedDelegate onClosed = {});
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    void onMove(int displacementX, int displacementY) override;
+    bool onButtonDown(ButtonWidget & button) override;
+
+    void allocFields(int count);
+    void addFieldLabel(int index, const char * label);
+
+private:
+
+    struct Field
+    {
+        EditField    editField;
+        int          labelTextLen;
+        int          labelWidth;
+        const char * labelText;
+    };
+
+    mutable PODArray fields; // [Field]
+
+    // The (optional) title bar:
+    TitleBarWidget titleBar;
+
+    // User callbacks:
+    OnGetFieldValueTextDelegate onGetFieldValueTextDelegate;
+    OnClosedDelegate            onClosedDelegate;
+};
+
+// ========================================================
 // class VarDisplayWidget:
 // ========================================================
 

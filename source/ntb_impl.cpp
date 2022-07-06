@@ -20,22 +20,22 @@ namespace ntb
 // This effectively limits the length of C strings from callbacks.
 constexpr int kVarCallbackDataMaxSize = 256;
 
-constexpr int kVarHeight             = 30;
-constexpr int kVarTopSpacing         = 55;
-constexpr int kVarLeftSpacing        = 15;
-constexpr int kVarRightSpacing       = 45;
-constexpr int kVarInBetweenSpacing   = 4;
-constexpr int kVarNestOffsetX        = 8;
+constexpr int kVarHeight              = 30;
+constexpr int kVarTopSpacing          = 55;
+constexpr int kVarLeftSpacing         = 15;
+constexpr int kVarRightSpacing        = 45;
+constexpr int kVarInBetweenSpacing    = 4;
+constexpr int kVarNestOffsetX         = 8;
 
-constexpr int kPanelStartWidth       = 150;
-constexpr int kPanelStartHeight      = 300;
-constexpr int kPanelTitleBarHeight   = 40;
-constexpr int kPanelTitleBarBtnSize  = 28;
-constexpr int kPanelScrollBarWidth   = 40;
-constexpr int kPanelScrollBarBtnSize = 25;
+constexpr int kPanelStartWidth        = 150;
+constexpr int kPanelStartHeight       = 300;
+constexpr int kPanelTitleBarHeight    = 40;
+constexpr int kPanelTitleBarBtnSize   = 28;
+constexpr int kPanelScrollBarWidth    = 40;
+constexpr int kPanelScrollBarBtnSize  = 25;
 
-constexpr const char * kBoolTrueStr  = "On";
-constexpr const char * kBoolFalseStr = "Off";
+constexpr const char * kBoolTrueStr   = "On";
+constexpr const char * kBoolFalseStr  = "Off";
 
 // ========================================================
 // class VariableImpl:
@@ -889,6 +889,43 @@ void VariableImpl::onView3DClosed(const View3DWidget * view3d)
     getEditPopupButton().setState(false);
 }
 
+void VariableImpl::onMultiEditWidgetGetFieldValueText(const MultiEditFieldWidget * multiEditWidget, int fieldIndex, SmallStr * outValueText)
+{
+    NTB_ASSERT(outValueText != nullptr);
+    NTB_ASSERT(this == multiEditWidget->getParent());
+    NTB_ASSERT(varType == VariableType::VecF);
+    NTB_ASSERT(fieldIndex >= 0 && fieldIndex < elementCount);
+
+    const void * valuePtr = nullptr;
+    NTB_ALIGNED(Float32 tempValueBuffer[4], 16) = {}; // Vec3/Vec4
+
+    if (varData != nullptr)
+    {
+        valuePtr = varData;
+    }
+    else
+    {
+        optionalCallbacks.callGetter(tempValueBuffer);
+        valuePtr = tempValueBuffer;
+    }
+
+    auto vec = reinterpret_cast<const Float32 *>(valuePtr);
+    const Float32 element = vec[fieldIndex];
+
+    (*outValueText) = SmallStr::fromNumber(element, 10, "%.3f");
+}
+
+void VariableImpl::onMultiEditWidgetClosed(const MultiEditFieldWidget * multiEditWidget)
+{
+    NTB_ASSERT(this == multiEditWidget->getParent());
+    NTB_ASSERT(varType == VariableType::VecF);
+
+    WindowWidget * window = panel->getWindow();
+    window->destroyPopupWidget();
+
+    getEditPopupButton().setState(false);
+}
+
 void VariableImpl::onEditPopupButton(bool state)
 {
     NTB_ASSERT(!readOnly);
@@ -959,9 +996,9 @@ void VariableImpl::onEditPopupButton(bool state)
                 auto colorPicker = construct(implAllocT<ColorPickerWidget>());
 
                 colorPicker->init(gui, this, colorPickerRect, true,
-                    Widget::uiScaled(40), Widget::uiScaled(28),
-                    Widget::uiScaled(40), Widget::uiScaled(25),
-                    Widget::uiScaled(40), onColorSelected, onClosed);
+                                  Widget::uiScaled(40), Widget::uiScaled(28),
+                                  Widget::uiScaled(40), Widget::uiScaled(25),
+                                  Widget::uiScaled(40), onColorSelected, onClosed);
 
                 window->setPopupWidget(colorPicker);
             }
@@ -1000,8 +1037,8 @@ void VariableImpl::onEditPopupButton(bool state)
                 auto view3d = construct(implAllocT<View3DWidget>());
 
                 view3d->init(gui, this, view3dRect, true, getVarName().c_str(),
-                    Widget::uiScaled(40), Widget::uiScaled(28), Widget::uiScaled(10),
-                    projParams, type, onAnglesChanged, onClosed);
+                             Widget::uiScaled(40), Widget::uiScaled(28), Widget::uiScaled(10),
+                             projParams, type, onAnglesChanged, onClosed);
 
                 view3d->setRotationDegrees(getVarRotationAnglesValue());
 
@@ -1010,11 +1047,42 @@ void VariableImpl::onEditPopupButton(bool state)
             break;
 
         case VariableType::VecF:
-            // TODO: A popup window with 3/4 separate edit fields:
-            // X: [   ]
-            // Y: [   ]
-            // Z: [   ]
-            // W: [   ]
+            {
+                static const char * const fieldLabels[] = { "X:", "Y:", "Z:", "W:" };
+
+                const int multiEditWidth  = Widget::uiScaled(200);
+                const int multiEditHeight = Widget::uiScaled(300);
+                const int multiEditXStart = getEditPopupButton().getRect().xMins + Widget::uiScaled(20);
+                const int multiEditYStart = getEditPopupButton().getRect().yMins;
+
+                const Rectangle multiEditRect = {
+                    multiEditXStart,
+                    multiEditYStart,
+                    multiEditXStart + multiEditWidth,
+                    multiEditYStart + multiEditHeight
+                };
+
+                auto onGetFieldValueText = MultiEditFieldWidget::OnGetFieldValueTextDelegate::fromClassMethod<VariableImpl, &VariableImpl::onMultiEditWidgetGetFieldValueText>(this);
+                auto onClosed = MultiEditFieldWidget::OnClosedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onMultiEditWidgetClosed>(this);
+
+                auto multiEditWidget = construct(implAllocT<MultiEditFieldWidget>());
+
+                multiEditWidget->init(gui, this, multiEditRect, true, getVarName().c_str(),
+                                      Widget::uiScaled(40), Widget::uiScaled(28), onGetFieldValueText, onClosed);
+
+                multiEditWidget->allocFields(elementCount);
+                for (int i = 0; i < elementCount; ++i)
+                {
+                    multiEditWidget->addFieldLabel(i, fieldLabels[i]);
+                }
+
+                window->setPopupWidget(multiEditWidget);
+            }
+            break;
+
+        case VariableType::Flt32:
+        case VariableType::Flt64:
+            // TODO: Slider for float values
             break;
 
         default:
@@ -1179,6 +1247,8 @@ bool PanelImpl::onMouseScroll(int yScroll)
 void PanelImpl::onFrameRender(GeometryBatch & geoBatch, bool forceRefresh)
 {
     // TODO: Implement forced refresh?
+    // We could potentially keep track if any widget in the UI has changed
+    // and if not just re-submit the same GeometryBatch from the previous frame.
     (void)forceRefresh;
 
     window.onDraw(geoBatch);

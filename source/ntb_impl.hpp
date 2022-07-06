@@ -65,6 +65,8 @@ private:
     void onColorPickerClosed(const ColorPickerWidget * colorPicker);
     void onView3DAnglesChanged(const View3DWidget * view3d, const Vec3 & rotationDegrees);
     void onView3DClosed(const View3DWidget * view3d);
+    void onMultiEditWidgetGetFieldValueText(const MultiEditFieldWidget * multiEditWidget, int fieldIndex, SmallStr * outValueText);
+    void onMultiEditWidgetClosed(const MultiEditFieldWidget * multiEditWidget);
 
     // VarDisplayWidget overrides:
     bool onGetVarValueText(SmallStr & valueText) const override;

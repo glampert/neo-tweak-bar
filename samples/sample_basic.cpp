@@ -106,7 +106,7 @@ int main(const int argc, const char * argv[])
         float         f       = 3.14f;
         TestEnumClass e       = TestEnumClass::Const1;
         const char *  s       = "the variable value";
-        float         v[4]    = { 1.0f, 2.0f, 3.0f, 4.0f };
+        float         v[4]    = { 1.5f, 2.4f, 3.5f, 4.6f };
         std::uint8_t  c[3]    = { 0, 128, 255 };
         char          buf[16] = "hello!";
         void *        ptr     = (void *)UINT64_C(0xCAFED00DDEADBEEF);
