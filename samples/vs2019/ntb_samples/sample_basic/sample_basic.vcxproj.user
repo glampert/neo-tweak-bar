@@ -5,4 +5,8 @@
     <LocalDebuggerCommandArguments>--gl-core --window-width=2560 --window-height=1440</LocalDebuggerCommandArguments>
     <RemoteDebuggerCommandArguments>--gl-core --window-width=2560 --window-height=1440</RemoteDebuggerCommandArguments>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LocalDebuggerCommandArguments>--gl-core --window-width=2560 --window-height=1440</LocalDebuggerCommandArguments>
+    <RemoteDebuggerCommandArguments>--gl-core --window-width=2560 --window-height=1440</RemoteDebuggerCommandArguments>
+  </PropertyGroup>
 </Project>

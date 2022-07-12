@@ -839,7 +839,7 @@ public:
         return Delegate([](UserData userData, Args... args)
         {
             T * thisPtr = reinterpret_cast<T *>(userData);
-            (thisPtr->*method)(args...);
+            return (thisPtr->*method)(args...);
         }, thisPtr);
     }
 };

@@ -340,18 +340,43 @@ public:
 enum class VariableType
 {
     Undefined = 0,
+
+    // -----------------------------------------------
+    // Variable with callbacks:
+    // (value is read/written from get/set callbacks)
+    // -----------------------------------------------
     NumberCB,
     ColorCB,
     StringCB,
+
+    // ------------------------
+    // Enum or enum class:
+    // ------------------------
     Enum,
+
+    // ------------------------
+    // Vectors and quaternions:
+    // ------------------------
     VecF,
     DirVec3,
     Quat4,
+
+    // ------------------------
+    // Colors:
+    // ------------------------
     ColorF,
     Color8B,
     ColorU32,
+
+    // ------------------------
+    // Bool and ptr types:
+    // ------------------------
     Bool,
     Ptr,
+
+    // ------------------------
+    // Numerical types:
+    // ------------------------
     Int8,
     UInt8,
     Int16,
@@ -362,6 +387,10 @@ enum class VariableType
     UInt64,
     Flt32,
     Flt64,
+
+    // ------------------------
+    // Single char and strings:
+    // ------------------------
     Char,
     CString,
 #if NEO_TWEAK_BAR_STD_STRING_INTEROP
@@ -817,6 +846,13 @@ public:
     // Display color variable as [R,G,B,A] numbers or as a colored rectangle?
     // Default behavior is to display color values as a colored rectangle.
     virtual Variable * displayColorAsText(bool displayAsRgbaNumbers) = 0;
+
+    // Set range of value edit slider widgets for float variables. Default is [0,1].
+    // If clamped=true then the value will be clamped to [min,max], allowed to exceed otherwise.
+    virtual Variable * valueRange(Float64 valueMin, Float64 valueMax, bool clamped) = 0;
+
+    // Step to increment/decrement by. Defaults to 1.
+    virtual Variable * valueStep(Float64 step) = 0;
 };
 
 // Callback for Panel::enumerateAllVariables().

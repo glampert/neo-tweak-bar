@@ -49,17 +49,19 @@ public:
     Variable * collapseHierarchy() override;
     Variable * expandHierarchy() override;
     Variable * displayColorAsText(bool displayAsRgbaNumbers) override;
+    Variable * valueRange(Float64 valueMin, Float64 valueMax, bool clamped) override;
+    Variable * valueStep(Float64 step) override;
 
 private:
 
     bool isNumberVar() const;
     bool isColorVar() const;
     bool isEditPopupVar() const;
-    template<typename OP> void applyNumberVarOp(OP op);
+    template<typename OP> void applyNumberVarOp(const OP & op);
     Color32 getVarColorValue() const;
     Vec3 getVarRotationAnglesValue() const;
 
-    // Delegates:
+    // Widget Delegates:
     void onListEntrySelected(const ListWidget * listWidget, int selectedEntry);
     void onColorPickerColorSelected(const ColorPickerWidget * colorPicker, Color32 selectedColor);
     void onColorPickerClosed(const ColorPickerWidget * colorPicker);
@@ -67,6 +69,8 @@ private:
     void onView3DClosed(const View3DWidget * view3d);
     void onMultiEditWidgetGetFieldValueText(const MultiEditFieldWidget * multiEditWidget, int fieldIndex, SmallStr * outValueText);
     void onMultiEditWidgetClosed(const MultiEditFieldWidget * multiEditWidget);
+    Float64 onValueSliderWidgetGetFloatValue(const FloatValueSliderWidget * sliderWidget);
+    void onValueSliderWidgetClosed(const FloatValueSliderWidget * sliderWidget);
 
     // VarDisplayWidget overrides:
     bool onGetVarValueText(SmallStr & valueText) const override;
@@ -85,6 +89,10 @@ private:
     void               * varData{ nullptr };
     const EnumConstant * enumConstants{ nullptr };
     VarCallbacksAny      optionalCallbacks{};
+    Float64              valueMin{ 0.0 };
+    Float64              valueMax{ 1.0 };
+    Float64              step{ 1.0 };
+    bool                 clamped{ false }; // If true clamps to [valueMin,valueMax]
     bool                 readOnly{ false };
 };
 

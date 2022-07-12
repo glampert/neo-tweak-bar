@@ -687,20 +687,35 @@ static inline std::int16_t max_i16(const std::int16_t a, const std::int16_t b) {
 // class ValueSlider:
 // ========================================================
 
-void ValueSlider::drawSelf(GeometryBatch & geoBatch, const Rectangle & displayBox, Color32 borderColor, Color32 fillColor)
+void ValueSlider::drawSelf(GeometryBatch & geoBatch, const Rectangle & displayBox, Color32 borderColor, Color32 fillColor, Float32 uiScaling)
 {
     // Bring to the [0,1] range so it is simpler to work with the value.
     const Float64 scale = remap(currentVal, minVal, maxVal, 0.0, 1.0);
 
-    sliderRect = displayBox;
+    Rectangle sliderRect{ displayBox };
     sliderRect.xMaxs = sliderRect.xMins + Widget::uiScaleBy(sliderRect.getWidth(), scale);
     geoBatch.drawRectFilled(sliderRect, fillColor);
+
+    // Small rect "handle"
+    const int handleWidth = Widget::uiScaleBy(10, uiScaling);
+
+    Rectangle handleRect{};
+    handleRect.xMaxs = sliderRect.xMaxs;
+    handleRect.xMins = std::max(handleRect.xMaxs - handleWidth, sliderRect.xMins);
+    handleRect.yMaxs = sliderRect.yMaxs;
+    handleRect.yMins = sliderRect.yMins;
+
+    if (handleRect.getWidth() < handleWidth)
+    {
+        handleRect.xMaxs += handleWidth;
+    }
+
+    geoBatch.drawRectFilled(handleRect, darkenRGB(fillColor, 50));
 
     // Optional outline border
     if (borderColor != 0)
     {
         geoBatch.drawRectOutline(displayBox, borderColor);
-        geoBatch.drawLine(sliderRect.xMaxs, sliderRect.yMins, sliderRect.xMaxs, sliderRect.yMaxs, borderColor);
     }
 }
 
@@ -3724,6 +3739,105 @@ void MultiEditFieldWidget::addFieldLabel(int index, const char * label)
 }
 
 // ========================================================
+// class FloatValueSliderWidget:
+// ========================================================
+
+FloatValueSliderWidget::FloatValueSliderWidget()
+{
+}
+
+void FloatValueSliderWidget::init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+                                  const char * myTitle, int titleBarHeight, int titleBarButtonSize,
+                                  OnGetFloatValueDelegate onGetFloatValue, OnClosedDelegate onClosed)
+{
+    Widget::init(myGUI, myParent, myRect, visible);
+
+    onGetFloatValueDelegate = onGetFloatValue;
+    onClosedDelegate = onClosed;
+
+    // Title bar is optional in this widget, so we can also use it as a component attached
+    // to a WindowWidget or as a standalone popup-like window when a title/top-bar is provided.
+    if (myTitle != nullptr)
+    {
+        const Rectangle barRect{ rect.xMins, rect.yMins,
+                                 rect.xMaxs, rect.yMins + titleBarHeight };
+
+        titleBar.init(myGUI, this, barRect, visible, myTitle, true, false,
+                      Widget::uiScaled(4), Widget::uiScaled(4), titleBarButtonSize, Widget::uiScaled(4), this);
+    }
+    else
+    {
+        titleBar.init(myGUI, this, Rectangle{ 0, 0, 0, 0 }, false, nullptr, false, false, 0, 0, 0, 0);
+    }
+
+    addChild(&titleBar);
+}
+
+void FloatValueSliderWidget::onDraw(GeometryBatch & geoBatch) const
+{
+    Widget::onDraw(geoBatch);
+
+    Float64 value = 0.0;
+    if (!onGetFloatValueDelegate.isNull())
+    {
+        value = onGetFloatValueDelegate.invoke(this);
+    }
+
+    slider.setCurrentValue(value);
+
+    const int borderOffset = Widget::uiScaled(4);
+    const int sliderHeight = Widget::uiScaled(25);
+
+    const Rectangle sliderRect = {
+        rect.xMins + borderOffset,
+        titleBar.getRect().yMaxs + borderOffset,
+        rect.xMaxs - borderOffset,
+        sliderRect.yMins + sliderHeight
+    };
+
+    const ColorScheme & myColors = getColors();
+
+    const Color32 fillColor   = lighthenRGB(myColors.box.bgTopLeft, 30);
+    const Color32 borderColor = myColors.box.outlineTop;
+
+    slider.drawSelf(geoBatch, sliderRect, borderColor, fillColor, scaling);
+
+    // Value as text:
+    Rectangle textRect{ sliderRect };
+    const Float32 chrMid = GeometryBatch::getCharHeight() * textScaling * 0.5f;
+    const Float32 boxMid = textRect.getHeight() * 0.5f;
+    textRect.moveBy(Widget::uiScaled(2), boxMid - chrMid); // Also move slightly on the X to avoid touching the border.
+
+    const SmallStr valueText = SmallStr::fromNumber(value);
+
+    geoBatch.drawTextConstrained(valueText.c_str(), valueText.getLength(), textRect, textRect,
+                                 textScaling, getColors().text.normal, TextAlign::Center);
+}
+
+void FloatValueSliderWidget::onMove(int displacementX, int displacementY)
+{
+    Widget::onMove(displacementX, displacementY);
+
+    if (!isMouseDragEnabled())
+    {
+        titleBar.onMove(displacementX, displacementY);
+    }
+}
+
+bool FloatValueSliderWidget::onButtonDown(ButtonWidget & button)
+{
+    if (&button == &titleBar.getMinimizeButton())
+    {
+        if (!onClosedDelegate.isNull())
+        {
+            onClosedDelegate.invoke(this);
+        }
+        return true;
+    }
+    return false;
+}
+
+// ========================================================
 // class VarDisplayWidget:
 // ========================================================
 
@@ -4155,11 +4269,17 @@ bool VarDisplayWidget::onButtonDown(ButtonWidget & button)
         if (&button == &incrButton)
         {
             onIncrementButton();
+
+            // Increment button doesn't stay highlighted when clicked.
+            incrButton.setState(false);
             return true;
         }
         else if (&button == &decrButton)
         {
             onDecrementButton();
+
+            // Decrement button doesn't stay highlighted when clicked.
+            decrButton.setState(false);
             return true;
         }
     }
@@ -4295,32 +4415,36 @@ Rectangle VarDisplayWidget::makeDataDisplayAndButtonRects(ButtonRects & outBtnRe
         xMaxs = rect.xMaxs - borderOffset;
         yMaxs = rect.yMaxs - borderOffset;
 
-        if (withValueEditButtons)
-        {
-            outBtnRects.decrButtonRect.xMins = xMaxs - buttonWidth;
-            outBtnRects.decrButtonRect.yMins = yMins + borderOffset;
-            outBtnRects.decrButtonRect.xMaxs = xMaxs - borderOffset;
-            outBtnRects.decrButtonRect.yMaxs = yMaxs - borderOffset;
-
-            outBtnRects.incrButtonRect = outBtnRects.decrButtonRect;
-            outBtnRects.incrButtonRect.xMins -= buttonWidth + borderOffset;
-            outBtnRects.incrButtonRect.xMaxs -= buttonWidth + borderOffset;
-        }
-
         if (withEditPopupButton)
         {
-            if (withValueEditButtons)
+            outBtnRects.editPopupButtonRect.xMins = xMaxs - buttonWidth;
+            outBtnRects.editPopupButtonRect.yMins = yMins + borderOffset;
+            outBtnRects.editPopupButtonRect.xMaxs = xMaxs - borderOffset;
+            outBtnRects.editPopupButtonRect.yMaxs = yMaxs - borderOffset;
+        }
+
+        if (withValueEditButtons)
+        {
+            if (withEditPopupButton)
             {
-                outBtnRects.editPopupButtonRect = outBtnRects.incrButtonRect;
-                outBtnRects.editPopupButtonRect.xMins -= buttonWidth + borderOffset;
-                outBtnRects.editPopupButtonRect.xMaxs -= buttonWidth + borderOffset;
+                outBtnRects.decrButtonRect = outBtnRects.editPopupButtonRect;
+                outBtnRects.decrButtonRect.xMins -= buttonWidth + borderOffset;
+                outBtnRects.decrButtonRect.xMaxs -= buttonWidth + borderOffset;
+
+                outBtnRects.incrButtonRect = outBtnRects.decrButtonRect;
+                outBtnRects.incrButtonRect.xMins -= buttonWidth + borderOffset;
+                outBtnRects.incrButtonRect.xMaxs -= buttonWidth + borderOffset;
             }
             else
             {
-                outBtnRects.editPopupButtonRect.xMins = xMaxs - buttonWidth;
-                outBtnRects.editPopupButtonRect.yMins = yMins + borderOffset;
-                outBtnRects.editPopupButtonRect.xMaxs = xMaxs - borderOffset;
-                outBtnRects.editPopupButtonRect.yMaxs = yMaxs - borderOffset;
+                outBtnRects.decrButtonRect.xMins = xMaxs - buttonWidth;
+                outBtnRects.decrButtonRect.yMins = yMins + borderOffset;
+                outBtnRects.decrButtonRect.xMaxs = xMaxs - borderOffset;
+                outBtnRects.decrButtonRect.yMaxs = yMaxs - borderOffset;
+
+                outBtnRects.incrButtonRect = outBtnRects.decrButtonRect;
+                outBtnRects.incrButtonRect.xMins -= buttonWidth + borderOffset;
+                outBtnRects.incrButtonRect.xMaxs -= buttonWidth + borderOffset;
             }
         }
 

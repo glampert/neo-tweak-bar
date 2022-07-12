@@ -163,13 +163,16 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
                 this->optionalCallbacks.callGetter(&checkboxInitialState);
             }
         }
-        else if (isNumberVar())
+        else
         {
-            varWidgetFlags |= VarDisplayWidget::Flag_WithValueEditButtons;
-        }
-        else if (isEditPopupVar())
-        {
-            varWidgetFlags |= VarDisplayWidget::Flag_WithEditPopupButton;
+            if (isNumberVar())
+            {
+                varWidgetFlags |= VarDisplayWidget::Flag_WithValueEditButtons;
+            }
+            if (isEditPopupVar())
+            {
+                varWidgetFlags |= VarDisplayWidget::Flag_WithEditPopupButton;
+            }
         }
     }
 
@@ -247,6 +250,20 @@ Variable * VariableImpl::displayColorAsText(bool displayAsRgbaNumbers)
     return this;
 }
 
+Variable * VariableImpl::valueRange(Float64 valueMin, Float64 valueMax, bool clamped)
+{
+    this->valueMin = valueMin;
+    this->valueMax = valueMax;
+    this->clamped  = clamped;
+    return this;
+}
+
+Variable * VariableImpl::valueStep(Float64 step)
+{
+    this->step = step;
+    return this;
+}
+
 VariableType VariableImpl::getType() const
 {
     return varType;
@@ -269,7 +286,18 @@ bool VariableImpl::isColorVar() const
 
 bool VariableImpl::isEditPopupVar() const
 {
-    return varType >= VariableType::Enum && varType <= VariableType::ColorU32;
+    // Enums, colors, vectors and floats have an edit popup button.
+    if (varType == VariableType::Flt32 || varType == VariableType::Flt64)
+    {
+        return true;
+    }
+
+    if (varType >= VariableType::Enum && varType <= VariableType::ColorU32)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
@@ -607,26 +635,50 @@ Vec3 VariableImpl::getVarRotationAnglesValue() const
 
 struct VarOpIncrement
 {
+    Float64 valueMin;
+    Float64 valueMax;
+    Float64 step;
+    bool    clamped; // If true clamps to [valueMin,valueMax]
+
     template<typename T>
-    static void apply(void * valuePtr)
+    void apply(void * valuePtr) const
     {
         auto v = reinterpret_cast<T *>(valuePtr);
-        (*v) += T(1);
+        if (clamped)
+        {
+            (*v) = clamp<T>((*v) + T(step), T(valueMin), T(valueMax));
+        }
+        else
+        {
+            (*v) += T(step);
+        }
     }
 };
 
 struct VarOpDecrement
 {
+    Float64 valueMin;
+    Float64 valueMax;
+    Float64 step;
+    bool    clamped; // If true clamps to [valueMin,valueMax]
+
     template<typename T>
-    static void apply(void * valuePtr)
+    void apply(void * valuePtr) const
     {
         auto v = reinterpret_cast<T *>(valuePtr);
-        (*v) -= T(1);
+        if (clamped)
+        {
+            (*v) = clamp<T>((*v) - T(step), T(valueMin), T(valueMax));
+        }
+        else
+        {
+            (*v) -= T(step);
+        }
     }
 };
 
 template<typename OP>
-void VariableImpl::applyNumberVarOp(OP op)
+void VariableImpl::applyNumberVarOp(const OP & op)
 {
     NTB_ASSERT(isNumberVar());
     NTB_ASSERT(!readOnly);
@@ -692,6 +744,7 @@ void VariableImpl::applyNumberVarOp(OP op)
 
     default:
         NTB_ASSERT(false && "Invalid variable type!");
+        return;
     }
 
     if (!optionalCallbacks.isNull())
@@ -702,12 +755,12 @@ void VariableImpl::applyNumberVarOp(OP op)
 
 void VariableImpl::onIncrementButton()
 {
-    applyNumberVarOp(VarOpIncrement{});
+    applyNumberVarOp(VarOpIncrement{ valueMin, valueMax, step, clamped });
 }
 
 void VariableImpl::onDecrementButton()
 {
-    applyNumberVarOp(VarOpDecrement{});
+    applyNumberVarOp(VarOpDecrement{ valueMin, valueMax, step, clamped });
 }
 
 void VariableImpl::onListEntrySelected(const ListWidget * listWidget, int selectedEntry)
@@ -926,6 +979,62 @@ void VariableImpl::onMultiEditWidgetClosed(const MultiEditFieldWidget * multiEdi
     getEditPopupButton().setState(false);
 }
 
+Float64 VariableImpl::onValueSliderWidgetGetFloatValue(const FloatValueSliderWidget * sliderWidget)
+{
+    NTB_ASSERT(this == sliderWidget->getParent());
+    NTB_ASSERT(varType == VariableType::Flt32 || varType == VariableType::Flt64);
+
+    Float64 valueOut = 0.0;
+
+    switch (varType)
+    {
+    case VariableType::Flt32:
+        {
+            if (varData != nullptr)
+            {
+                auto f32 = reinterpret_cast<const Float32 *>(varData);
+                valueOut = *f32;
+            }
+            else
+            {
+                Float32 f32 = 0.0f;
+                optionalCallbacks.callGetter(&f32);
+                valueOut = f32;
+            }
+        }
+        break;
+
+    case VariableType::Flt64:
+        {
+            if (varData != nullptr)
+            {
+                auto f64 = reinterpret_cast<const Float64 *>(varData);
+                valueOut = *f64;
+            }
+            else
+            {
+                Float64 f64 = 0.0f;
+                optionalCallbacks.callGetter(&f64);
+                valueOut = f64;
+            }
+        }
+        break;
+    }
+
+    return valueOut;
+}
+
+void VariableImpl::onValueSliderWidgetClosed(const FloatValueSliderWidget * sliderWidget)
+{
+    NTB_ASSERT(this == sliderWidget->getParent());
+    NTB_ASSERT(varType == VariableType::Flt32 || varType == VariableType::Flt64);
+
+    WindowWidget * window = panel->getWindow();
+    window->destroyPopupWidget();
+
+    getEditPopupButton().setState(false);
+}
+
 void VariableImpl::onEditPopupButton(bool state)
 {
     NTB_ASSERT(!readOnly);
@@ -996,7 +1105,7 @@ void VariableImpl::onEditPopupButton(bool state)
                 auto colorPicker = construct(implAllocT<ColorPickerWidget>());
 
                 colorPicker->init(gui, this, colorPickerRect, true,
-                                  Widget::uiScaled(40), Widget::uiScaled(28),
+                                  Widget::uiScaled(30), Widget::uiScaled(18),
                                   Widget::uiScaled(40), Widget::uiScaled(25),
                                   Widget::uiScaled(40), onColorSelected, onClosed);
 
@@ -1037,7 +1146,7 @@ void VariableImpl::onEditPopupButton(bool state)
                 auto view3d = construct(implAllocT<View3DWidget>());
 
                 view3d->init(gui, this, view3dRect, true, getVarName().c_str(),
-                             Widget::uiScaled(40), Widget::uiScaled(28), Widget::uiScaled(10),
+                             Widget::uiScaled(30), Widget::uiScaled(18), Widget::uiScaled(10),
                              projParams, type, onAnglesChanged, onClosed);
 
                 view3d->setRotationDegrees(getVarRotationAnglesValue());
@@ -1068,7 +1177,7 @@ void VariableImpl::onEditPopupButton(bool state)
                 auto multiEditWidget = construct(implAllocT<MultiEditFieldWidget>());
 
                 multiEditWidget->init(gui, this, multiEditRect, true, getVarName().c_str(),
-                                      Widget::uiScaled(40), Widget::uiScaled(28), onGetFieldValueText, onClosed);
+                                      Widget::uiScaled(30), Widget::uiScaled(18), onGetFieldValueText, onClosed);
 
                 multiEditWidget->allocFields(elementCount);
                 for (int i = 0; i < elementCount; ++i)
@@ -1082,7 +1191,31 @@ void VariableImpl::onEditPopupButton(bool state)
 
         case VariableType::Flt32:
         case VariableType::Flt64:
-            // TODO: Slider for float values
+            {
+                const int sliderWidth  = Widget::uiScaled(250);
+                const int sliderHeight = Widget::uiScaled(70);
+                const int sliderXStart = getEditPopupButton().getRect().xMins + Widget::uiScaled(20);
+                const int sliderYStart = getEditPopupButton().getRect().yMins;
+
+                const Rectangle sliderRect = {
+                    sliderXStart,
+                    sliderYStart,
+                    sliderXStart + sliderWidth,
+                    sliderYStart + sliderHeight
+                };
+
+                auto onGetFloatValue = FloatValueSliderWidget::OnGetFloatValueDelegate::fromClassMethod<VariableImpl, &VariableImpl::onValueSliderWidgetGetFloatValue>(this);
+                auto onClosed = FloatValueSliderWidget::OnClosedDelegate::fromClassMethod<VariableImpl, &VariableImpl::onValueSliderWidgetClosed>(this);
+
+                auto sliderWidget = construct(implAllocT<FloatValueSliderWidget>());
+
+                sliderWidget->init(gui, this, sliderRect, true, getVarName().c_str(),
+                                   Widget::uiScaled(30), Widget::uiScaled(18), onGetFloatValue, onClosed);
+
+                sliderWidget->setRange(valueMin, valueMax);
+
+                window->setPopupWidget(sliderWidget);
+            }
             break;
 
         default:

@@ -147,22 +147,18 @@ public:
 
     ValueSlider();
     void reset();
-
     void setRange(Float64 min, Float64 max);
     void setCurrentValue(Float64 v);
-
     Float64 getCurrentValue() const;
-    Rectangle getSliderRect() const;
 
     // Also updates the current slider rectangle based on the value.
-    void drawSelf(GeometryBatch & geoBatch, const Rectangle & displayBox, Color32 borderColor, Color32 fillColor);
+    void drawSelf(GeometryBatch & geoBatch, const Rectangle & displayBox, Color32 borderColor, Color32 fillColor, Float32 uiScaling);
 
 private:
 
-    Float64   minVal;
-    Float64   maxVal;
-    Float64   currentVal;
-    Rectangle sliderRect;
+    Float64 minVal;
+    Float64 maxVal;
+    Float64 currentVal;
 };
 
 // ========================================================
@@ -934,6 +930,46 @@ private:
 };
 
 // ========================================================
+// class FloatValueSliderWidget:
+// ========================================================
+
+class FloatValueSliderWidget final
+    : public Widget, public ButtonWidget::EventListener
+{
+public:
+
+    // Callback signature:
+    // - Float64 onGetFloatValue(void * userData, const FloatValueSliderWidget * widget)
+    using OnGetFloatValueDelegate = Delegate<void *, Float64, const FloatValueSliderWidget *>;
+
+    // Callback signature:
+    // - void onClosed(void * userData, const FloatValueSliderWidget * widget)
+    using OnClosedDelegate = Delegate<void *, void, const FloatValueSliderWidget *>;
+
+    FloatValueSliderWidget();
+    void init(GUI * myGUI, Widget * myParent, const Rectangle & myRect, bool visible,
+              const char * myTitle, int titleBarHeight, int titleBarButtonSize,
+              OnGetFloatValueDelegate onGetFloatValue = {}, OnClosedDelegate onClosed = {});
+
+    void onDraw(GeometryBatch & geoBatch) const override;
+    void onMove(int displacementX, int displacementY) override;
+    bool onButtonDown(ButtonWidget & button) override;
+
+    void setRange(Float64 min, Float64 max) { slider.setRange(min, max); }
+
+private:
+
+    mutable ValueSlider slider;
+
+    // The (optional) title bar:
+    TitleBarWidget titleBar;
+
+    // User callbacks:
+    OnGetFloatValueDelegate onGetFloatValueDelegate;
+    OnClosedDelegate        onClosedDelegate;
+};
+
+// ========================================================
 // class VarDisplayWidget:
 // ========================================================
 
@@ -1202,7 +1238,6 @@ inline void ValueSlider::reset()
     minVal     = 0.0;
     maxVal     = 1.0;
     currentVal = 0.0;
-    sliderRect.setZero();
 }
 
 inline void ValueSlider::setRange(Float64 min, Float64 max)
@@ -1219,11 +1254,6 @@ inline void ValueSlider::setCurrentValue(Float64 v)
 inline Float64 ValueSlider::getCurrentValue() const
 {
     return currentVal;
-}
-
-inline Rectangle ValueSlider::getSliderRect() const
-{
-    return sliderRect;
 }
 
 // ========================================================

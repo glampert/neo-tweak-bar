@@ -363,10 +363,10 @@ int main(const int argc, const char * argv[])
                 slider.setCurrentValue(sliderPercent);
 
                 slider.drawSelf(geoBatch, ntb::Rectangle{ 650, 350, 950, 400 },
-                                ntb::packColor(255, 255, 255), ntb::packColor(255, 100, 0));
+                                ntb::packColor(255, 255, 255), ntb::packColor(255, 100, 0), 1.5f);
 
                 slider.drawSelf(geoBatch, ntb::Rectangle{ 650, 450, 950, 500 },
-                                ntb::packColor(255, 255, 255), ntb::packColor(0, 200, 200));
+                                ntb::packColor(255, 255, 255), ntb::packColor(0, 200, 200), 1.5f);
 
                 sliderPercent += 0.2;
                 if (sliderPercent > 100.0)

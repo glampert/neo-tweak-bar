@@ -103,7 +103,7 @@ int main(const int argc, const char * argv[])
 
         bool          b       = true;
         int           i       = 42;
-        float         f       = 3.14f;
+        float         f       = 0.5f;
         TestEnumClass e       = TestEnumClass::Const1;
         const char *  s       = "the variable value";
         float         v[4]    = { 1.5f, 2.4f, 3.5f, 4.6f };
@@ -117,10 +117,10 @@ int main(const int argc, const char * argv[])
         // Read-write variables ("Sample panel 1 (RW)")
         auto var0 = panel1->addBoolRW("a boolean", &b);
         auto var1 = panel1->addFloatVecRW(var0, "a vec4", v, 4);
-        auto var2 = panel1->addNumberRW("a float", &f);
+        auto var2 = panel1->addNumberRW("a float", &f)->valueRange(-1.0, 1.0, true)->valueStep(0.1);
         auto var3 = panel1->addStringRW(var2, "a writable str", buf, ntb::lengthOfArray(buf));
         auto var4 = panel1->addPointerRW(var2, "a ptr", &ptr);
-        auto var5 = panel1->addNumberRW(var2, "an int", &i);
+        auto var5 = panel1->addNumberRW(var2, "an int", &i)->valueRange(-5, 45, true);
         auto var6 = panel1->addEnumRW("an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
         auto var7 = panel1->addRotationQuatRW("a quaternion", quat);
         auto var8 = panel1->addDirectionVecRW("a dir vec", dir);
