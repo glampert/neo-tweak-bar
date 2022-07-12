@@ -842,6 +842,7 @@ public:
     virtual Variable * setName(const char * newName) = 0;
     virtual Variable * collapseHierarchy() = 0;
     virtual Variable * expandHierarchy() = 0;
+    virtual Variable * numberFormat(NumberFormat format) = 0;
 
     // Display color variable as [R,G,B,A] numbers or as a colored rectangle?
     // Default behavior is to display color values as a colored rectangle.

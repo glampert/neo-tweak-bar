@@ -180,6 +180,12 @@ void VariableImpl::init(PanelImpl * myPanel, Variable * myParent, const char * m
 
     // This is the default for colors - display as a colored rectangle.
     displayColorAsText(false);
+
+    // Pointers display as hexadecimal by default.
+    if (varType == VariableType::Ptr)
+    {
+        numberFmt = NumberFormat::Hexadecimal;
+    }
 }
 
 Variable * VariableImpl::setName(const char * newName)
@@ -228,6 +234,12 @@ Variable * VariableImpl::collapseHierarchy()
 Variable * VariableImpl::expandHierarchy()
 {
     VarDisplayWidget::setExpandCollapseState(true);
+    return this;
+}
+
+Variable * VariableImpl::numberFormat(NumberFormat format)
+{
+    this->numberFmt = format;
     return this;
 }
 
@@ -378,7 +390,7 @@ bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
             }
             else
             {
-                valueText = SmallStr::fromNumber(enumVal);
+                valueText = SmallStr::fromNumber(enumVal, int(numberFmt));
             }
             break;
         }
@@ -390,7 +402,7 @@ bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
             auto v = reinterpret_cast<const Float32 *>(valuePtr);
             for (int i = 0; i < elementCount; ++i)
             {
-                valueText += SmallStr::fromNumber(v[i], 10, "%.3f");
+                valueText += SmallStr::fromNumber(v[i], int(numberFmt), "%.3f");
                 if (i != (elementCount - 1))
                     valueText.append(',');
             }
@@ -401,7 +413,7 @@ bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
             auto c = reinterpret_cast<const std::uint8_t *>(valuePtr);
             for (int i = 0; i < elementCount; ++i)
             {
-                valueText += SmallStr::fromNumber(std::uint64_t(c[i]));
+                valueText += SmallStr::fromNumber(std::uint64_t(c[i]), int(numberFmt));
                 if (i != (elementCount - 1))
                     valueText.append(',');
             }
@@ -414,7 +426,7 @@ bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
             unpackColor(*c, rgba[0], rgba[1], rgba[2], rgba[3]);
             for (int i = 0; i < lengthOfArray(rgba); ++i)
             {
-                valueText += SmallStr::fromNumber(std::uint64_t(rgba[i]));
+                valueText += SmallStr::fromNumber(std::uint64_t(rgba[i]), int(numberFmt));
                 if (i != (lengthOfArray(rgba) - 1))
                     valueText.append(',');
             }
@@ -429,67 +441,67 @@ bool VariableImpl::onGetVarValueText(SmallStr & valueText) const
     case VariableType::Ptr:
         {
             auto v = reinterpret_cast<const void * const *>(valuePtr);
-            valueText = SmallStr::fromPointer(*v);
+            valueText = SmallStr::fromPointer(*v, int(numberFmt));
             break;
         }
     case VariableType::Int8:
         {
             auto i = reinterpret_cast<const std::int8_t *>(valuePtr);
-            valueText = SmallStr::fromNumber(std::int64_t(*i));
+            valueText = SmallStr::fromNumber(std::int64_t(*i), int(numberFmt));
             break;
         }
     case VariableType::UInt8:
         {
             auto i = reinterpret_cast<const std::uint8_t*>(valuePtr);
-            valueText = SmallStr::fromNumber(std::uint64_t(*i));
+            valueText = SmallStr::fromNumber(std::uint64_t(*i), int(numberFmt));
             break;
         }
     case VariableType::Int16:
         {
             auto i = reinterpret_cast<const std::int16_t*>(valuePtr);
-            valueText = SmallStr::fromNumber(std::int64_t(*i));
+            valueText = SmallStr::fromNumber(std::int64_t(*i), int(numberFmt));
             break;
         }
     case VariableType::UInt16:
         {
             auto i = reinterpret_cast<const std::uint16_t*>(valuePtr);
-            valueText = SmallStr::fromNumber(std::uint64_t(*i));
+            valueText = SmallStr::fromNumber(std::uint64_t(*i), int(numberFmt));
             break;
         }
     case VariableType::Int32:
         {
             auto i = reinterpret_cast<const std::int32_t *>(valuePtr);
-            valueText = SmallStr::fromNumber(std::int64_t(*i));
+            valueText = SmallStr::fromNumber(std::int64_t(*i), int(numberFmt));
             break;
         }
     case VariableType::UInt32:
         {
             auto i = reinterpret_cast<const std::uint32_t *>(valuePtr);
-            valueText = SmallStr::fromNumber(std::uint64_t(*i));
+            valueText = SmallStr::fromNumber(std::uint64_t(*i), int(numberFmt));
             break;
         }
     case VariableType::Int64:
         {
             auto i = reinterpret_cast<const std::int64_t *>(valuePtr);
-            valueText = SmallStr::fromNumber(*i);
+            valueText = SmallStr::fromNumber(*i, int(numberFmt));
             break;
         }
     case VariableType::UInt64:
         {
             auto i = reinterpret_cast<const std::uint64_t *>(valuePtr);
-            valueText = SmallStr::fromNumber(*i);
+            valueText = SmallStr::fromNumber(*i, int(numberFmt));
             break;
         }
     case VariableType::Flt32:
         {
             auto f = reinterpret_cast<const Float32 *>(valuePtr);
-            valueText = SmallStr::fromNumber(*f);
+            valueText = SmallStr::fromNumber(*f, int(numberFmt));
             break;
         }
     case VariableType::Flt64:
         {
             auto f = reinterpret_cast<const Float64 *>(valuePtr);
-            valueText = SmallStr::fromNumber(*f);
+            valueText = SmallStr::fromNumber(*f, int(numberFmt));
             break;
         }
     case VariableType::Char:
@@ -965,7 +977,7 @@ void VariableImpl::onMultiEditWidgetGetFieldValueText(const MultiEditFieldWidget
     auto vec = reinterpret_cast<const Float32 *>(valuePtr);
     const Float32 element = vec[fieldIndex];
 
-    (*outValueText) = SmallStr::fromNumber(element, 10, "%.3f");
+    (*outValueText) = SmallStr::fromNumber(element, int(numberFmt), "%.3f");
 }
 
 void VariableImpl::onMultiEditWidgetClosed(const MultiEditFieldWidget * multiEditWidget)

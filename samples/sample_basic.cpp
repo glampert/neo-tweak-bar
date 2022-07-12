@@ -126,14 +126,15 @@ int main(const int argc, const char * argv[])
         auto var8 = panel1->addDirectionVecRW("a dir vec", dir);
 
         // Read-only variables ("Sample panel 2 (RO)")
-        auto var9  = panel2->addNumberRO("an int", &i);
+        auto var9  = panel2->addNumberRO("an int", &i)->numberFormat(ntb::NumberFormat::Hexadecimal);
         auto var10 = panel2->addStringRO(var9, "a c-string", s);
-        auto var11 = panel2->addPointerRO(var10, "a ptr", &ptr);
+        auto var11 = panel2->addPointerRO(var10, "a ptr", &ptr)->numberFormat(ntb::NumberFormat::Decimal);
         auto var12 = panel2->addColorRO("a color8b as text", c, 3)->displayColorAsText(true);
         auto var13 = panel2->addEnumRO(var12, "an enum", &e, testEnumConsts, ntb::lengthOfArray(testEnumConsts));
         auto var14 = panel2->addColorRO(var12, "a color32 as text", &c32)->displayColorAsText(true);
         auto var15 = panel2->addRotationQuatRO(var12, "a quaternion", quat);
         auto var16 = panel2->addBoolRO("a bool", &b);
+        auto var17 = panel2->addNumberRO("a float (hex)", &f)->numberFormat(ntb::NumberFormat::Hexadecimal);
 
         struct Test
         {

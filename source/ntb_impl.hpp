@@ -48,6 +48,7 @@ public:
 
     Variable * collapseHierarchy() override;
     Variable * expandHierarchy() override;
+    Variable * numberFormat(NumberFormat format) override;
     Variable * displayColorAsText(bool displayAsRgbaNumbers) override;
     Variable * valueRange(Float64 valueMin, Float64 valueMax, bool clamped) override;
     Variable * valueStep(Float64 step) override;
@@ -92,6 +93,7 @@ private:
     Float64              valueMin{ 0.0 };
     Float64              valueMax{ 1.0 };
     Float64              step{ 1.0 };
+    NumberFormat         numberFmt{ NumberFormat::Decimal };
     bool                 clamped{ false }; // If true clamps to [valueMin,valueMax]
     bool                 readOnly{ false };
 };
